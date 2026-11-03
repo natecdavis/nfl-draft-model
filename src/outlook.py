@@ -60,15 +60,20 @@ def star_thresholds(c: pl.DataFrame) -> pd.Series:
     return pd.DataFrame(rows).set_index(["season", "grp"])["star_pay"]
 
 
-def starter_seasons(s: pl.DataFrame) -> pl.DataFrame:
-    """Seasons per player with >= START_SHARE of his side's regular-season snaps.
+def season_shares(s: pl.DataFrame) -> pl.DataFrame:
+    """Share of his side's regular-season snaps, per player and season.
     Share = sum of per-game snap % / games in the season (missed games count as 0)."""
     games = pl.when(pl.col("season") >= 2021).then(17).otherwise(16)
-    per = (s.filter(pl.col("game_type") == "REG")
-           .group_by("pfr_player_id", "season")
-           .agg(off=pl.col("offense_pct").sum(), dfn=pl.col("defense_pct").sum())
-           .with_columns(share=pl.max_horizontal("off", "dfn") / games))
-    return (per.filter(pl.col("share") >= START_SHARE)
+    return (s.filter(pl.col("game_type") == "REG")
+            .group_by("pfr_player_id", "season")
+            .agg(off=pl.col("offense_pct").sum(), dfn=pl.col("defense_pct").sum())
+            .with_columns(share=(pl.max_horizontal("off", "dfn") / games).clip(0, 1))
+            .select("pfr_player_id", "season", "share"))
+
+
+def starter_seasons(s: pl.DataFrame) -> pl.DataFrame:
+    """Seasons per player with >= START_SHARE of his side's snaps."""
+    return (season_shares(s).filter(pl.col("share") >= START_SHARE)
             .group_by("pfr_player_id").agg(start_seasons=pl.len()))
 
 
