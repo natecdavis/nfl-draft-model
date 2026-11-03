@@ -225,6 +225,7 @@ dependencies = [
     { name = "pandas" },
     { name = "polars" },
     { name = "pyarrow" },
+    { name = "scipy" },
     { name = "statsmodels" },
 ]
 
@@ -234,6 +235,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=3.1.0" },
     { name = "polars", specifier = ">=2.1.0" },
     { name = "pyarrow", specifier = ">=26.0.1" },
+    { name = "scipy", specifier = ">=1.18.1" },
     { name = "statsmodels", specifier = ">=0.15.0" },
 ]
 
