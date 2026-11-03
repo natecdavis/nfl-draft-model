@@ -22,7 +22,7 @@ middle-of-the-pack team, rebuilding team. Real teams come later.
 
 ## Milestones
 - [x] M0: confirm data exists (scripts/check_data.py)
-- [ ] M1: player outlook v1 - outcome tiers by pick slot x position, drafts 2011-2021
+- [x] M1: player outlook v1 (src/outlook.py) - star / starter / bust chance by pick and position, drafts 2012-2021. Star = paid top-10/20/24 at position vs that year's market; starter = 50%+ snaps in 2+ seasons. Beats pick-only on rolling test (0.766 vs 0.781 log loss); well calibrated except 2nd half of round 1 slightly too optimistic on stars
 - [ ] M2: player value in cap dollars; surplus value curve by slot
 - [ ] M3: simulator: team strength -> playoff and title odds, checked against history
 - [ ] M4: first chart - pick value in title odds for the 4 team situations
