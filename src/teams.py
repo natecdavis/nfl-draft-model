@@ -10,7 +10,8 @@ For each of the 32 teams:
        rookie deal, later pick -> unproven; a drafted QB could take over in season 2
        veteran aged 36+       -> successor needed as he ages out
        veteran paid < 7% of cap -> stopgap; QB needed now
-       veteran paid more      -> no QB need
+       veteran paid more      -> no QB need, unless he played below the league median
+                                 last season -> upgrade wanted; a drafted QB starts in season 2
   3. 2027 draft slot: the rest of the 2026 season simulated from actual results so
      far and the market ratings. Draft order is by record (playoff teams last).
      2027 firsts already traded (per the trade data, which ends April 2026) move
@@ -61,6 +62,21 @@ def market_ratings(sched: pd.DataFrame) -> tuple[pd.Series, float]:
 
 
 # ---------- 2. QB situation ----------
+
+def qb_play(gsis):
+    """EPA per dropback in the latest full season vs that season's QB median (nflverse);
+    None if he had under 200 dropbacks in each of the last two seasons."""
+    ps = pd.read_parquet(RAW / "player_stats.parquet")
+    ps = ps[(ps.position == "QB") & (ps.season_type == "REG")].copy()
+    ps["db"] = ps.attempts + ps.sacks_suffered
+    ps["epa_db"] = ps.passing_epa / ps.db.clip(lower=1)
+    med = ps[ps.db >= 200].groupby("season").epa_db.median()
+    for y in (SEASON - 1, SEASON - 2):
+        r = ps[(ps.player_id == gsis) & (ps.season == y) & (ps.db >= 200)]
+        if len(r):
+            return float(r.epa_db.iloc[0] - med[y])
+    return None
+
 
 def qb_situations(teams: list[str]) -> pd.DataFrame:
     s = pl.read_parquet(RAW / "snap_counts_2026.parquet").filter(
@@ -121,6 +137,9 @@ def qb_situations(teams: list[str]) -> pd.DataFrame:
             status, qb_from = "stopgap veteran", 1
         else:
             status = "paid veteran"
+            play = qb_play(p.gsis_id if p is not None else None)
+            if play is not None and play < 0:
+                status, qb_from = "paid veteran, below-average play", 2
         rows.append({"team": team, "qb": r.player, "qb_snap_share": r.share, "qb_status": status,
                      "qb_pay": pay, "qb_age_2027": age27, "qb_from": qb_from, "shift": shift})
     return pd.DataFrame(rows).set_index("team")

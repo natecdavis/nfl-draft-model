@@ -73,9 +73,10 @@ class DraftEngine:
     # went, not their board rank (scripts/fall_weight.py; ~/cfdarko found the same).
     # 0 = trust the board fully, 1 = trust the draft slot fully.
     fall_weight: float = 0.8
+    ctx: Context | None = None  # share one loaded Context across many engines
 
     def __post_init__(self):
-        self.ctx = Context()
+        self.ctx = self.ctx or Context()
         self.rng = np.random.default_rng(self.seed)
         self.base = baseline_paths(self.situation, self.rng, self.n)
         self.base_titles = self.ctx.sb(self.base).sum(axis=1).mean()
