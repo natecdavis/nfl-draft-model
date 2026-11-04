@@ -14,5 +14,6 @@ dependencies = [
     "setuptools<80",
     "sportsdataverse>=0.0.38",
     "statsmodels>=0.15.0",
+    "streamlit>=1.66.1",
     "xgboost<3.1",
 ]

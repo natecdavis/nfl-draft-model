@@ -223,3 +223,32 @@ def write_report(df: pd.DataFrame, qb: pd.DataFrame):
 
 if __name__ == "__main__":
     main()
+
+
+def team_inputs(sims: int = 4000) -> pd.DataFrame:
+    """Each team's situation and projected 2027 first-round picks, without the slow
+    title-odds evaluations. Used by the draft-day app."""
+    global N
+    sched = load_schedules()
+    from simulate import league_params
+    params = league_params(sched)
+    rating, _ = market_ratings(sched)
+    teams = list(rating.index)
+    qb = qb_situations(teams)
+    old, N = N, sims
+    try:
+        slots, _ = draft_slots(sched, rating, params["hfa_recent"], params["game_sd"], np.random.default_rng(2027))
+    finally:
+        N = old
+    owner = {t: t for t in teams}
+    owner.update({"GB": "DAL", "IND": "NYJ", "DAL": "NYJ"})
+    rows = []
+    for t in teams:
+        q = qb.loc[t]
+        qf = q["qb_from"]
+        sit = {"start": CARRY * rating[t], "shift": q["shift"], "qb_from": None if pd.isna(qf) else int(qf)}
+        sit.update(OVERRIDES.get(t, {}))
+        firsts = sorted(int(np.median(slots[o])) for o in teams if owner[o] == t)
+        rows.append({"team": t, "situation": sit, "qb": q.qb, "qb_status": q.qb_status,
+                     "strength_now": rating[t], "firsts": firsts})
+    return pd.DataFrame(rows).set_index("team")
