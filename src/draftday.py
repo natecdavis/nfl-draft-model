@@ -23,6 +23,7 @@ the clock are lookups plus a quick availability simulation.
 Approximation: titles from several players are added up rather than simulated
 jointly (fine for a few picks; slightly understates the extra value of two hits).
 """
+import zlib
 from dataclasses import dataclass, field
 from functools import lru_cache
 
@@ -37,7 +38,7 @@ from trade import Context, Pick, package_points
 POS = {"QB": "QB", "RB": "RB", "HB": "RB", "FB": "RB", "WR": "WR", "TE": "TE",
        "OT": "T", "T": "T", "OL": "G", "OG": "G", "G": "G", "IOL": "G", "C": "C",
        "EDGE": "ED", "ED": "ED", "DE": "ED", "OLB": "ED", "DT": "IDL", "DL": "IDL", "IDL": "IDL", "NT": "IDL",
-       "LB": "LB", "ILB": "LB", "MLB": "LB", "CB": "CB", "DB": "CB", "S": "S", "SAF": "S", "FS": "S", "SS": "S"}
+       "LB": "LB", "ILB": "LB", "MLB": "LB", "CB": "CB", "DB": "CB", "S": "S", "SAF": "S", "FS": "S", "SS": "S", "ATH": "WR"}
 SPECIALISTS = {"K", "PK", "P", "LS"}  # not modeled: others can draft them, we never pick them
 NEED_EARLY = {"starter": 1.0, "rotation": 0.6, "depth": 0.3}  # share of snaps years 1-2 vs normal
 LEVELS = list(NEED_EARLY)
@@ -64,7 +65,8 @@ class DraftEngine:
         self._value = lru_cache(maxsize=None)(self._player_value)
 
     def _sample(self, grp, talent):
-        rng = np.random.default_rng(hash((grp, talent, self.seed)) % 2**32)
+        # stable seed (Python's hash() changes between runs, which made results drift)
+        rng = np.random.default_rng(zlib.crc32(f"{grp}|{talent}|{self.seed}".encode()))
         return sample_outcomes(self.ctx.lib, self.ctx.curves, grp, int(np.clip(talent, 1, 262)), rng, n=self.n)
 
     def player_points(self, grp: str, talent: int, pick: int, level: str | None = None,

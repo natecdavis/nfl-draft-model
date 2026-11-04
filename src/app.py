@@ -11,6 +11,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent))
 from draftday import NEED_EARLY, DraftEngine  # noqa: E402
+from public_board import athletic_nudge, consensus, parse_board  # noqa: E402
 from outlook import GROUPS  # noqa: E402
 from trade import Pick  # noqa: E402
 
@@ -93,21 +94,65 @@ st.title("Draft room: what each move does to our Super Bowl odds")
 st.caption("Values = change in expected Super Bowls over the next 5 seasons, in % of one title. "
            "Your board supplies the scouting; the model supplies position value, contract cost, "
            "your title window, and who is likely to be left.")
-up = st.file_uploader("Our board (CSV with columns: name, pos, rank, adp). "
-                      "rank = our talent order; adp = where the market expects him to go.", type="csv")
-if up is not None:
-    board = pd.read_csv(io.BytesIO(up.getvalue()))
-    st.session_state.pop("demo", None)
+source = st.radio("Where do the player rankings come from?",
+                  ["Public big boards (paste)", "Our own board (CSV)", "Demo: 2021 draft"], horizontal=True)
+if source == "Public big boards (paste)":
+    st.markdown("Open any published big board (e.g. ESPN, PFF, The Athletic, Bleacher Report), "
+                "select the list, copy, and paste it below: one player per line with name, position and "
+                "school. Paste 2-3 different outlets and the app averages them into a consensus.")
+    cols = st.columns(3)
+    pasted = {}
+    for i, c in enumerate(cols):
+        src = c.text_input(f"Board {i + 1} name", f"Board {i + 1}", key=f"src{i}")
+        txt = c.text_area("Paste here", height=180, key=f"board{i}")
+        if txt.strip():
+            parsed, skipped = parse_board(txt)
+            c.caption(f"Read {len(parsed)} players" + (f"; skipped {len(skipped)} lines" if skipped else ""))
+            if skipped:
+                with c.expander("Skipped lines"):
+                    st.write(skipped[:20])
+            if len(parsed):
+                pasted[src] = parsed
+    if not pasted:
+        st.stop()
+    cons = consensus(pasted)
+    board = engine.prepare(cons)
+    board, note = athletic_nudge(board, int(st.session_state["draft_year"]))
+    st.caption(note)
+    board["rank"] = board.talent_rank.round().astype(int)
+    with st.expander(f"Consensus board ({len(board)} players from {len(pasted)} boards)"):
+        st.dataframe(board[["rank", "name", "pos", "school", "adp", "n_boards", "best", "worst", "nudge"]]
+                     .rename(columns={"adp": "expected pick", "n_boards": "boards listing him",
+                                      "best": "best rank", "worst": "worst rank",
+                                      "nudge": "combine nudge"}).round(1),
+                     hide_index=True, width="stretch")
+elif source == "Our own board (CSV)":
+    up = st.file_uploader("CSV with columns: name, pos, rank, adp. rank = our talent order; "
+                          "adp = where the market expects him to go.", type="csv")
+    if up is None:
+        st.stop()
+    board = engine.prepare(pd.read_csv(io.BytesIO(up.getvalue())))
 else:
-    board = demo_board()
-    st.info("No board loaded: showing a demo with ESPN's 2021 board (rank = adp). Load your own CSV above.")
-board = engine.prepare(board)
+    board = engine.prepare(demo_board())
+    st.info("Demo: ESPN's 2021 board (talent rank = expected pick).")
 
 taken = st.multiselect("Players already drafted (mark as they go)", board.name.tolist(), key="taken")
 live = board[~board.name.isin(taken)].reset_index(drop=True)
 our_picks = parse_picks(picks_text)
 now = st.number_input("Current pick number", 1, 300, len(taken) + 1)
 upcoming = [p for p in our_picks if p >= now]
+
+with st.expander("How to read this (plain English)"):
+    st.markdown("""
+- **Titles added** = how much a move raises our chance of winning a Super Bowl over the next five
+  seasons. +1.0 means one extra percentage point, so 100 moves like that would be worth one title.
+  Most single picks are worth 0.5-3; a quarterback we truly need can be worth 10+.
+- **Chance still there** = how often, in simulations of the other teams' picks, the player is still
+  available at our next pick. If it's high, we can wait or trade down and still get him.
+- Rankings come from the boards you paste. The model doesn't claim to scout better than the experts
+  (public data can't, we tested it). It adds what the boards don't: how much each position helps win,
+  what the rookie contract costs, our team's title window, and what trades are really worth.
+""")
 
 tab1, tab2, tab3 = st.tabs(["On the clock", "Trade offer", "Trade down?"])
 
@@ -147,7 +192,7 @@ with tab2:
         verdict = "ACCEPT" if r["change"] > 0.1 else ("DECLINE" if r["change"] < -0.1 else "ROUGHLY EVEN")
         st.metric("Change in Super Bowls over 5 seasons", f"{r['change']:+.2f}% of a title", verdict)
         st.caption(f"Before: {r['before']:.2f}%, after: {r['after']:.2f}% (titles added by these picks). "
-                   "Simulation noise is about ±0.2.")
+                   "Simulation noise is about ±0.1.")
 
 with tab3:
     if upcoming:
