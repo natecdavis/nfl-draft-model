@@ -71,9 +71,11 @@ def strength_curve(sched, teams_df, params) -> pd.DataFrame:
 
 def baseline_paths(sit: dict, rng, n: int = N) -> np.ndarray:
     """(n, 5) true strength without the pick."""
-    m = np.zeros(5); m[0] = sit["start"]
-    for t in range(1, 5):
-        m[t] = CARRY * m[t - 1] + sit["shift"].get(t + 1, 0.0)
+    # Expected path drifts back toward average; scheduled shifts (e.g. a QB's big
+    # second contract) last from their season on, since that money is paid every year.
+    m = sit["start"] * CARRY ** np.arange(5)
+    for season, delta in sit["shift"].items():
+        m[season - 1:] += delta
     u = np.zeros((n, 5)); u[:, 0] = rng.normal(0, START_SD, n)
     innov = np.sqrt(1 - CARRY ** 2) * 5.3
     for t in range(1, 5):

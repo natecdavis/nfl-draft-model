@@ -39,7 +39,7 @@ LUCK_SD = TRUE_SD * np.sqrt(1 / 0.73 - 1)  # season luck around true strength (s
 
 @dataclass
 class Pick:
-    number: int | None = None     # overall pick, for this year's picks
+    number: int | np.ndarray | None = None  # overall pick (or one per simulation), this year
     pos: str = "nonqb"            # "QB", "nonqb" (typical mix), or a position group
     year: int = 0                 # 0 = this draft, 1 = next year, 2 = the year after
     rnd: int | None = None        # round, for future picks
@@ -68,8 +68,8 @@ class Context:
 def _slots(pick: Pick, sit: dict, base: np.ndarray, rng) -> np.ndarray:
     """Overall pick number per simulation."""
     n = len(base)
-    if pick.year == 0:
-        return np.full(n, pick.number)
+    if pick.year == 0:  # a fixed slot, or one slot per simulation
+        return np.broadcast_to(np.asarray(pick.number), (n,)).copy()
     # strength in the season before that draft
     if pick.src == "own":
         x = base[:, pick.year - 1]
@@ -118,7 +118,7 @@ def evaluate(ctx: Context, sit: dict | str, give: list[Pick], get: list[Pick], n
     t_give = ctx.sb(base + package_points(ctx, sit, give, base, rng)).sum(axis=1)
     t_get = ctx.sb(base + package_points(ctx, sit, get, base, rng)).sum(axis=1)
     d = t_get - t_give
-    return {"change": d.mean(), "se": d.std() / np.sqrt(n),
+    return {"change": d.mean(), "se": d.std() / np.sqrt(n), "base": ctx.sb(base).sum(axis=1).mean(),
             "keep": t_give.mean() - ctx.sb(base).sum(axis=1).mean(),
             "trade": t_get.mean() - ctx.sb(base).sum(axis=1).mean()}
 
