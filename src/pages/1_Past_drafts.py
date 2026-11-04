@@ -85,11 +85,11 @@ with tab3:
         st.caption("Trades of players are not included. Values judged with each team's own situation.")
 
 with tab4:
-    st.write("Every pick in the 2014-2021 drafts (careers known), scored by what each player actually delivered: "
+    st.write("Every pick in the 2014-2022 drafts (four seasons played), scored by what each player actually delivered: "
              "his real playing time and market value, at the cost of that pick, turned into Super Bowl odds for "
              "the team that held it. Three candidates per pick: who the team took, who the model would have "
              "taken, and the top-ranked player left on the consensus board.")
-    d = picks[(picks.year <= 2021) & picks.real_team.notna()].copy()
+    d = picks[(picks.year <= 2022) & picks.real_team.notna()].copy()
     rnd = st.radio("Rounds", ["All", "Round 1", "Rounds 2-3", "Rounds 4-7"], horizontal=True)
     if rnd == "Round 1":
         d = d[d["round"] == 1]

@@ -401,7 +401,7 @@ def main(first=YEARS[0], last=YEARS[-1]):
         print(f"{y}: {len(df)} picks, {len(tr) // 2} draft-night pick trades, "
               f"{len(tables)} situation tables so far, {time.time() - t0:.0f}s", flush=True)
     picks = add_outcomes(pd.concat(allp, ignore_index=True))
-    picks = add_realized(picks, pd.concat(alls, ignore_index=True), ctx)
+    picks = add_realized_v2(picks, pd.concat(alls, ignore_index=True), ctx)
     picks.to_parquet(OUT / "review_picks.parquet")
     st = pd.concat(alls, ignore_index=True)
     st["shift"] = st["shift"].astype(str)
@@ -413,3 +413,45 @@ def main(first=YEARS[0], last=YEARS[-1]):
 if __name__ == "__main__":
     a = [int(x) for x in sys.argv[1:]]
     main(*a)
+
+
+def add_realized_v2(df, states, ctx, n=2000):
+    """Realized value with cfdarko's season-by-season labels (same units and encoding as
+    outcomes_v2), for classes with all four seasons played (through 2022). Players who
+    never played in the NFL count as zero."""
+    from pathlib import Path as _P
+    from outcomes_v2 import CF_OVER_OURS, FAMILY
+    from pick_value import baseline_paths, pick_effect
+    L = pd.read_parquet(_P.home() / "cfdarko/data/processed/rookie_value_labels.parquet")
+    L = L.dropna(subset=["pfr_id"]).drop_duplicates("pfr_id").set_index("pfr_id")
+    dp = pd.read_parquet(RAW / "draft_picks.parquet")
+    pfr_at = {(y, p): i for y, p, i in zip(dp.season, dp.pick, dp.pfr_player_id)}
+    sits = {(r.year, r.team): {"start": r.start, "shift": r.shift if isinstance(r.shift, dict) else eval(r.shift),
+                               "qb_from": None if pd.isna(r.qb_from) else int(r.qb_from)}
+            for r in states.itertuples()}
+    base_cache = {}
+
+    def titles(sit, grp, year, drafted_at, pick):
+        if grp is None or grp == "SPEC" or year > 2022:
+            return np.nan
+        pid = pfr_at.get((year, int(drafted_at))) if pd.notna(drafted_at) else None
+        if pid in L.index:
+            row = L.loc[pid]
+            y = np.array([max(row[f"value_y{t}"], 0) for t in range(1, 5)]) / CF_OVER_OURS.get(FAMILY.get(grp, grp), 1.0)
+        else:
+            y = np.zeros(4)
+        y5 = np.r_[y, y[-1]]
+        price = np.array([max(y5.max(), 1e-6)])
+        key = (sit["start"], sit["qb_from"], tuple(sorted(sit["shift"].items())))
+        if key not in base_cache:
+            b = baseline_paths(sit, np.random.default_rng(0), n)
+            base_cache[key] = (b, ctx.sb(b).sum(axis=1).mean())
+        b, b0 = base_cache[key]
+        s2 = dict(sit); s2["qb_from"] = 99 if sit["qb_from"] is None else sit["qb_from"]
+        pts = pick_effect((y5 / price[0])[None, :], price, int(pick), grp, s2, ctx.cost, ctx.bar, ctx.rates)
+        return (ctx.sb(b + pts).sum(axis=1).mean() - b0) * 100
+
+    for col, g, at in [("real_team", "grp", "pick"), ("real_model", "rec_grp", "rec_drafted_at"),
+                       ("real_consensus", "best_available_grp", "best_available_drafted_at")]:
+        df[col] = [titles(sits[(y, tm)], gg, y, a, k) for y, tm, gg, a, k in zip(df.year, df.team, df[g], df[at], df.pick)]
+    return df
