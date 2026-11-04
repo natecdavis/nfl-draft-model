@@ -14,8 +14,8 @@ The model then supplies what it has measured:
     player who falls to us is cheaper for the same talent
   - value -> team strength -> title odds for this team's situation (pick_value.py)
   - availability: other teams take players in an order scattered around adp; the
-    spread was measured from ESPN's board vs actual picks 2012-2021 (about +-25%
-    in log(pick+10) at the top of the draft, +-40% elsewhere)
+    scatter and drift were measured from Arif Hasan's consensus boards vs actual
+    picks, 2014-2024 (wide at the top: some top-10 prospects fall far)
 
 Expensive simulation is done once per team-board (a few seconds); answers on
 the clock are lookups plus a quick availability simulation.
@@ -44,9 +44,22 @@ NEED_EARLY = {"starter": 1.0, "rotation": 0.6, "depth": 0.3}  # share of snaps y
 LEVELS = list(NEED_EARLY)
 
 
+# How far actual picks land from the consensus rank, in log(pick+10) units, measured on
+# Arif Hasan's consensus boards 2014-2024 (undrafted counted as pick 300). Top prospects
+# scatter the most: some fall far (medicals, character, scheme).
+_RANK_PTS = [5, 21, 48, 82, 125, 175, 260]
+_SD = [0.67, 0.48, 0.46, 0.45, 0.41, 0.38, 0.29]
+_DRIFT = [0.27, 0.13, 0.09, 0.11, 0.15, 0.07, -0.03]
+
+
 def spread(adp):
-    """Spread of actual pick around expected pick, in log(pick+10) units."""
-    return 0.25 + 0.15 * np.clip((np.asarray(adp, float) - 1) / 20, 0, 1)
+    """Spread of actual pick around the consensus rank, in log(pick+10) units."""
+    return np.interp(np.asarray(adp, float), _RANK_PTS, _SD)
+
+
+def drift(adp):
+    """Average offset: players tend to go a bit later than their consensus rank."""
+    return np.interp(np.asarray(adp, float), _RANK_PTS, _DRIFT)
 
 
 @dataclass
@@ -139,7 +152,7 @@ class DraftEngine:
         grp_codes, grp_idx = np.unique(board.grp.to_numpy(), return_inverse=True)
         adp = board.adp.to_numpy(float)
         z = rng.standard_normal((sims, len(board)))
-        realized = np.exp(np.log(adp + 10) + spread(adp) * z) - 10
+        realized = np.exp(np.log(adp + 10) + drift(adp) + spread(adp) * z) - 10
         order = np.argsort(realized, axis=1)
         avail_at = np.zeros((len(board), len(picks)))
         got_value = np.zeros((sims, len(picks)))
