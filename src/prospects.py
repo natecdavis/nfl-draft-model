@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
+from college_features import FEATURES as CF, LOWER_IS_BETTER, features
 from outlook import GROUPS, OUT, PICK_OFFSET, RAW
 
 TESTS = ["ht_in", "wt", "forty", "vertical", "broad_jump", "cone", "shuttle", "bench", "speed_score"]
@@ -50,25 +51,48 @@ def build() -> pd.DataFrame:
         df[f"z_{t}"] = (-z if t in FAST_IS_LOW else z).fillna(0)
     df["lp"] = np.log(df.pick + PICK_OFFSET)
     df["family"] = df.grp.map(FAMILY)
+    return add_college(df)
+
+
+def add_college(df: pd.DataFrame) -> pd.DataFrame:
+    """College production features (college_features.py), as z-scores within position."""
+    dp = pd.read_parquet(RAW / "draft_picks.parquet")[["season", "pick", "college"]]
+    df = df.merge(dp.rename(columns={"season": "draft_year"}), on=["draft_year", "pick"], how="left")
+    cf = features(df)
+    df = df.merge(cf, on=["draft_year", "pick"], how="left")
+    has_stats = df.grp.isin(list(CF))
+    df["cfb_missing"] = (has_stats & df.cfb_seasons.isna()).astype(int)
+    cols = sorted({c for v in CF.values() for c in v})
+    for c in cols:
+        z = df.groupby("grp")[c].transform(lambda x: (x - x.mean()) / x.std())
+        df[f"c_{c}"] = (-z if c in LOWER_IS_BETTER else z).fillna(0)
     return df
 
 
 def design(df: pd.DataFrame, version: str) -> pd.DataFrame:
-    """Columns for each model version. All versions include log pick + position."""
+    """Columns for each model version. All versions include log pick + position.
+    Versions: slot only | age | age+athletic | age+athletic by family | age+athletic+college"""
     X = pd.get_dummies(df.grp, prefix="g", drop_first=True, dtype=float)
     X.insert(0, "lp", df.lp)
-    if version in ("age", "age+athletic", "age+athletic by family"):
-        X["z_age"] = df.z_age
-    if version in ("age+athletic", "age+athletic by family"):
-        X["at_combine"] = df.at_combine
-        X["no_forty"] = df.no_forty
-        tests = [f"z_{t}" for t in TESTS]
-        if version == "age+athletic":
-            X[tests] = df[tests]
-        else:  # athletic traits matter differently for big men, front seven, skill players, QBs
-            for fam in ["skill", "big", "front"]:
-                for t in tests:
-                    X[f"{t}:{fam}"] = df[t] * (df.family == fam)
+    if version == "slot only":
+        return sm.add_constant(X, has_constant="add")
+    X["z_age"] = df.z_age
+    if version == "age":
+        return sm.add_constant(X, has_constant="add")
+    X["at_combine"] = df.at_combine
+    X["no_forty"] = df.no_forty
+    tests = [f"z_{t}" for t in TESTS]
+    if version == "age+athletic by family":
+        # athletic traits may matter differently for big men, front seven, skill players
+        for fam in ["skill", "big", "front"]:
+            for t in tests:
+                X[f"{t}:{fam}"] = df[t] * (df.family == fam)
+    else:
+        X[tests] = df[tests]
+    if version == "age+athletic+college":
+        X["cfb_missing"] = df.cfb_missing
+        for c in [c for c in df.columns if c.startswith("c_")]:
+            X[c] = df[c]
     return sm.add_constant(X, has_constant="add")
 
 
@@ -101,11 +125,13 @@ def rolling(df, version, alpha):
 def main():
     df = build()
     df.to_parquet(OUT / "prospect_features.parquet")
-    print(f"Picks 2012-2021: {len(df)}; at combine: {df.at_combine.mean():.0%}; age known: {df.age.notna().mean():.0%}\n")
+    print(f"Picks 2012-2021: {len(df)}; at combine: {df.at_combine.mean():.0%}; age known: {df.age.notna().mean():.0%}")
+    st = df[df.grp.isin(list(CF))]
+    print("College stats matched, by position:", st.groupby("grp").cfb_seasons.apply(lambda x: f"{x.notna().mean():.0%}").to_dict(), "\n")
 
     print("Rolling test, drafts 2016-2021 predicted from earlier drafts (avg log loss, lower is better):")
     results = {}
-    for version in ["slot only", "age", "age+athletic", "age+athletic by family"]:
+    for version in ["slot only", "age", "age+athletic", "age+athletic by family", "age+athletic+college"]:
         for alpha in ([0.0] if version == "slot only" else [0.01, 0.03, 0.1, 0.3]):
             ll, rows = rolling(df, version, alpha)
             results[(version, alpha)] = (ll, rows)
@@ -126,9 +152,16 @@ def main():
     boots = [diff[rng.integers(0, len(diff), len(diff))].mean() for _ in range(2000)]
     print(f"Gain per player: {diff.mean():.4f} (95% range {np.percentile(boots, 2.5):.4f} to {np.percentile(boots, 97.5):.4f})")
 
+    print("\nGain over slot only by position (avg log loss reduction per player, + = better):")
+    by = {}
+    for v in ["age+athletic", "age+athletic+college"]:
+        r = results[(v, 0.1)][1]
+        by[v] = pd.Series(ll3(a) - ll3(r), index=a.index).groupby(a.grp.values).mean()
+    print(pd.DataFrame(by).round(3).T.to_string())
+
     # What the best model learned, fit on all drafts
     _, m = fit_predict(df, df.iloc[:5], best[0], best[1])
-    coef = m.params[[c for c in m.params.index if c.startswith("z_") or c in ("at_combine", "no_forty")]]
+    coef = m.params[[c for c in m.params.index if c.startswith(("z_", "c_")) or c in ("at_combine", "no_forty", "cfb_missing")]]
     print("\nWhat moves a player's star chance beyond his slot (log-odds per 1 sd; + = better):")
     print(coef[coef.abs() > 0.05].sort_values().round(2).to_string())
 

@@ -11,5 +11,8 @@ dependencies = [
     "polars>=2.1.0",
     "pyarrow>=26.0.1",
     "scipy>=1.18.1",
+    "setuptools<80",
+    "sportsdataverse>=0.0.38",
     "statsmodels>=0.15.0",
+    "xgboost<3.1",
 ]
