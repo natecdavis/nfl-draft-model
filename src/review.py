@@ -2,7 +2,7 @@
 
 For each draft 2014-2026 (Arif Hasan's consensus board: ~/cfdarko/hasan.csv for 2014-2024, his public
 Wide Left sheets for 2025-2026, saved to data/raw/hasan_2025_26.csv; 2026 draft-night trades aren't
-in nflverse yet, so 2026 shows the team that used each pick as its owner):
+in nflverse yet, so 2026's come from Wikipedia's draft page via src/wiki_trades.py):
 
   Pick ownership    who held each pick when the draft began (draft-night trades undone,
                     trades before draft night kept) vs the team that made the pick
@@ -37,7 +37,8 @@ from simulate import league_params, load_schedules
 from trade import Context, Pick, evaluate
 
 YEARS = list(range(2014, 2027))
-NO_TRADE_LOG = {2026}  # nflverse trades end 2026-04-17, before the 2026 draft
+# nflverse's trade log ends 2026-04-17, before the 2026 draft: those draft-night trades come
+# from Wikipedia's draft page (src/wiki_trades.py), used only for drafts nflverse lacks
 DRAFT_START = {2014: "2014-05-08", 2015: "2015-04-30", 2016: "2016-04-28", 2017: "2017-04-27",
                2018: "2018-04-26", 2019: "2019-04-25", 2020: "2020-04-23", 2021: "2021-04-29",
                2022: "2022-04-28", 2023: "2023-04-27", 2024: "2024-04-25", 2025: "2025-04-24",
@@ -58,6 +59,19 @@ OFF_BOARD_RANK = 330
 team = lambda s: PFR_TEAM.get(s, s)
 
 
+def load_trades() -> pd.DataFrame:
+    """nflverse's trade log, plus Wikipedia-parsed draft-night trades for any draft it
+    doesn't cover yet (no trades dated draft week)."""
+    t = pd.read_parquet(RAW / "trades.parquet")
+    dates = pd.to_datetime(t.trade_date)
+    for f in sorted(RAW.glob("trades_wiki_*.parquet")):
+        y = int(f.stem.split("_")[-1])
+        start = pd.Timestamp(DRAFT_START[y])
+        if not ((dates >= start) & (dates <= start + pd.Timedelta(days=3))).any():
+            t = pd.concat([t, pd.read_parquet(f)], ignore_index=True)
+    return t
+
+
 # ---------- 1. picks and draft-night ownership ----------
 
 def draft_night(year: int) -> pd.DataFrame:
@@ -69,7 +83,7 @@ def draft_night(year: int) -> pd.DataFrame:
     d["grp"] = [grp_known.get(p) or DRAFT_POS.get(pos, "SPEC") for p, pos in zip(d.pick, d.position)]
     d.loc[~d.grp.isin(GROUPS), "grp"] = "SPEC"
 
-    t = pd.read_parquet(RAW / "trades.parquet")
+    t = load_trades()
     for c in ["gave", "received"]:
         t[c] = t[c].map(team)
     t["date"] = pd.to_datetime(t.trade_date)
@@ -140,7 +154,7 @@ class States:
         q = ps[ps.dropbacks >= 200]
         self.qb_med = q.groupby("season").epa_db.median()
         self.qb_play = {(p, y): (e, d) for p, y, e, d in zip(ps.player_id, ps.season, ps.epa_db, ps.dropbacks)}
-        self.trades = pd.read_parquet(RAW / "trades.parquet").assign(
+        self.trades = load_trades().assign(
             date=lambda d: pd.to_datetime(d.trade_date), gave=lambda d: d.gave.map(team))
         tms = pd.read_parquet(RAW / "teams.parquet")
         nick = dict(zip(tms.team_nick, tms.team_abbr))
@@ -589,7 +603,11 @@ def build_trade_decisions(years=YEARS):
             out.append(d)
             print(f"{y}: {len(d)} team-trade rows, {len(tables)} tables", flush=True)
     df = pd.concat(out, ignore_index=True)
-    df.to_parquet(OUT / "review_trade_decisions.parquet")
+    f = OUT / "review_trade_decisions.parquet"
+    if f.exists():  # keep other years already built
+        old = pd.read_parquet(f)
+        df = pd.concat([old[~old.year.isin(list(years))], df], ignore_index=True).sort_values(["year", "pick", "trade_id"])
+    df.reset_index(drop=True).to_parquet(f)
     return df
 
 
@@ -599,4 +617,4 @@ if __name__ == "__main__":
     else:
         a = [int(x) for x in sys.argv[1:]]
         main(*a)
-        build_trade_decisions()
+        build_trade_decisions(range(a[0], a[-1] + 1) if a else YEARS)

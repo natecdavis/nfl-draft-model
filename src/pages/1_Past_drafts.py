@@ -60,8 +60,8 @@ if tm != "All teams":
     T = T[T.trade_id.isin(T[T.team == tm].trade_id)]
 
 if year == 2026:
-    st.info("2026: the public trade log (nflverse) doesn't include draft-night trades yet, so each pick shows "
-            "the team that used it, and the trades tab is empty. Too soon to score how anyone turned out.")
+    st.info("2026: draft-night trades come from Wikipedia's 2026 NFL draft page (nflverse's trade log doesn't "
+            "cover this draft yet). Too soon to score how anyone turned out.")
 elif year > 2022:
     st.info(f"{year}: too soon to score how the players turned out (that needs four seasons), so the "
             "'actually delivered' columns are blank. The draft-night comparison is complete.")
