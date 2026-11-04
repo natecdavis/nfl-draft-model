@@ -25,9 +25,9 @@ def load_teams():
 
 
 @st.cache_resource(show_spinner="Preparing the model for this team (once per setup)...")
-def get_engine(start, shift_key, qb_from, need_key):
+def get_engine(start, shift_key, qb_from, need_key, fall_weight):
     sit = {"start": start, "shift": dict(shift_key), "qb_from": qb_from}
-    return DraftEngine(sit, need=dict(need_key))
+    return DraftEngine(sit, need=dict(need_key), fall_weight=fall_weight)
 
 
 def demo_board():
@@ -81,13 +81,19 @@ shift = {} if cap_hit == "none" else {int(cap_hit): -3.0}
 with st.sidebar.expander("Position needs (how much a rookie would play in years 1-2)"):
     need = {g: st.selectbox(g, list(NEED_EARLY), key=f"need_{g}") for g in GROUPS if g != "QB"}
 
+with st.sidebar.expander("Advanced"):
+    fall_weight = st.slider("When a player falls past his board rank, how much to believe the draft "
+                            "instead of the board", 0.0, 1.0, 0.8, 0.1,
+                            help="History says about 0.8: players who fall usually turn out like the pick "
+                                 "where they went. Lower it only if you trust your board over 31 teams.")
+
 st.sidebar.header("Our picks")
 picks_text = st.sidebar.text_input("This draft (overall pick numbers)", default_picks)
 future_text = st.sidebar.text_input("Future picks we own (e.g. '2028 R1, 2028 R2')", "2028 R1, 2028 R2")
 st.session_state["draft_year"] = st.sidebar.number_input("Draft year", 2020, 2035, 2027)
 
 engine = get_engine(start, tuple(sorted(shift.items())), qb_opts[qb_choice],
-                    tuple(sorted(need.items())))
+                    tuple(sorted(need.items())), fall_weight)
 
 # ---------------- board ----------------
 st.title("Draft room: what each move does to our Super Bowl odds")

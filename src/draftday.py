@@ -68,6 +68,11 @@ class DraftEngine:
     n: int = 3000
     seed: int = 0
     need: dict = field(default_factory=dict)  # grp -> "starter" | "rotation" | "depth"
+    # When a player falls past his board rank, other teams passing on him is information.
+    # Players who fell (Hasan consensus 2014-21) turned out ~80-87% like the pick where they
+    # went, not their board rank (scripts/fall_weight.py; ~/cfdarko found the same).
+    # 0 = trust the board fully, 1 = trust the draft slot fully.
+    fall_weight: float = 0.8
 
     def __post_init__(self):
         self.ctx = Context()
@@ -101,8 +106,15 @@ class DraftEngine:
         """Super Bowls added over 5 seasons (fraction of one title)."""
         return self.ctx.sb(self.base + pts).sum(axis=1).mean() - self.base_titles
 
+    def effective_talent(self, talent, pick) -> int:
+        """Board rank, shaded toward the pick if he's still there past his rank."""
+        if pick <= talent:
+            return int(talent)
+        lt, lp = np.log(talent + 10), np.log(pick + 10)
+        return int(round(np.exp(lt + self.fall_weight * (lp - lt)) - 10))
+
     def _player_value(self, grp, talent, pick, level=None, qb_filled=False) -> float:
-        return self.titles(self.player_points(grp, talent, pick, level, qb_filled))
+        return self.titles(self.player_points(grp, self.effective_talent(talent, pick), pick, level, qb_filled))
 
     def player_value(self, grp, talent, pick, level=None, qb_filled=False) -> float:
         return self._value(grp, int(talent), int(pick), level, qb_filled)
