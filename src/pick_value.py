@@ -83,7 +83,7 @@ def baseline_paths(sit: dict, rng, n: int = N) -> np.ndarray:
     return m + u
 
 
-def sample_outcomes(lib, curves, grp, pick, rng, bw=0.4, n=N):
+def sample_outcomes_v1(lib, curves, grp, pick, rng, bw=0.4, n=N):
     """(N, 5) snap shares and (N,) market prices for a pick: draw a tier from the
     outlook chances, then a real player of that position and tier, favoring players
     picked near this slot (weights fall off with distance in log(pick + 10), so
@@ -102,6 +102,20 @@ def sample_outcomes(lib, curves, grp, pick, rng, bw=0.4, n=N):
         shares[idx] = pool[cols].to_numpy()[draw]
         price[idx] = pool["price"].to_numpy()[draw]
     return shares, price
+
+
+# Which outcome engine to use: "v2" (cfdarko season-by-season values; outcomes_v2.py)
+# or "v1" (star/starter/bust buckets from second contracts).
+OUTCOMES = "v2"
+
+
+def sample_outcomes(lib, curves, grp, pick, rng, bw=0.4, n=N):
+    """(n, 5) snap shares and (n,) market prices for a player of talent level `pick`
+    (a typical pick-`pick` player, or board rank in the draft-day app)."""
+    if OUTCOMES == "v2":
+        from outcomes_v2 import model
+        return model().sample(grp, int(pick), rng, n)
+    return sample_outcomes_v1(lib, curves, grp, pick, rng, bw, n)
 
 
 def pick_effect(shares, price, pick, grp, sit, cost, bar, rates):
@@ -204,7 +218,7 @@ def chart(nonqb, res):
         ax.set_xticks([1, 2, 4, 8, 16, 32, 64, 128, 256])
         ax.set_xticklabels(["1", "2", "4", "8", "16", "32", "64", "128", "256"])
         ax.set_xlim(0.85, 300)
-        ax.set_ylim(bottom=0)
+        ax.axhline(0, color=ink2, lw=0.8)
         ax.grid(axis="y", color=grid, lw=0.8)
         for sp in ["top", "right"]:
             ax.spines[sp].set_visible(False)
@@ -231,7 +245,7 @@ def chart(nonqb, res):
     fig.suptitle("What a draft pick is worth in Super Bowl odds, by team situation",
                  x=0.06, y=0.975, ha="left", color=ink, fontsize=14, fontweight="bold")
     fig.text(0.06, 0.01, "The two panels use different vertical scales. A contender with a rookie-deal QB "
-             "has no QB need, so it has no QB line. Assumes the pick fills a need. Model v1, public data.",
+             "has no QB need, so it has no QB line. Assumes the pick fills a need. Below zero = the rookie contract costs more than the player is expected to deliver.",
              color=ink2, fontsize=8.5)
     fig.tight_layout(rect=(0, 0.035, 1, 0.9))
     fig.savefig("reports/pick_value_titles.png", dpi=160, facecolor=surface)

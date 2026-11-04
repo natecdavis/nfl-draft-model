@@ -32,7 +32,8 @@ for c in (2019, 2020, 2021, 2022):
     te["y14"] = te[[f"y{t}" for t in pm.SEASONS]].sum(axis=1)
     for _, x in te.iterrows():
         pool = tr[(tr.grp == x.grp) & tr.drafted]
-        near = pool.iloc[np.argsort(np.abs(np.log(pool.p14 + 1e-3) - np.log(x.p14 + 1e-3)).to_numpy())[:60]]
+        k = int(np.clip(len(pool) // 6, 15, 60))
+        near = pool.iloc[np.argsort(np.abs(np.log(pool.p14 + 1e-3) - np.log(x.p14 + 1e-3)).to_numpy())[:k]]
         lo, hi = np.percentile(near.y14, [10, 90])
         rows.append({"below": x.y14 < lo, "above": x.y14 > hi, "p14": x.p14,
                      "star_thr": np.percentile(near.y14, 90)})
