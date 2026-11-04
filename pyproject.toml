@@ -5,11 +5,13 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "lightgbm>=4.7.0",
     "matplotlib>=3.11.2",
     "nflreadpy>=0.1.5",
     "pandas>=3.1.0",
     "polars>=2.1.0",
     "pyarrow>=26.0.1",
+    "scikit-learn>=1.9.1",
     "scipy>=1.18.1",
     "setuptools<80",
     "sportsdataverse>=0.0.38",
