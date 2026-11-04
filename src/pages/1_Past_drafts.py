@@ -18,6 +18,19 @@ def load(stamp):
     return p, s, t, td
 
 
+def _short(choice, row_pick) -> str:
+    """'same trade', or the player the model would take with the team's own pick instead."""
+    if not isinstance(choice, str):
+        return ""
+    if choice.startswith("same trade"):
+        return "same trade"
+    parts = choice.split("; ")[1:]  # "#27: Forrest Lamp", ...
+    if not parts:
+        return "don't trade"  # only gave picks in later drafts
+    k, name = parts[0].split(": ", 1)
+    return name if int(k[1:]) == row_pick else f"{name} (at {k})"
+
+
 if not (OUT / "review_picks.parquet").exists():
     st.error("No review data yet. Run:  uv run python src/review.py")
     st.stop()
@@ -74,8 +87,8 @@ with tab1:
                 "took": [f"TRADE: gave {g}; got {o}" + (f" → {d}" if isinstance(d, str) else "")
                          for g, o, d in zip(D.gave, D["got"], D.get("team_did", pd.Series(index=D.index)))],
                 "value_actual": D.get("value_team"),
-                "model": [n if isinstance(n, str) and n else (c or "") for c, n in
-                          zip(D.get("model_choice", pd.Series(index=D.index)), D.note)],
+                "model": [n if isinstance(n, str) and n else _short(c, k) for c, n, k in
+                          zip(D.get("model_choice", pd.Series(index=D.index)), D.note, D.pick)],
                 "value_rec": D.get("value_model"),
             })
             tr_rows["value_gap"] = tr_rows.value_rec - tr_rows.value_actual
@@ -95,8 +108,8 @@ with tab1:
                "reached the NFL before 2016 (not tracked).")
     if tm != "All teams":
         st.caption("Trade rows (one team selected): the trade is the team's decision. The model's alternative is the "
-                   "better of 'don't trade' (keep the pick(s) and take the best players left on the board) or "
-                   "'same trade' (then its own choices with the picks received). The team's value uses the players "
+                   "better of not trading (shown as the player it would take with the team's own pick; its value "
+                   "includes the other picks kept) or 'same trade' (then its own choices with the picks received). The team's value uses the players "
                    "it actually took with those picks; picks in later drafts are valued like the trade calculator. "
                    "A pick received in a trade also keeps its own row: given the trade, was it the right player? "
                    "Trades that include players aren't scored, and 'actually delivered' isn't scored for trades yet.")
