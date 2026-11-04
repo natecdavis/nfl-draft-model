@@ -383,9 +383,10 @@ def add_realized(df, states, ctx, n=2000):
         pts = pick_effect(sh, pr, int(pick), grp, s2, ctx.cost, ctx.bar, ctx.rates)
         return (ctx.sb(b + pts).sum(axis=1).mean() - b0) * 100
 
-    for col, g, at in [("real_team", "grp", "pick"), ("real_model", "rec_grp", "rec_drafted_at"),
-                       ("real_consensus", "best_available_grp", "best_available_drafted_at")]:
-        df[col] = [titles(sits[(y, tm)], gg, y, a, k) for y, tm, gg, a, k in zip(df.year, df.team, df[g], df[at], df.pick)]
+    for col, g, at, nm in [("real_team", "grp", "pick", "player"), ("real_model", "rec_grp", "rec_drafted_at", "rec_player"),
+                           ("real_consensus", "best_available_grp", "best_available_drafted_at", "best_available")]:
+        df[col] = [titles(sits[(y, tm)], gg, y, a, k, n_) for y, tm, gg, a, k, n_ in
+                   zip(df.year, df.team, df[g], df[at], df.pick, df[nm])]
     return df
 
 
@@ -424,6 +425,8 @@ def add_realized_v2(df, states, ctx, n=2000):
     from pick_value import baseline_paths, pick_effect
     L = pd.read_parquet(_P.home() / "cfdarko/data/processed/rookie_value_labels.parquet")
     L = L.dropna(subset=["pfr_id"]).drop_duplicates("pfr_id").set_index("pfr_id")
+    # undrafted players who reached the NFL (labeled from the 2016 class): find by name + class
+    udfa = {(int(y), _norm(nm)): i for i, y, nm, u in zip(L.index, L.draft_year, L.player_name, L.is_udfa) if u}
     dp = pd.read_parquet(RAW / "draft_picks.parquet")
     pfr_at = {(y, p): i for y, p, i in zip(dp.season, dp.pick, dp.pfr_player_id)}
     sits = {(r.year, r.team): {"start": r.start, "shift": r.shift if isinstance(r.shift, dict) else eval(r.shift),
@@ -431,10 +434,10 @@ def add_realized_v2(df, states, ctx, n=2000):
             for r in states.itertuples()}
     base_cache = {}
 
-    def titles(sit, grp, year, drafted_at, pick):
+    def titles(sit, grp, year, drafted_at, pick, name=None):
         if grp is None or grp == "SPEC" or year > 2022:
             return np.nan
-        pid = pfr_at.get((year, int(drafted_at))) if pd.notna(drafted_at) else None
+        pid = pfr_at.get((year, int(drafted_at))) if pd.notna(drafted_at) else udfa.get((year, _norm(name or "")))
         if pid in L.index:
             row = L.loc[pid]
             y = np.array([max(row[f"value_y{t}"], 0) for t in range(1, 5)]) / CF_OVER_OURS.get(FAMILY.get(grp, grp), 1.0)
@@ -451,7 +454,8 @@ def add_realized_v2(df, states, ctx, n=2000):
         pts = pick_effect((y5 / price[0])[None, :], price, int(pick), grp, s2, ctx.cost, ctx.bar, ctx.rates)
         return (ctx.sb(b + pts).sum(axis=1).mean() - b0) * 100
 
-    for col, g, at in [("real_team", "grp", "pick"), ("real_model", "rec_grp", "rec_drafted_at"),
-                       ("real_consensus", "best_available_grp", "best_available_drafted_at")]:
-        df[col] = [titles(sits[(y, tm)], gg, y, a, k) for y, tm, gg, a, k in zip(df.year, df.team, df[g], df[at], df.pick)]
+    for col, g, at, nm in [("real_team", "grp", "pick", "player"), ("real_model", "rec_grp", "rec_drafted_at", "rec_player"),
+                           ("real_consensus", "best_available_grp", "best_available_drafted_at", "best_available")]:
+        df[col] = [titles(sits[(y, tm)], gg, y, a, k, n_) for y, tm, gg, a, k, n_ in
+                   zip(df.year, df.team, df[g], df[at], df.pick, df[nm])]
     return df

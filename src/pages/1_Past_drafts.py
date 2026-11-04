@@ -103,8 +103,13 @@ with tab4:
     }, index=["Team's pick", "Model's pick", "Best left on consensus board"])
     st.dataframe(real.style.format({"Avg titles delivered per pick": "{:+.2f}", "Became a star": "{:.0%}"}),
                  width="content")
-    dis = d[d.player != d.rec_player]
-    st.caption(f"{len(d)} picks; the model disagreed with the team on {len(dis)}. Where it disagreed, the team's "
-               f"pick delivered {dis.real_team.mean():+.2f} on average and the model's {dis.real_model.mean():+.2f}. "
-               "Caveats: a player drafted by another team had that team's role and coaching, not this one's; "
-               "players who went undrafted count as zero.")
+    dis = d[d.player != d.rec_player].sort_values(["year", "pick"])
+    once = dis.drop_duplicates(["year", "rec_player"])
+    st.markdown(f"**Where the model disagreed, counting each recommended player once per draft** "
+                f"({len(once)} picks): team's pick {once.real_team.mean():+.2f}, model's pick "
+                f"{once.real_model.mean():+.2f}, difference **{(once.real_model - once.real_team).mean():+.2f}**.")
+    st.caption("Why 'once': the model can recommend the same available player to many teams in a row (e.g. a "
+               "late-round QB who later started), but only one team could have drafted him, so repeated "
+               "recommendations would count his career many times. Other caveats: a player drafted by another "
+               "team had that team's role and coaching; undrafted players count only if they reached the NFL "
+               "(labeled from 2016).")
