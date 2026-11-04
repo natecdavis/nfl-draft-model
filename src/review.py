@@ -1,6 +1,8 @@
 """Past drafts, pick by pick: what teams did vs what the model would have recommended.
 
-For each draft 2014-2024 (Arif Hasan's consensus board exists for these; ~/cfdarko/hasan.csv):
+For each draft 2014-2026 (Arif Hasan's consensus board: ~/cfdarko/hasan.csv for 2014-2024, his public
+Wide Left sheets for 2025-2026, saved to data/raw/hasan_2025_26.csv; 2026 draft-night trades aren't
+in nflverse yet, so 2026 shows the team that used each pick as its owner):
 
   Pick ownership    who held each pick when the draft began (draft-night trades undone,
                     trades before draft night kept) vs the team that made the pick
@@ -34,10 +36,12 @@ from public_board import _norm
 from simulate import league_params, load_schedules
 from trade import Context, Pick, evaluate
 
-YEARS = list(range(2014, 2025))
+YEARS = list(range(2014, 2027))
+NO_TRADE_LOG = {2026}  # nflverse trades end 2026-04-17, before the 2026 draft
 DRAFT_START = {2014: "2014-05-08", 2015: "2015-04-30", 2016: "2016-04-28", 2017: "2017-04-27",
                2018: "2018-04-26", 2019: "2019-04-25", 2020: "2020-04-23", 2021: "2021-04-29",
-               2022: "2022-04-28", 2023: "2023-04-27", 2024: "2024-04-25", 2025: "2025-04-24"}
+               2022: "2022-04-28", 2023: "2023-04-27", 2024: "2024-04-25", 2025: "2025-04-24",
+               2026: "2026-04-23"}
 PFR_TEAM = {"GNB": "GB", "KAN": "KC", "NOR": "NO", "NWE": "NE", "SFO": "SF", "TAM": "TB", "LAR": "LA",
             "LVR": "LV", "OAK": "LV", "SDG": "LAC", "STL": "LA", "SD": "LAC"}
 DRAFT_POS = {"QB": "QB", "RB": "RB", "FB": "RB", "WR": "WR", "TE": "TE", "T": "T", "OT": "T", "G": "G",
@@ -79,8 +83,9 @@ def draft_night(year: int) -> pd.DataFrame:
 
 
 def board(year: int, picks: pd.DataFrame) -> pd.DataFrame:
-    h = pd.read_csv(RAW / "hasan.csv", encoding="utf-8-sig")
-    h = h[h.year == year].copy()
+    h = pd.concat([pd.read_csv(RAW / "hasan.csv", encoding="utf-8-sig"),
+                   pd.read_csv(RAW / "hasan_2025_26.csv")], ignore_index=True)
+    h = h[(h.year == year) & (h["rank"] <= 320)].copy()  # same depth as the 2014-24 boards
     h["grp"] = h.pos.map(HASAN_POS).fillna("SPEC")
     h["key"] = h.name.str.replace(r"\(.*?\)", "", regex=True).map(_norm)  # "Kevin White (WR)"
     keys = dict(zip(picks.pfr_player_name.map(_norm), picks.pick))
@@ -121,7 +126,8 @@ def board(year: int, picks: pd.DataFrame) -> pd.DataFrame:
 class States:
     def __init__(self):
         self.ratings = league_params(load_schedules())["ratings"]
-        s = pd.read_parquet(RAW / "snap_counts.parquet")
+        s = pd.concat([pd.read_parquet(RAW / "snap_counts.parquet"),
+                       pd.read_parquet(RAW / "snap_counts_2026.parquet")], ignore_index=True)
         self.snaps = s[(s.position == "QB") & (s.game_type == "REG")].assign(team=lambda x: x.team.map(team))
         pl_ = pd.read_parquet(RAW / "players.parquet").dropna(subset=["pfr_id"]).drop_duplicates("pfr_id")
         self.players = pl_.set_index("pfr_id")
@@ -403,17 +409,19 @@ def main(first=YEARS[0], last=YEARS[-1]):
               f"{len(tables)} situation tables so far, {time.time() - t0:.0f}s", flush=True)
     picks = add_outcomes(pd.concat(allp, ignore_index=True))
     picks = add_realized_v2(picks, pd.concat(alls, ignore_index=True), ctx)
-    picks.to_parquet(OUT / "review_picks.parquet")
     st = pd.concat(alls, ignore_index=True)
     st["shift"] = st["shift"].astype(str)
-    st.to_parquet(OUT / "review_states.parquet")
-    pd.concat(allt, ignore_index=True).to_parquet(OUT / "review_trades.parquet")
+    tr = pd.concat(allt, ignore_index=True)
+    # keep other years already saved (so a subset of years can be added or redone)
+    done = set(range(first, last + 1))
+    for name, new in [("review_picks", picks), ("review_states", st), ("review_trades", tr)]:
+        f = OUT / f"{name}.parquet"
+        old = pd.read_parquet(f) if f.exists() else new.iloc[:0]
+        out = pd.concat([old[~old.year.isin(done)], new], ignore_index=True).sort_values(
+            [c for c in ["year", "pick", "trade_id", "team"] if c in new.columns])
+        out.reset_index(drop=True).to_parquet(f)
     print("saved")
 
-
-if __name__ == "__main__":
-    a = [int(x) for x in sys.argv[1:]]
-    main(*a)
 
 
 def add_realized_v2(df, states, ctx, n=2000):
@@ -459,3 +467,136 @@ def add_realized_v2(df, states, ctx, n=2000):
         df[col] = [titles(sits[(y, tm)], gg, y, a, k, n_) for y, tm, gg, a, k, n_ in
                    zip(df.year, df.team, df[g], df[at], df.pick, df[nm])]
     return df
+
+
+# ---------- 5. trades as decisions (for one team's view) ----------
+
+def _sit(r) -> dict:
+    sh = r.shift if isinstance(r.shift, dict) else eval(r.shift)
+    return {"start": r.start, "shift": sh, "qb_from": None if pd.isna(r.qb_from) else int(r.qb_from)}
+
+
+def trade_decisions(year, picks_df, states_df, ctx, tables) -> pd.DataFrame:
+    """One row per (draft-night trade, team): what the team did vs the model's better option
+    of (a) keeping its pick(s) and taking the best player left, or (b) making the same trade
+    and then taking its own choices with the picks received.
+
+    Same currency as the pick rows (titles from each player at his pick, for this team's
+    situation, with the board as it actually stood at that pick); picks in later drafts are
+    valued like the trade calculator (by the giving team's likely finish). The team's side
+    uses the players it actually took with the picks it received."""
+    pk, night = draft_night(year)
+    if night.empty:
+        return pd.DataFrame()
+    b = board(year, pk)
+    P = picks_df[picks_df.year == year]
+    used, val_act, player = (dict(zip(P.pick, P[c])) for c in ["team", "value_actual", "player"])
+    sit = {r.team: _sit(r) for r in states_df[states_df.year == year].itertuples()}
+
+    def table(tm):
+        s = sit[tm]
+        key = (s["start"], s["qb_from"], tuple(sorted(s["shift"].items())))
+        if key not in tables:
+            tables[key] = Table({"start": s["start"], "shift": dict(key[2]), "qb_from": key[1]}, ctx, fall_weight=0.85)
+        return tables[key]
+
+    def best(tm, k, taken=(), extra=None):
+        """The model's choice for team tm at pick k: (titles, player, group). `taken` = players
+        it already chose in this same option, `extra` = their position counts."""
+        tab = table(tm)
+        mine = P[(P.team == tm) & (P.pick < k) & (P.grp != "SPEC")].grp.value_counts().to_dict()
+        for g_, c_ in (extra or {}).items():
+            mine[g_] = mine.get(g_, 0) + c_
+        avail = b[(b.drafted_at.isna() | (b.drafted_at >= k)) & (b.grp != "SPEC") & ~b["name"].isin(list(taken))]
+        if avail.empty:
+            return 0.0, None, None
+        vals = np.array([tab.lookup(g, min(int(mine.get(g, 0)), 2), r, k) for g, r in zip(avail.grp, avail["rank"])])
+        i = int(np.argmax(vals))
+        return vals[i] * 100, avail["name"].iloc[i], avail.grp.iloc[i]
+
+    def plan(tm, ks):
+        """The model's choices at several picks in one option, in order, no player twice."""
+        out, taken, extra = [], [], {}
+        for k in ks:
+            v, n, g_ = best(tm, k, taken, extra)
+            out.append((v, n))
+            if n is not None:
+                taken.append(n); extra[g_] = extra.get(g_, 0) + 1
+        return out
+
+    def used_value(tm, k):
+        """What the team got out of a pick it received: its actual player if it used the pick
+        (specialists ~0), otherwise (re-traded the same night) the model's value for it."""
+        if used.get(k) == tm:
+            v = val_act.get(k)
+            return (0.0 if pd.isna(v) else float(v)), f"#{k} {player.get(k)}"
+        return best(tm, k)[0], f"#{k} (traded on)"
+
+    rows = []
+    for tid, g in night.groupby("trade_id"):
+        teams_ = sorted(set(g.gave) | set(g.received))
+        cur = g[(g.pick_season == year) & g.pick_number.notna()]
+        if len(teams_) != 2 or cur.empty:
+            continue
+        anchor = int(cur.pick_number.min())
+        has_player = g.pick_season.isna().any()
+        for tm in teams_:
+            gave, got = g[g.gave == tm], g[g.received == tm]
+            cur_of = lambda x: sorted(int(v) for v in x[(x.pick_season == year) & x.pick_number.notna()].pick_number)
+            gave_cur, got_cur = cur_of(gave), cur_of(got)
+
+            def fut(x):
+                f = x[(x.pick_season > year) & x.pick_round.notna()]
+                return [(int(r.pick_season - year), int(r.pick_round), r.gave) for r in f.itertuples()]
+            fut_gave, fut_got = fut(gave), fut(got)
+            # a row without a pick is a player changing teams (on pick rows the log names the draftee)
+            plyrs = lambda x: x[x.pick_season.isna()].pfr_name.dropna()
+            desc = lambda cur_, fut_, plyr: ", ".join([f"#{k}" for k in cur_] + [f"{year + y} R{rd}" for y, rd, _ in fut_]
+                                                      + ([f"player: {n}" for n in plyr]))
+            row = {"year": year, "trade_id": tid, "team": tm, "pick": anchor,
+                   "gave": desc(gave_cur, fut_gave, plyrs(gave)), "got": desc(got_cur, fut_got, plyrs(got))}
+            if has_player or tm not in sit:
+                rows.append({**row, "note": "includes a player: not scored"})
+                continue
+            fv = 0.0
+            if fut_gave or fut_got:
+                mk = lambda f: [Pick(rnd=rd, year=y, src={"start": sit.get(src, {"start": 0})["start"]}) for y, rd, src in f if y <= 2]
+                fv = evaluate(ctx, sit[tm], mk(fut_gave), mk(fut_got), n=4000, seed=int(tid))["change"] * 100
+            team_parts = [used_value(tm, k) for k in got_cur]
+            trade_best = plan(tm, got_cur)
+            keep_best = plan(tm, gave_cur)
+            team_v = sum(v for v, _ in team_parts) + fv
+            v_trade = sum(v for v, _ in trade_best) + fv
+            v_keep = sum(v for v, _ in keep_best)
+            if v_keep >= v_trade:
+                choice = "don't trade" + "".join(f"; #{k}: {n}" for k, (_, n) in zip(gave_cur, keep_best))
+            else:
+                choice = "same trade" + "".join(f"; #{k}: {n}" for k, (_, n) in zip(got_cur, trade_best))
+            rows.append({**row, "team_did": "; ".join(n for _, n in team_parts), "value_team": team_v,
+                         "value_keep": v_keep, "value_same_trade": v_trade, "model_choice": choice,
+                         "value_model": max(v_keep, v_trade), "future_value": fv, "note": None})
+    return pd.DataFrame(rows)
+
+
+def build_trade_decisions(years=YEARS):
+    """Run trade_decisions for all reviewed years from the saved review files."""
+    picks = pd.read_parquet(OUT / "review_picks.parquet")
+    states = pd.read_parquet(OUT / "review_states.parquet")
+    ctx, tables, out = Context(), {}, []
+    for y in years:
+        if y in picks.year.values:
+            d = trade_decisions(y, picks, states, ctx, tables)
+            out.append(d)
+            print(f"{y}: {len(d)} team-trade rows, {len(tables)} tables", flush=True)
+    df = pd.concat(out, ignore_index=True)
+    df.to_parquet(OUT / "review_trade_decisions.parquet")
+    return df
+
+
+if __name__ == "__main__":
+    if sys.argv[1:2] == ["trades"]:
+        build_trade_decisions()
+    else:
+        a = [int(x) for x in sys.argv[1:]]
+        main(*a)
+        build_trade_decisions()
