@@ -51,7 +51,25 @@ def build() -> pd.DataFrame:
         df[f"z_{t}"] = (-z if t in FAST_IS_LOW else z).fillna(0)
     df["lp"] = np.log(df.pick + PICK_OFFSET)
     df["family"] = df.grp.map(FAMILY)
-    return add_college(df)
+    return add_board(add_college(df))
+
+
+def add_board(df: pd.DataFrame) -> pd.DataFrame:
+    """ESPN's pre-draft big board (via github.com/JackLich10/nfl-draft-data; no license
+    stated, so used for analysis only, not redistributed). Joined by draft year + pick.
+      board_gap  log(pick+10) - log(board rank+10): + = fell below where ESPN ranked him
+      grade_z    ESPN grade, z-scored within draft year
+      unranked   drafted but not on ESPN's board (treated as ranked just past the board)"""
+    b = pd.read_csv(RAW / "lich" / "nfl_draft_prospects.csv", low_memory=False)
+    b = b.dropna(subset=["overall"]).drop(columns=["pick"]).rename(columns={"overall": "pick"})
+    b = b[["draft_year", "pick", "ovr_rk", "grade"]].drop_duplicates(["draft_year", "pick"])
+    df = df.merge(b, on=["draft_year", "pick"], how="left")
+    last = df.groupby("draft_year").ovr_rk.transform("max")
+    df["unranked"] = df.ovr_rk.isna().astype(int)
+    rank = df.ovr_rk.fillna(last + 50)
+    df["board_gap"] = np.log(df.pick + PICK_OFFSET) - np.log(rank + PICK_OFFSET)
+    df["grade_z"] = df.groupby("draft_year").grade.transform(lambda x: (x - x.mean()) / x.std()).fillna(0)
+    return df
 
 
 def add_college(df: pd.DataFrame) -> pd.DataFrame:
@@ -74,7 +92,11 @@ def design(df: pd.DataFrame, version: str) -> pd.DataFrame:
     Versions: slot only | age | age+athletic | age+athletic by family | age+athletic+college"""
     X = pd.get_dummies(df.grp, prefix="g", drop_first=True, dtype=float)
     X.insert(0, "lp", df.lp)
-    if version == "slot only":
+    if version in ("slot + board", "age+athletic+board"):
+        X["board_gap"] = df.board_gap
+        X["unranked"] = df.unranked
+        X["grade_z"] = df.grade_z
+    if version in ("slot only", "slot + board"):
         return sm.add_constant(X, has_constant="add")
     X["z_age"] = df.z_age
     if version == "age":
@@ -127,11 +149,13 @@ def main():
     df.to_parquet(OUT / "prospect_features.parquet")
     print(f"Picks 2012-2021: {len(df)}; at combine: {df.at_combine.mean():.0%}; age known: {df.age.notna().mean():.0%}")
     st = df[df.grp.isin(list(CF))]
+    print("Drafted players on ESPN's board:", f"{(1 - df.unranked).mean():.0%}")
     print("College stats matched, by position:", st.groupby("grp").cfb_seasons.apply(lambda x: f"{x.notna().mean():.0%}").to_dict(), "\n")
 
     print("Rolling test, drafts 2016-2021 predicted from earlier drafts (avg log loss, lower is better):")
     results = {}
-    for version in ["slot only", "age", "age+athletic", "age+athletic by family", "age+athletic+college"]:
+    for version in ["slot only", "slot + board", "age", "age+athletic", "age+athletic by family",
+                    "age+athletic+college", "age+athletic+board"]:
         for alpha in ([0.0] if version == "slot only" else [0.01, 0.03, 0.1, 0.3]):
             ll, rows = rolling(df, version, alpha)
             results[(version, alpha)] = (ll, rows)
@@ -154,14 +178,14 @@ def main():
 
     print("\nGain over slot only by position (avg log loss reduction per player, + = better):")
     by = {}
-    for v in ["age+athletic", "age+athletic+college"]:
+    for v in ["slot + board", "age+athletic", "age+athletic+college", "age+athletic+board"]:
         r = results[(v, 0.1)][1]
         by[v] = pd.Series(ll3(a) - ll3(r), index=a.index).groupby(a.grp.values).mean()
     print(pd.DataFrame(by).round(3).T.to_string())
 
     # What the best model learned, fit on all drafts
     _, m = fit_predict(df, df.iloc[:5], best[0], best[1])
-    coef = m.params[[c for c in m.params.index if c.startswith(("z_", "c_")) or c in ("at_combine", "no_forty", "cfb_missing")]]
+    coef = m.params[[c for c in m.params.index if c.startswith(("z_", "c_")) or c in ("at_combine", "no_forty", "cfb_missing", "board_gap", "unranked", "grade_z")]]
     print("\nWhat moves a player's star chance beyond his slot (log-odds per 1 sd; + = better):")
     print(coef[coef.abs() > 0.05].sort_values().round(2).to_string())
 
