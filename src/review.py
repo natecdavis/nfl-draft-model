@@ -81,10 +81,35 @@ def draft_night(year: int) -> pd.DataFrame:
 def board(year: int, picks: pd.DataFrame) -> pd.DataFrame:
     h = pd.read_csv(RAW / "hasan.csv", encoding="utf-8-sig")
     h = h[h.year == year].copy()
-    h["key"] = h.name.map(_norm)
     h["grp"] = h.pos.map(HASAN_POS).fillna("SPEC")
+    h["key"] = h.name.str.replace(r"\(.*?\)", "", regex=True).map(_norm)  # "Kevin White (WR)"
     keys = dict(zip(picks.pfr_player_name.map(_norm), picks.pick))
     h["drafted_at"] = h.key.map(keys)
+    # Two board players with the same name (Kevin White WR / Kevin White CB): keep the one
+    # whose position matches the draft record
+    dgrp = dict(zip(picks.pick, picks.grp))
+    dupe = h.drafted_at.notna() & h.drafted_at.duplicated(keep=False)
+    for pk_ in h.loc[dupe, "drafted_at"].unique():
+        rows = h.index[h.drafted_at == pk_]
+        keep = [i for i in rows if HASAN_POS.get(h.at[i, "pos"]) == dgrp.get(pk_)][:1] or list(rows[:1])
+        h.loc[[i for i in rows if i not in keep], "drafted_at"] = np.nan
+    # Fallback for nicknames ("Alvin" vs "Bud" Dupree): same last name, similar school,
+    # same position group, not already matched
+    dp = pd.read_parquet(RAW / "draft_picks.parquet")
+    college = dict(zip(dp[dp.season == year].pick, dp[dp.season == year].college))
+    left = picks[~picks.pick.isin(h.drafted_at.dropna())].assign(
+        names=lambda d: d.pfr_player_name.map(lambda n: set(_norm(n).split()[1:]) if _norm(n) else set()))
+    from difflib import SequenceMatcher
+    sim = lambda a, b: SequenceMatcher(None, str(a).lower(), str(b).lower()).ratio()
+    for i in h.index[h.drafted_at.isna()]:
+        last = h.at[i, "key"].split()[-1] if h.at[i, "key"] else ""
+        # last name among the draft name's surname parts ("Tryon" in "Tryon Shoyinka")
+        c = left[left.names.map(lambda ns: last in ns) & ~left.pick.isin(h.drafted_at.dropna())]
+        same_school = c[[sim(college.get(p, ""), h.at[i, "school"]) >= 0.5 for p in c.pick]]
+        same_pos = c[c.grp == h.at[i, "grp"]]
+        pick_ = (same_school if len(same_school) == 1 else same_pos if len(same_pos) == 1 else None)
+        if pick_ is not None:
+            h.at[i, "drafted_at"] = pick_.pick.iloc[0]
     # a drafted player's group comes from the draft record (more reliable)
     draft_grp = dict(zip(picks.pick, picks.grp))
     h.loc[h.drafted_at.notna(), "grp"] = h.loc[h.drafted_at.notna(), "drafted_at"].map(draft_grp)
@@ -245,7 +270,7 @@ def review_year(year, states, ctx, tables):
         s = teams_st[tm]
         key = (s["start"], s["qb_from"], tuple(sorted(s["shift"].items())))
         if key not in tables:
-            tables[key] = Table({"start": s["start"], "shift": dict(key[2]), "qb_from": key[1]}, ctx)
+            tables[key] = Table({"start": s["start"], "shift": dict(key[2]), "qb_from": key[1]}, ctx, fall_weight=0.85)
         return tables[key]
 
     taken_count = {}
@@ -272,6 +297,8 @@ def review_year(year, states, ctx, tables):
                      "rec_drafted_at": best.drafted_at if best is not None else np.nan,
                      "value_rec": vals.max() * 100 if len(vals) else np.nan,
                      "best_available_rank": cons["rank"] if cons is not None else np.nan,
+                     "best_available_drafted_at": cons.drafted_at if cons is not None else np.nan,
+                     "best_available_grp": cons.grp if cons is not None else None,
                      "best_available": cons["name"] if cons is not None else None})
         if p.grp != "SPEC":
             counts[p.grp] = counts.get(p.grp, 0) + 1
@@ -327,6 +354,41 @@ def add_outcomes(df):
     return df
 
 
+def add_realized(df, states, ctx, n=2000):
+    """What each candidate actually delivered, in the model's own currency: his real
+    snap shares and market price (value_library.py), at the cost of THIS pick, turned
+    into titles for THIS team's situation. Drafts through 2021; undrafted players = 0."""
+    from pick_value import baseline_paths, pick_effect
+    lib = pd.read_parquet(OUT / "value_library.parquet").set_index(["draft_year", "pick"])
+    shares_cols = [f"share_{t}" for t in range(1, 6)]
+    sits = {(r.year, r.team): {"start": r.start, "shift": r.shift if isinstance(r.shift, dict) else eval(r.shift),
+                               "qb_from": None if pd.isna(r.qb_from) else int(r.qb_from)}
+            for r in states.itertuples()}
+    base_cache = {}
+
+    def titles(sit, grp, year, drafted_at, pick):
+        if grp is None or grp == "SPEC" or year > 2021:
+            return np.nan
+        if pd.isna(drafted_at) or (year, int(drafted_at)) not in lib.index:
+            sh, pr = np.zeros((1, 5)), np.array([0.005])
+        else:
+            row = lib.loc[(year, int(drafted_at))]
+            sh, pr = row[shares_cols].to_numpy(float)[None, :], np.array([row.price])
+        key = (sit["start"], sit["qb_from"], tuple(sorted(sit["shift"].items())))
+        if key not in base_cache:
+            b = baseline_paths(sit, np.random.default_rng(0), n)
+            base_cache[key] = (b, ctx.sb(b).sum(axis=1).mean())
+        b, b0 = base_cache[key]
+        s2 = dict(sit); s2["qb_from"] = 99 if sit["qb_from"] is None else sit["qb_from"]
+        pts = pick_effect(sh, pr, int(pick), grp, s2, ctx.cost, ctx.bar, ctx.rates)
+        return (ctx.sb(b + pts).sum(axis=1).mean() - b0) * 100
+
+    for col, g, at in [("real_team", "grp", "pick"), ("real_model", "rec_grp", "rec_drafted_at"),
+                       ("real_consensus", "best_available_grp", "best_available_drafted_at")]:
+        df[col] = [titles(sits[(y, tm)], gg, y, a, k) for y, tm, gg, a, k in zip(df.year, df.team, df[g], df[at], df.pick)]
+    return df
+
+
 def main(first=YEARS[0], last=YEARS[-1]):
     import time
     ctx, states, tables = Context(), States(), {}
@@ -339,6 +401,7 @@ def main(first=YEARS[0], last=YEARS[-1]):
         print(f"{y}: {len(df)} picks, {len(tr) // 2} draft-night pick trades, "
               f"{len(tables)} situation tables so far, {time.time() - t0:.0f}s", flush=True)
     picks = add_outcomes(pd.concat(allp, ignore_index=True))
+    picks = add_realized(picks, pd.concat(alls, ignore_index=True), ctx)
     picks.to_parquet(OUT / "review_picks.parquet")
     st = pd.concat(alls, ignore_index=True)
     st["shift"] = st["shift"].astype(str)

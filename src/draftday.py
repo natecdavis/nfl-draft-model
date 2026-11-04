@@ -69,10 +69,11 @@ class DraftEngine:
     seed: int = 0
     need: dict = field(default_factory=dict)  # grp -> "starter" | "rotation" | "depth"
     # When a player falls past his board rank, other teams passing on him is information.
-    # Players who fell (Hasan consensus 2014-21) turned out ~80-87% like the pick where they
-    # went, not their board rank (scripts/fall_weight.py; ~/cfdarko found the same).
+    # Players who fell (Hasan consensus 2014-21) turned out ~80-89% like the pick where they
+    # went, not their board rank, whether or not undrafted fallers are included
+    # (scripts/fall_weight.py, fall_weight_all.py; ~/cfdarko found the same).
     # 0 = trust the board fully, 1 = trust the draft slot fully.
-    fall_weight: float = 0.8
+    fall_weight: float = 0.85
     ctx: Context | None = None  # share one loaded Context across many engines
 
     def __post_init__(self):

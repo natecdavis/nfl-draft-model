@@ -83,8 +83,8 @@ with st.sidebar.expander("Position needs (how much a rookie would play in years 
 
 with st.sidebar.expander("Advanced"):
     fall_weight = st.slider("When a player falls past his board rank, how much to believe the draft "
-                            "instead of the board", 0.0, 1.0, 0.8, 0.1,
-                            help="History says about 0.8: players who fall usually turn out like the pick "
+                            "instead of the board", 0.0, 1.0, 0.85, 0.05,
+                            help="History says about 0.85: players who fall usually turn out like the pick "
                                  "where they went. Lower it only if you trust your board over 31 teams.")
 
 st.sidebar.header("Our picks")

@@ -85,9 +85,11 @@ with tab3:
         st.caption("Trades of players are not included. Values judged with each team's own situation.")
 
 with tab4:
-    st.write("Across every draft 2014-2021 (outcomes known), at picks where the model disagreed with the team:")
-    d = picks[(picks.year <= 2021) & (picks.player != picks.rec_player) & picks.outcome_actual.notna()
-              & picks.outcome_rec.notna()].copy()
+    st.write("Every pick in the 2014-2021 drafts (careers known), scored by what each player actually delivered: "
+             "his real playing time and market value, at the cost of that pick, turned into Super Bowl odds for "
+             "the team that held it. Three candidates per pick: who the team took, who the model would have "
+             "taken, and the top-ranked player left on the consensus board.")
+    d = picks[(picks.year <= 2021) & picks.real_team.notna()].copy()
     rnd = st.radio("Rounds", ["All", "Round 1", "Rounds 2-3", "Rounds 4-7"], horizontal=True)
     if rnd == "Round 1":
         d = d[d["round"] == 1]
@@ -95,13 +97,14 @@ with tab4:
         d = d[d["round"].isin([2, 3])]
     elif rnd == "Rounds 4-7":
         d = d[d["round"] >= 4]
-    rate = lambda s, t: (s == t).mean()
-    res = pd.DataFrame({
-        "Became a star": [rate(d.outcome_actual, "star"), rate(d.outcome_rec, "star")],
-        "Star or starter": [d.outcome_actual.isin(["star", "starter"]).mean(), d.outcome_rec.isin(["star", "starter"]).mean()],
-        "Bust": [rate(d.outcome_actual, "bust"), d.outcome_rec.isin(["bust", "undrafted"]).mean()],
-    }, index=["Team's pick", "Model's pick"])
-    st.dataframe(res.style.format("{:.0%}"), width="content")
-    st.caption(f"{len(d)} picks. The model's pick is judged by how that player's career went wherever he was "
-               "drafted. Caveat: a player taken later by another team may have had a different role than he "
-               "would have had with this team.")
+    real = pd.DataFrame({
+        "Avg titles delivered per pick": [d.real_team.mean(), d.real_model.mean(), d.real_consensus.mean()],
+        "Became a star": [(d.outcome_actual == "star").mean(), (d.outcome_rec == "star").mean(), float("nan")],
+    }, index=["Team's pick", "Model's pick", "Best left on consensus board"])
+    st.dataframe(real.style.format({"Avg titles delivered per pick": "{:+.2f}", "Became a star": "{:.0%}"}),
+                 width="content")
+    dis = d[d.player != d.rec_player]
+    st.caption(f"{len(d)} picks; the model disagreed with the team on {len(dis)}. Where it disagreed, the team's "
+               f"pick delivered {dis.real_team.mean():+.2f} on average and the model's {dis.real_model.mean():+.2f}. "
+               "Caveats: a player drafted by another team had that team's role and coaching, not this one's; "
+               "players who went undrafted count as zero.")
