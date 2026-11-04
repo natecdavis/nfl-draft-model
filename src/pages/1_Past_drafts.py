@@ -24,9 +24,9 @@ picks, states, trades = load()
 st.title("Past drafts: what teams did vs what the model would have done")
 st.caption("Values = change in expected Super Bowls over the 5 seasons after the draft, in % of one title, "
            "judged with what was known on draft night: Arif Hasan's consensus board, each team's strength "
-           "coming off the prior season, and its QB situation. 'Turned out' uses what actually happened "
-           "(drafts through 2021): star = paid like a top player at his position, starter = played half "
-           "the snaps for 2+ seasons, bust = neither.")
+           "coming off the prior season, and its QB situation. 'Actually delivered' uses what really happened "
+           "(drafts 2014-2022, first four seasons): each player's real season-by-season value, at the cost "
+           "of that pick, turned into title odds for that team. Above zero = he was worth more than the pick cost.")
 
 years = sorted(picks.year.unique())
 c1, c2 = st.columns([1, 2])
@@ -54,14 +54,17 @@ with tab1:
     )
     cols = {"pick": "Pick", "pick_owner": "Owner at start → used by", "took": "Team took",
             "value_actual": "Titles (team's pick)", "model": "Model would take", "value_rec": "Titles (model's pick)",
-            "value_gap": "Titles left on table", "outcome_actual": "Team's pick turned out",
-            "outcome_rec": "Model's pick turned out"}
+            "value_gap": "Titles left on table", "real_team": "Team's pick actually delivered",
+            "real_model": "Model's pick actually delivered"}
     st.dataframe(show[list(cols)].rename(columns=cols), hide_index=True, width="stretch", height=560,
                  column_config={c: st.column_config.NumberColumn(format="%.2f") for c in
-                                ["Titles (team's pick)", "Titles (model's pick)", "Titles left on table"]})
+                                ["Titles (team's pick)", "Titles (model's pick)", "Titles left on table",
+                                 "Team's pick actually delivered", "Model's pick actually delivered"]})
     agree = (P.player == P.rec_player).mean()
     st.caption(f"The model agreed with the team on {agree:.0%} of these picks. 'Titles left on table' is how much "
-               "more the model's choice was worth to that team, in its situation, at that moment.")
+               "more the model's choice was worth to that team, in its situation, at that moment. The 'actually "
+               "delivered' columns are blank for drafts after 2022 (too soon to know) and for players who never "
+               "reached the NFL before 2016 (not tracked).")
 
 with tab2:
     cols = {"team": "Team", "strength_prior": "Last season (pts/game vs avg)", "start": "Expected next season",
@@ -99,9 +102,10 @@ with tab4:
         d = d[d["round"] >= 4]
     real = pd.DataFrame({
         "Avg titles delivered per pick": [d.real_team.mean(), d.real_model.mean(), d.real_consensus.mean()],
-        "Became a star": [(d.outcome_actual == "star").mean(), (d.outcome_rec == "star").mean(), float("nan")],
+        "Worth more than the pick cost": [(d.real_team > 0).mean(), (d.real_model > 0).mean(),
+                                         (d.real_consensus > 0).mean()],
     }, index=["Team's pick", "Model's pick", "Best left on consensus board"])
-    st.dataframe(real.style.format({"Avg titles delivered per pick": "{:+.2f}", "Became a star": "{:.0%}"}),
+    st.dataframe(real.style.format({"Avg titles delivered per pick": "{:+.2f}", "Worth more than the pick cost": "{:.0%}"}),
                  width="content")
     dis = d[d.player != d.rec_player].sort_values(["year", "pick"])
     once = dis.drop_duplicates(["year", "rec_player"])
