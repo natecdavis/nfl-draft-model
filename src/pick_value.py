@@ -69,26 +69,26 @@ def strength_curve(sched, teams_df, params) -> pd.DataFrame:
     return c
 
 
-def baseline_paths(sit: dict, rng) -> np.ndarray:
-    """(N, 5) true strength without the pick."""
+def baseline_paths(sit: dict, rng, n: int = N) -> np.ndarray:
+    """(n, 5) true strength without the pick."""
     m = np.zeros(5); m[0] = sit["start"]
     for t in range(1, 5):
         m[t] = CARRY * m[t - 1] + sit["shift"].get(t + 1, 0.0)
-    u = np.zeros((N, 5)); u[:, 0] = rng.normal(0, START_SD, N)
+    u = np.zeros((n, 5)); u[:, 0] = rng.normal(0, START_SD, n)
     innov = np.sqrt(1 - CARRY ** 2) * 5.3
     for t in range(1, 5):
-        u[:, t] = CARRY * u[:, t - 1] + rng.normal(0, innov, N)
+        u[:, t] = CARRY * u[:, t - 1] + rng.normal(0, innov, n)
     return m + u
 
 
-def sample_outcomes(lib, curves, grp, pick, rng, bw=0.4):
+def sample_outcomes(lib, curves, grp, pick, rng, bw=0.4, n=N):
     """(N, 5) snap shares and (N,) market prices for a pick: draw a tier from the
     outlook chances, then a real player of that position and tier, favoring players
     picked near this slot (weights fall off with distance in log(pick + 10), so
     there are no jumps at arbitrary pick-range edges)."""
     probs = curves[(curves.grp == grp) & (curves.pick == pick)][TIERS].to_numpy()[0]
-    tier = rng.choice(len(TIERS), size=N, p=probs / probs.sum())
-    shares = np.zeros((N, 5)); price = np.zeros(N)
+    tier = rng.choice(len(TIERS), size=n, p=probs / probs.sum())
+    shares = np.zeros((n, 5)); price = np.zeros(n)
     cols = [f"share_{t}" for t in range(1, 6)]
     for k, tname in enumerate(TIERS):
         idx = np.where(tier == k)[0]
