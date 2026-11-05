@@ -140,3 +140,13 @@ expectations are now on target (2019: 0.061% of cap expected vs 0.057 actual; 20
 review one draft per core, ~30 min). Review scorecard after the fix (each recommendation once,
 model minus team): round 1 +1.24 (95% -0.01 to +2.57; non-QB +0.76, +0.04 to +1.48),
 rounds 2-4 +0.42 (-0.23 to +1.24), rounds 5-7 -0.18 (-0.40 to +0.01).
+
+### Retests after the training-data fix
+
+- **Player features** (combine, recruiting, PFF grades), `scripts/pm_choice_fixed.py`: still worse than rank-only.
+  Per pick: −0.79% of cap (−1.26 to −0.31), or −0.35 (−0.84 to +0.10) with heavier regularization.
+  The rank-only model now picks off-board players 12% of the time (26% before the fix).
+  The player-features model still picks them 22–36% of the time, so it isn't used.
+- **Brugler off-board test**, fair version: −0.008 titles per pick (−0.120 to +0.104), unchanged.
+- The bust signal, scouting text level and NFL fathers tests are about board or drafted players, whom the fix
+  barely touched, so they weren't rerun.
