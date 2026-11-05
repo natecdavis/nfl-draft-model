@@ -128,3 +128,15 @@ past-drafts review only recommend board players, so they're unaffected; but the 
 tests that let the model pick any college player (`pm.choice_test`, `beast_choice.py`) handicapped
 it in late rounds: restricted to board players it does better (0.190 vs 0.162% of a title per
 pick, picks 100+).
+
+**Fixed (training data):** `prospect_model.load()` now keeps pre-2016 undrafted players
+(16,603 rows) with the average season values of 2016-18 undrafted players in the same board
+status and rank band, and models that use consensus rank train only on classes with a board
+(2014+; before that every player looked "off board", first-rounders included). Off-board
+expectations are now on target (2019: 0.061% of cap expected vs 0.057 actual; 2022: 0.054 vs
+0.043; before, ~0.6 in the research tests). Engine change: off board 0.09-0.19 -> 0.04-0.06
+(% of cap over 4 seasons), rank 250 slightly lower, rank 50 slightly higher. Everything rebuilt
+(chart, trades, 2027 teams, 2021 replay, app, review; `scripts/review_parallel.py` runs the
+review one draft per core, ~30 min). Review scorecard after the fix (each recommendation once,
+model minus team): round 1 +1.24 (95% -0.01 to +2.57; non-QB +0.76, +0.04 to +1.48),
+rounds 2-4 +0.42 (-0.23 to +1.24), rounds 5-7 -0.18 (-0.40 to +0.01).

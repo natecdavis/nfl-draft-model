@@ -34,6 +34,8 @@ OUT = Path("data/derived")
 SEASONS = [1, 2, 3, 4]
 LAST_SEASON_PLAYED = 2025
 OFF_BOARD = 330
+FIRST_UDFA_CLASS = 2016  # first class whose undrafted NFL players are labeled
+FIRST_BOARD_CLASS = 2014  # first class with a consensus board (Hasan); earlier classes have no ranks
 UNDRAFTED = 300
 
 FEATURES = {
@@ -76,7 +78,11 @@ def load() -> pd.DataFrame:
     df["cls"] = np.where(df.draft_year.notna(), df.draft_year, df.last_college_season_year + 1).astype(int)
     # universe: cfdarko's scored prospects, board players and drafted players
     df = df[(df.merged_value.notna() | df.hasan_rank.notna() | df.drafted) & df.cls.between(2012, 2025)]
-    df = df[df.drafted | (df.cls >= 2016)]  # undrafted NFL players are only labeled from 2016
+    # Undrafted players' NFL careers are only labeled from the 2016 class. Earlier undrafted
+    # players are kept (dropping them made off-board and low-ranked board players look better
+    # than they are: only the drafted ones were left) and given the average season values of
+    # 2016-18 undrafted players with the same board status and rank band (see below).
+    df["imputed"] = ~df.drafted & (df.cls < FIRST_UDFA_CLASS)
     df = df.merge(L[["player_id"] + [f"value_y{t}" for t in SEASONS + [5]] + ["group", "pfr_id"]]
                   .rename(columns={"pfr_id": "pfr_id_label"}), on="player_id", how="left")
     for t in SEASONS:
@@ -89,6 +95,15 @@ def load() -> pd.DataFrame:
     df["on_board"] = df.hasan_rank.notna().astype(int)
     df["log_rank"] = np.log(df.hasan_rank.fillna(OFF_BOARD) + 10)
     df["grp_code"] = df.grp.astype("category").cat.codes
+    # fill the unlabeled pre-2016 undrafted rows with cell averages (on/off board x rank band)
+    band = lambda d: np.where(d.hasan_rank.isna(), "off",
+                              pd.cut(d.hasan_rank, [0, 100, 200, 250, 10_000]).astype(str))
+    ref = df[~df.drafted & df.cls.between(FIRST_UDFA_CLASS, FIRST_UDFA_CLASS + 2)]
+    for t in SEASONS:
+        means = ref.groupby(band(ref))[f"y{t}"].mean()
+        fill = pd.Series(band(df[df.imputed]), index=df.index[df.imputed]).map(means)
+        played = df.cls + t - 1 <= LAST_SEASON_PLAYED
+        df.loc[df.imputed & played, f"y{t}"] = fill[df.imputed & played]
     return df.reset_index(drop=True)
 
 
@@ -101,6 +116,8 @@ def fit(train: pd.DataFrame, version: str, t: int, seed=0):
     feats = FEATURES[version] + ["grp_code"]
     mono = [-1 if f in ("log_pick", "log_rank") else 0 for f in feats]
     tr = train[train[f"y{t}"].notna()]
+    if "log_rank" in feats:  # before 2014 nobody has a board rank, so 'off board' meant nothing
+        tr = tr[tr.cls >= FIRST_BOARD_CLASS]
     m = lgb.LGBMRegressor(**PARAMS, monotone_constraints=mono, random_state=seed)
     m.fit(tr[feats], tr[f"y{t}"], categorical_feature=["grp_code"])
     return m, feats
