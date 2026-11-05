@@ -59,3 +59,23 @@ Replay test: scripts/replay_2021.py (49ers 2021 with ESPN's board). App test: sc
   - Outcome ranges from 60 nearest drafted comps are calibrated (6% below p10, 9% above p90).
 - [x] Outcome engine v2 is now the default (src/outcomes_v2.py; pick_value.OUTCOMES = "v2", "v1" kept). Season-by-season values from cfdarko labels (classes through 2025), consensus rank + position only, careers sampled from similar drafted players (smooth weights; QB pool ~20), rescaled to this project's value units per position family (scripts/units_check.py). Effect: each season is priced on what the player did that year (v1 credited future stars with second-contract pay from year 1), so top-5 non-QB picks now lose value on average and non-QB value peaks ~picks 20-64; QB value peaks ~#15-20 (consensus top-10 QBs haven't outperformed 10-20). Trade-down and QB-need conclusions hold.
 - [x] Review rebuilt on engine v2; realized value from cfdarko season labels (2014-2022 drafts; undrafted NFL players matched by name from 2016). Each recommended player counted once per draft (the model can recommend one available player to many teams). Model minus team where they disagreed: round 1 +1.41 (95% +0.10 to +2.90; non-QB recs alone +0.97, +0.16 to +1.92), rounds 2-4 +0.31 (tie), rounds 5-7 -0.17 (tie / slightly worse). QB recommendations: large point estimates, too few to be sure.
+
+## Scouting text test (Brugler's "The Beast", 2019-2022)
+
+`src/beast.py` parses the user's own downloaded guides (kept local in `data/`, not in git) into
+one row per player: grade, STRENGTHS / WEAKNESSES / SUMMARY. `scripts/beast_test.py` matches
+1,535 of 1,594 profiles to the prospect universe and asks, out of sample (each class predicted
+by models that never saw it), whether the text adds anything to consensus rank + position:
+
+| Question | Result |
+|---|---|
+| Overall value beyond consensus | ~1% of the miss explained, range includes 0 (grade, word groups, full bag-of-words alike) |
+| Brugler grade vs consensus as a ranking | 0.605 vs 0.619 rank correlation with actual value; no gain combined |
+| Boom/bust spread at the same expectation | no word group predicts wider outcomes |
+| Year-1 share (timing) | nothing once rank is controlled |
+| Bust risk (bottom quarter at the same expectation), board players | modest real signal: AUC 0.573 -> 0.625. "Elite/rare/explosive" language = fewer busts; "upside/raw/project" = more; worse grade than rank = more |
+| Big hits (top 10% vs expectation) | no reliable signal |
+
+Takeaway: the reports mostly restate what the consensus already prices in. What's left helps
+flag likely busts a little, not stars, and stars drive title odds. 2026 uses a different
+(bulleted) layout and isn't parsed yet; 2024-25 PDFs don't allow text copying and are skipped.
