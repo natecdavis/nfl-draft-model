@@ -262,6 +262,27 @@ where they disagree, each recommendation once (titles, % of one; 95% range):
   last labeled class (2026) and the live draft-day app, trade calculator and 2027 team report use the
   full engine. The Past drafts scorecard is now the LODO column above.
 
+## QB value across eras (`scripts/qb_era.py`, Nov 2026)
+
+Drafted QBs 1999-2022, seasons 1-4, all measured the same way from nflverse player stats: a proxy
+(plays and EPA above that season's backup level) fit to cfdarko's QB season values (r 0.96 by season,
+0.99 over 4 seasons; matches cfdarko's era means for 2012-22). Draft slot stands in for consensus rank.
+
+| Mean value, seasons 1-4 (cap share) | 1999-2005 | 2006-2011 | 2012-2015 | 2016-2018 | 2019-2022 |
+|---|---|---|---|---|---|
+| Picks 1-10 | 0.28 (n 11) | 0.31 (10) | 0.46 (6) | 0.44 (8) | 0.40 (8) |
+| Picks 11-32 | 0.24 (11) | 0.31 (6) | 0.14 (4) | 0.39 (3) | 0.21 (5) |
+| Picks 33-100 | 0.08 (11) | 0.11 (17) | 0.19 (10) | 0.07 (7) | 0.11 (9) |
+| Round-1 QBs starting (300+ plays) in season 1 | 23% | 69% | 90% | 64% | 77% |
+
+- Round 1 over 1999-2022 delivered 0.89x the 2012-22 average (picks 33-100: 0.88x); 2016-18 is the best
+  stretch (0.43 vs 0.33 for 2012-15 and 2019-22), so the engine's pool runs ~10% high from it.
+- Older QBs were worth less mostly because they sat (season-1 starters 23% in 1999-2005 vs 64-90% since
+  2012, the rookie wage scale era); that's a structural change, so pre-2012 classes are a poor guide.
+- Conclusion: the engine's QB level is about right (within ~10%); a 10% trim wouldn't flip round-1 QB
+  calls (worth ~10x a non-QB for a needy team). Not adopted; older consensus boards not worth pursuing
+  for QB value.
+
 ## Position pay within families, and projecting position changes
 
 **Pay within OL and DB** (`scripts/paypos_choice.py`, `outcomes_v2.POS_PAY`, default off). cfdarko prices
