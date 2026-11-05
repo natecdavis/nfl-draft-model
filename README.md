@@ -111,3 +111,20 @@ nflverse) could extend it free to 2014-18.
 effect comes from 2020-22 (23 sons). Value vs slot x1.15 (0.88-1.45), vs consensus x1.09
 (0.81-1.36), both indistinguishable from 1. The new year weakened rather than confirmed it:
 not used in the model.
+
+## Deeper rankings: Brugler grades for players off Hasan's board (`scripts/beast_offboard.py`)
+
+Among off-board players 2019-22, Brugler's grade sorts them somewhat (rank correlation 0.15;
+his round 3-4 grades averaged 5.2% of cap, graded free agents 0.7%, players not in his guide
+0.02%). But in a fair late-round choice test (picks 100+, candidates = Hasan's board, like the
+app, vs board + Brugler-graded off-board players with a grade multiplier fit on the other drafts),
+adding them was slightly worse: -0.008% of a title per pick (95% -0.042 to +0.028). Deeper boards
+aren't worth pursuing.
+
+**Found along the way (training data):** for 2008-15 classes only *drafted* off-board players are
+in the data (undrafted aren't labeled before 2016), so the model's expectation for an off-board
+player is too high (~0.6% of cap vs ~0.04% actual for 2016+ off-board players). The app and the
+past-drafts review only recommend board players, so they're unaffected; but the research choice
+tests that let the model pick any college player (`pm.choice_test`, `beast_choice.py`) handicapped
+it in late rounds: restricted to board players it does better (0.190 vs 0.162% of a title per
+pick, picks 100+).
