@@ -66,6 +66,15 @@ Replay test: scripts/replay_2021.py (49ers 2021 with ESPN's board). App test: sc
   Recommendations: round 1 QB 40% / WR 58%; rounds 2-4 WR 34%, EDGE 31%, QB 23%; OL from 54% to
   6% of rounds 2-4 recommendations. QBs in round 1 still dominate: the open question is whether a
   rookie-deal QB's cap savings are worth as many titles as the model says.
+- [x] Board position labels adopted (Nov 2026; `src/positions.py`): decisions use the consensus board's own
+  position, valued as a blend over the NFL families that label historically moved to (leave-one-draft-out;
+  e.g. DL5T 61% DL / 39% EDGE, ER 73% EDGE / 27% LB), instead of the position a player's team listed when
+  it drafted him (hindsight for players not yet taken). The team's own pick keeps its listed position, and
+  "actually delivered" uses each player's real position (the board's if the draft record has none).
+  Review rebuilt: recommendations changed at 18% of picks; scorecard (model minus team where they
+  disagree, titles) round 1 +1.16 -> +1.08, rounds 2-4 +0.48 -> +0.55, rounds 5-7 -0.11 -> -0.16; seasons
+  started round 1 -1.68 -> -1.61, rounds 2-4 -1.04 -> -0.89, rounds 5-7 -0.36 -> -0.42 (all within noise).
+  Simulator and artifact show blended labels like "DL/EDGE".
 - [x] Prospect model v2 test (src/prospect_model.py, scripts/pm_choice.py, scripts/pm_timing.py; data read-only from ~/cfdarko: rookie-value labels by season y1-y4, prospect features, bridge). Findings:
   - Draft position can't be an input for "what if we take him at k": it carries other teams' information (an off-board player "taken at #5" inherits #5 outcomes). Value is predicted from pre-draft info; draft-day info enters only as fall shading.
   - Pick-by-pick choice test 2019-22: consensus-only (board rank + position) matches teams in round 1 (16.4 vs 16.4 % of cap over 4 yrs); adding player features (age, combine, PFF college grades, recruiting, team context) makes choices WORSE (-0.55/pick, 95% -1.0 to -0.1), no late-round gain. Same conclusion as cfdarko's own experiments.
@@ -87,6 +96,18 @@ picks reproduces its numbers exactly); drafts through 2022 also show what your p
 delivered vs the team's (`review.RealizedV2`). Value tables per team situation (current model: units, shading, QB-need probability) are cached in
 `data/derived/sim_tables/` (`python src/simulator.py build` builds all 105, ~6 min on 6 workers;
 otherwise ~20s the first time a situation is opened). Test: `scripts/test_simulator_page.py`.
+
+The main "Draft simulator" page is a self-contained HTML page (`scripts/simulator_artifact.html`, packed
+by `scripts/export_simulator_artifact.build_html` from the current review data and tables, rebuilt when
+they change): the model's top 25 beside a searchable list of everyone available, and your draft vs the
+team's across the full width, including what each pick actually delivered over the rookie contract
+(every available player precomputed at every pick of every team with
+`review.RealizedV2.titles_many`, cached in data/derived/sim_realized_v2.npz; drafts since 2023 count the
+seasons played so far, value and cost alike). Its lookups match the Python
+ones to rounding. "Draft simulator classic" keeps the Streamlit version. The same page, exported
+with `python scripts/export_simulator_artifact.py`, is published as a private Claude artifact (it embeds
+Hasan's boards: keep it private). The app's look (`.streamlit/config.toml`) matches it. Tests:
+`scripts/test_simulator_html.py`, `scripts/test_simulator_page.py` (classic).
 
 ## Roster need test (`scripts/roster_need.py`)
 
@@ -207,6 +228,73 @@ other teams simulated around consensus rank) | E rollout, family units, certain 
 - Scoring note: one team using the model against 31 real teams is the right counterfactual, so the same
   faller can appear on many teams' model drafts (La'el Collins on 32 in 2015); dividing his value by
   the number of drafts he appears on understates the model and isn't used.
+
+## Holdout check: is the backtest leaking? (`scripts/holdout_review.py`, Nov 2026)
+
+The outcome engine is fit on all classes through 2025, so the review valued each past pick with that
+draft's own careers among the comparisons. Rerun with the engine held out (`outcomes_v2.HOLDOUT`; the live
+model is unchanged): leave-one-draft-out (LODO, 2014-2022) and an expanding window (only classes and
+seasons known on draft day; 2019-2022, earlier drafts have too few comparison careers). Model minus team
+where they disagree, each recommendation once (titles, % of one; 95% range):
+
+| | Full engine (in-sample) | Leave one draft out | Expanding window, 2019-22 |
+|---|---|---|---|
+| Round 1 | +1.08 (-0.13 to +2.33) | +0.92 (-0.52 to +2.32) | +1.17 (-0.31 to +2.80) |
+| Rounds 2-4 | +0.55 (-0.06 to +1.39) | -0.11 (-0.48 to +0.35) | +0.70 (-0.57 to +2.73) |
+| Rounds 5-7 | -0.16 (-0.31 to -0.03) | -0.11 (-0.26 to +0.02) | +0.60 (-0.10 to +1.66) |
+| Seasons started, R1 / R2-4 | -1.61 / -0.89 | -1.67 / -1.52 | -0.20 / -1.59 |
+
+- Round 1 holds up out of sample (still mostly QB recommendations, still not certain).
+- The rounds 2-4 edge was leakage: it came from QB recommendations (Hurts +29, Carr +15, Purdy +13)
+  whose own careers raised the value of QBs at their rank. Without them the model's rounds 2-4 picks trail
+  teams' on every yardstick; non-QB recommendations in rounds 2-7 trail teams under every engine.
+- The expanding window's late-round gain is two QB hits (Purdy +18, Minshew +8); 19% of its rounds 5-7
+  recommendations are QBs. Noise, not skill.
+- The engine is sensitive to which classes it sees: LODO changes 27% of recommendations, the expanding
+  window 53%. QB value at consensus rank 15 on draft day rose from 0.18 to 0.36 (cap share over 4 seasons) between the
+  2019 and 2022 drafts as the 2016-18 QB classes (Wentz, Watson, Mahomes, Allen, Lamar) entered the pool;
+  leaving out any one class moves it by up to 10%.
+- Use: round 1 recommendations (especially whether to take a QB) are the model's tested edge; in rounds
+  2-7 treat it as one input, not better than teams.
+- Adopted (Nov 2026): the Past drafts review, its trade decisions and the simulator value each past draft
+  with the engine fit without that draft class (`review.engine_for`, `review.REVIEW_HOLDOUT`); simulator
+  tables are now one per situation and draft year (336; the artifact page is ~10 MB). Drafts after the
+  last labeled class (2026) and the live draft-day app, trade calculator and 2027 team report use the
+  full engine. The Past drafts scorecard is now the LODO column above.
+
+## Position pay within families, and projecting position changes
+
+**Pay within OL and DB** (`scripts/paypos_choice.py`, `outcomes_v2.POS_PAY`, default off). cfdarko prices
+a season on one veteran pay curve per family, but veteran starters (60%+ of snaps, 2016-2025) earn, vs
+their family: OT x1.27 (LT 6.7% / RT 4.6% of cap), OG x0.86, C x0.77, CB x1.11, S x0.89. At the same
+consensus rank, though, positions turn out differently under pooled pricing (drafted board players
+2014-2022, actual / expected): OT 0.90, OG 1.07, C 1.35, CB 0.85, S 1.17, so the net expectation factor
+is OT 1.14, OG 0.92, C 1.04, CB 0.94, S 1.04. Whole-draft test vs today's model (per team-draft; realized
+titles scored with position pay):
+
+| | Titles | Seasons started | 2nd-contract pay | AV | Same choice |
+|---|---|---|---|---|---|
+| Pay factor only | +0.26 (+0.06 to +0.44) | -0.33 (-0.82 to +0.18) | -0.81 (-1.32 to -0.30) | +0.1 | 42% |
+| Pay x turnout | -0.01 (-0.15 to +0.14) | -0.56 (-0.97 to -0.14) | -1.09 (-1.52 to -0.66) | -2.4 | 60% |
+
+Both move rounds 2-4 toward OTs (7% of picks -> 37% / 26%), and those picks deliver less on every
+yardstick. Not adopted.
+
+**Projecting position changes** (`scripts/posproj_choice.py`). 4.9% of drafted board players were priced
+in a different NFL family than their board label (5-techniques: 39% became EDGE; edge rushers -> LB 13-22%;
+off-ball LB -> EDGE 8%; S -> LB 5%); the value at stake is ~1.1% of all board players' expected value.
+Whole-draft test: L0 = board label only (pre-draft), L1 = board label valued as a blend over the families
+it historically moved to (leave-one-draft-out), cur = today's model, which takes a drafted player's
+position from his draft record (the position his team listed: hindsight for players not yet taken).
+
+| Per team-draft | Titles | AV | Seasons started | 2nd-contract pay | Same choice |
+|---|---|---|---|---|---|
+| L1 - L0 (blend) | +0.00 (-0.08 to +0.08) | +1.2 (-0.2 to +2.7) | +0.14 (-0.07 to +0.38) | +0.07 | 83% |
+| cur - L0 (draft-record labels) | -0.05 (-0.15 to +0.05) | +0.0 | -0.26 (-0.52 to -0.00) | +0.12 | 77% |
+
+The blend changes 17% of choices and is at best slightly better (rounds 2-4 AV +1.4, starts +0.18); the
+draft-record labels, even with hindsight, don't help. Position labels matter little for choices, and the
+review's use of draft-record positions isn't flattering its results.
 
 ## Scouting text test (Brugler's "The Beast", 2019-2022)
 

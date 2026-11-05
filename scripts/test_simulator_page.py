@@ -1,7 +1,7 @@
-"""Draft simulator page: KC 2017 end to end (team's pick, model's #1, any player, undo)."""
+"""Classic draft simulator page (Streamlit widgets, with actually-delivered values for your picks): KC 2017 end to end (team's pick, model's #1, any player, undo)."""
 from streamlit.testing.v1 import AppTest
 
-at = AppTest.from_file("../src/pages/2_Draft_simulator.py", default_timeout=180)
+at = AppTest.from_file("../src/pages/3_Draft_simulator_classic.py", default_timeout=180)
 at.run(); assert not at.exception, at.exception
 at.selectbox[0].set_value(2017).run(); at.selectbox[1].set_value("KC").run()
 assert not at.exception, at.exception

@@ -27,6 +27,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).parent))
 from draftday import DraftEngine  # noqa: E402
 from outlook import GROUPS, OUT  # noqa: E402
+from positions import blended  # noqa: E402
 from review import OFF_BOARD_RANK, Table, board, draft_night  # noqa: E402
 
 TABLE_DIR = OUT / "sim_tables"
@@ -42,11 +43,15 @@ def situation(state_row) -> dict:
             "qb_from": None if pd.isna(q) else int(q)}
 
 
-def _key(sit) -> str:
+def _key(sit, year=None) -> str:
     sh = "_".join(f"{k}:{v:g}" for k, v in sorted(sit["shift"].items())) or "none"
     from outcomes_v2 import UNITS
     # v2: fall shading applied once (Nov 2026); units = outcome units (outcomes_v2.UNITS)
-    return f"start{sit['start']:g}_qb{sit['qb_from']}_shift{sh}_fw{FALL_WEIGHT:g}_v2_{UNITS}"
+    import prospect_model as pm
+    from review import REVIEW_HOLDOUT
+    # past drafts: engine fit without that draft class (review.engine_for), so one table per draft year
+    ho = f"_lodo{int(year)}" if year is not None and REVIEW_HOLDOUT and int(year) <= pm.LAST_SEASON_PLAYED else ""
+    return f"start{sit['start']:g}_qb{sit['qb_from']}_shift{sh}_fw{FALL_WEIGHT:g}_v2_{UNITS}{ho}"
 
 
 class _Talent:
@@ -57,16 +62,25 @@ class _Talent:
         self.fall_weight = fall_weight
 
 
-def get_table(sit, ctx=None) -> Table:
-    """The value table for this situation: from disk if built, else build (~16s) and save."""
-    f = TABLE_DIR / f"{_key(sit)}.npz"
+def get_table(sit, ctx=None, year=None) -> Table:
+    """The value table for this situation in draft `year`: from disk if built, else build (~16s) and save."""
+    f = TABLE_DIR / f"{_key(sit, year)}.npz"
     if f.exists():
         z = np.load(f)
         t = Table.__new__(Table)
         t.eng, t.v = _Talent(FALL_WEIGHT), {g: z[g] for g in z.files}
         return t
+    from review import engine_for
     from trade import Context
-    t = Table(sit, ctx or Context(), fall_weight=FALL_WEIGHT)
+    import outcomes_v2 as o
+    prev = o.HOLDOUT
+    if year is not None:
+        engine_for(year)
+    try:
+        t = Table(sit, ctx or Context(), fall_weight=FALL_WEIGHT)
+    finally:  # leave the live engine as it was (the draft-day app shares this process)
+        if o.HOLDOUT != prev:
+            o.HOLDOUT, o._MODEL = prev, None
     TABLE_DIR.mkdir(parents=True, exist_ok=True)
     tmp = f.with_suffix(".tmp.npz")
     np.savez(tmp, **t.v)
@@ -76,17 +90,20 @@ def get_table(sit, ctx=None) -> Table:
 
 def pool(year: int) -> pd.DataFrame:
     """Everyone who can be chosen in this draft: the consensus board plus drafted players
-    who weren't on it. Columns: pid, name, pos, grp, rank (NaN = off board), school,
-    drafted_at (NaN = undrafted), drafted_by."""
+    who weren't on it. Columns: pid, name, pos (board label, or draft position if off board), grp
+    (decisions: the board's position), grp_record (what he delivered: his team's listed position once
+    drafted), label (board label; None off board), rank (NaN = off board), school, drafted_at (NaN =
+    undrafted), drafted_by."""
     picks, _ = draft_night(year)
     b = board(year, picks)
     by = dict(zip(picks.pick, picks.team))
-    on = pd.DataFrame({"name": b["name"].str.replace(r"\s*\(.*?\)", "", regex=True), "pos": b.pos, "grp": b.grp,
-                       "rank": b["rank"].astype(float), "school": b.school, "drafted_at": b.drafted_at})
+    on = pd.DataFrame({"name": b["name"].str.replace(r"\s*\(.*?\)", "", regex=True), "pos": b.pos, "grp": b.grp_label,
+                       "grp_record": b.grp, "label": b.pos, "rank": b["rank"].astype(float), "school": b.school, "drafted_at": b.drafted_at})
     off = picks[~picks.pick.isin(b.drafted_at.dropna())]
     dp = pd.read_parquet(Path(__file__).resolve().parents[1] / "data" / "raw" / "draft_picks.parquet")
     college = dict(zip(dp[dp.season == year].pick, dp[dp.season == year].college))
-    off = pd.DataFrame({"name": off.pfr_player_name, "pos": off.position, "grp": off.grp, "rank": np.nan,
+    off = pd.DataFrame({"name": off.pfr_player_name, "pos": off.position, "grp": off.grp,
+                        "grp_record": off.grp, "label": None, "rank": np.nan,
                         "school": off.pick.map(college), "drafted_at": off.pick.astype(float)})
     p = pd.concat([on, off], ignore_index=True)
     p["drafted_by"] = p.drafted_at.map(by)
@@ -95,37 +112,40 @@ def pool(year: int) -> pd.DataFrame:
     return p
 
 
-def options(P: pd.DataFrame, table: Table, pick: int, taken: set, counts: dict, p_need: float = 1.0) -> pd.DataFrame:
+def options(P: pd.DataFrame, table: Table, pick: int, taken: set, counts: dict, p_need: float = 1.0,
+            W: dict | None = None) -> pd.DataFrame:
     """Players available at `pick` with their titles for this team (in % of one title),
     best first. taken = pids you already chose; counts = your players per position group;
-    p_need = chance the team's QB need is real (review.p_need)."""
+    p_need = chance the team's QB need is real (review.p_need); W = positions.weights(year)
+    (board labels valued as a blend over the positions they historically moved to)."""
     a = P[(P.drafted_at.isna() | (P.drafted_at >= pick)) & ~P.pid.isin(list(taken)) & P.grp.isin(GROUPS)].copy()
     r = a["rank"].fillna(OFF_BOARD_RANK)
-    a["titles"] = [table.lookup(g, min(counts.get(g, 0), 2), rk, pick, p_need) * 100 for g, rk in zip(a.grp, r)]
+    a["titles"] = [blended(table.lookup, lab, g, min(counts.get(g, 0), 2), rk, pick, p_need, W) * 100
+                   for lab, g, rk in zip(a.label, a.grp, r)]
     a = a.sort_values("titles", ascending=False).reset_index(drop=True)
     a.insert(0, "model_rank", np.arange(1, len(a) + 1))
     return a
 
 
-def value_of(table, grp, rank, pick, counts, p_need=1.0) -> float:
+def value_of(table, grp, rank, pick, counts, p_need=1.0, label=None, W=None) -> float:
     if grp not in GROUPS:
         return np.nan
     r = OFF_BOARD_RANK if pd.isna(rank) else rank
-    return table.lookup(grp, min(counts.get(grp, 0), 2), r, pick, p_need) * 100
+    return blended(table.lookup, label, grp, min(counts.get(grp, 0), 2), r, pick, p_need, W) * 100
 
 
 def _build_one(args):
-    sit = args
-    get_table(sit)
-    return _key(sit)
+    sit, year = args
+    get_table(sit, year=year)
+    return _key(sit, year)
 
 
 def build_all(workers=6):
     """Build value tables for every team situation in the review (skips ones on disk)."""
     from concurrent.futures import ProcessPoolExecutor, as_completed
     S = pd.read_parquet(OUT / "review_states.parquet")
-    sits = {_key(s): s for s in (situation(r) for _, r in S.iterrows())}
-    todo = [s for k, s in sits.items() if not (TABLE_DIR / f"{k}.npz").exists()]
+    sits = {_key(situation(r), r.year): (situation(r), int(r.year)) for _, r in S.iterrows()}
+    todo = sorted((a for k, a in sits.items() if not (TABLE_DIR / f"{k}.npz").exists()), key=lambda a: a[1])
     print(f"{len(sits)} situations, {len(todo)} to build", flush=True)
     with ProcessPoolExecutor(workers) as ex:
         for i, f in enumerate(as_completed([ex.submit(_build_one, s) for s in todo]), 1):

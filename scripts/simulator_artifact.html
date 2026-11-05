@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Draft Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: full-width bands — controls, then "on the clock" (board beside a searchable list of everyone available), then your draft vs the team's across the full width. */
+:root {
+  --paper: #f3f5f2;
+  --card: #ffffff;
+  --ink: #18201c;
+  --muted: #5f6b65;
+  --line: #d6ddd8;
+  --turf: #1d6b46;
+  --turf-soft: #e1efe7;
+  --gold: #a86b12;
+  --gold-soft: #f6ead6;
+  --bad: #b03a2e;
+  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #111614; --card: #19201d; --ink: #e6ece8; --muted: #9aa8a0; --line: #2c3631;
+    --turf: #4fbf86; --turf-soft: #1b3428; --gold: #e0a64a; --gold-soft: #3a2c16; --bad: #ef7f72;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #111614; --card: #19201d; --ink: #e6ece8; --muted: #9aa8a0; --line: #2c3631;
+  --turf: #4fbf86; --turf-soft: #1b3428; --gold: #e0a64a; --gold-soft: #3a2c16; --bad: #ef7f72;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--paper); color: var(--ink); font: 15px/1.45 var(--body); }
+.wrap { max-width: 1440px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; letter-spacing: .01em; margin: 0; text-wrap: balance; }
+h1 { font-size: 34px; line-height: 1; text-transform: uppercase; }
+h2 { font-size: 22px; text-transform: uppercase; }
+.sub { color: var(--muted); max-width: 70ch; margin: 6px 0 0; font-size: 14px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+select, input[type=search] { font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 110px; }
+input[type=search] { width: 100%; }
+.state { font-size: 14px; color: var(--muted); }
+.state b { color: var(--ink); }
+.stack { display: grid; gap: 16px; }
+.board { display: grid; gap: 16px; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: start; }
+@media (max-width: 980px) { .board { grid-template-columns: minmax(0, 1fr); } }
+.panel { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.panel h3 { font-size: 16px; text-transform: uppercase; color: var(--muted); }
+.clock { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; }
+.clock .pick { font-family: var(--display); font-size: 40px; font-weight: 700; line-height: 1; color: var(--turf); }
+.chip { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--turf-soft); color: var(--turf); font-weight: 600; }
+.chip.gold { background: var(--gold-soft); color: var(--gold); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.tile { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 2px; }
+.tile .k { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.tile .v { font-family: var(--display); font-size: 22px; font-weight: 600; line-height: 1.1; }
+.tile .d { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tile.team { border-left: 4px solid var(--gold); }
+.tile.model { border-left: 4px solid var(--turf); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; white-space: nowrap; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.name { font-weight: 600; }
+td.name small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+tr.teampick td { background: var(--gold-soft); }
+.pos { font-family: var(--display); font-weight: 600; font-size: 15px; }
+.pos-col { width: 1%; white-space: nowrap; }
+button { font: inherit; font-weight: 600; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); padding: 7px 12px; cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--turf); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid var(--turf); outline-offset: 2px; }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--turf); border-color: var(--turf); color: var(--card); }
+button.take { padding: 4px 10px; font-size: 13px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pos-pos { color: var(--turf); }
+.neg { color: var(--bad); }
+.results { max-height: 860px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; }
+.results table td { border-bottom-color: var(--line); }
+.note { font-size: 13px; color: var(--muted); max-width: 75ch; }
+.done { font-family: var(--display); font-size: 26px; font-weight: 700; color: var(--turf); text-transform: uppercase; }
+.sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+#loading { padding: 40px 16px; text-align: center; color: var(--muted); }
+@media (max-width: 520px) {
+  .hide-sm { display: none; }
+  h1 { font-size: 28px; }
+  th, td { padding: 6px 5px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Draft Simulator</h1>
+    <p class="sub">Replay a team's draft at the picks it actually made and choose your own player each time. Other teams draft exactly as they really did. Values are the change in expected Super Bowls over five seasons, in % of one title, for that team's situation on draft night.</p>
+  </header>
+
+  <section class="card">
+    <div class="controls">
+      <label for="year">Draft<select id="year"></select></label>
+      <label for="team">Team<select id="team"></select></label>
+      <div class="actions">
+        <button id="undo" type="button">Undo last pick</button>
+        <button id="reset" type="button">Start over</button>
+      </div>
+    </div>
+    <div class="state" id="state"></div>
+  </section>
+
+  <div id="loading">Loading the boards and the model…</div>
+
+  <div class="stack" id="main" hidden>
+    <section class="card" id="clock"></section>
+    <section class="card" id="history"></section>
+  </div>
+
+  <p class="note">How it works: at each pick, everyone really taken before it is gone (including this team's own earlier picks, even if you passed on them), and anyone you took is gone at your later picks. Each player you take at a position lowers the value of the next one there; after one QB the QB need is filled, and a flagged QB need counts with its measured chance of being real. Candidates are Arif Hasan's consensus board plus drafted players who weren't on it (valued as ranked just past it, #330). Positions are the consensus board's own labels; a label that often changes position in the NFL (a 5-technique, an edge rusher who becomes an off-ball linebacker, a safety who moves to linebacker) is valued as a blend of those positions and shown like "DL/EDGE". Kickers and punters aren't valued. Draft-night trades aren't simulated. "Delivered" columns count each player's first four seasons; drafts since 2023 count the seasons played so far (through 2025). Undrafted players count from the 2016 class.</p>
+</div>
+
+<script>
+const DATA_GZ = "__DATA_GZ__";
+const TABLES_GZ = "__TABLES_GZ__";
+const REAL_GZ = "__REAL_GZ__";
+const LABEL = { T: "OT", G: "OG", ED: "EDGE", IDL: "DL", SPEC: "K/P" };
+const pos = g => LABEL[g] || g;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmt = v => v == null || Number.isNaN(v) ? "–" : (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2);
+const rankTxt = r => r == null ? "off board" : "#" + r;
+
+let D, TAB, REAL, META, LT, LK, GI;
+let year, team, choices = [];
+
+async function gunzip(b64) {
+  const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const stream = new Blob([bin]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return new Response(stream).arrayBuffer();
+}
+
+// --- the model's value lookup (same as review.Table.lookup) ---
+function searchLeft(a, x) { let lo = 0, hi = a.length; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] < x) lo = m + 1; else hi = m; } return lo; }
+function effTalent(r, k) {
+  if (k <= r) return Math.trunc(r);
+  const lt = Math.log(r + 10), lp = Math.log(k + 10);
+  return Math.round(Math.exp(lt + META.fw * (lp - lt)) - 10);
+}
+function lookup(tid, g, level, rank, pick, pNeed) {
+  const gi = GI[g]; if (gi == null) return null;
+  const t = effTalent(Math.min(rank ?? META.off, META.off), pick);
+  const lt = Math.log(t + 10), lk = Math.log(pick + 10);
+  const nT = LT.length, nK = LK.length;
+  const i = Math.min(Math.max(searchLeft(LT, lt) - 1, 0), nT - 2), j = Math.min(Math.max(searchLeft(LK, lk) - 1, 0), nK - 2);
+  const fx = Math.min(Math.max((lt - LT[i]) / (LT[i + 1] - LT[i]), 0), 1), fy = Math.min(Math.max((lk - LK[j]) / (LK[j + 1] - LK[j]), 0), 1);
+  const base = tid * META.groups.length * 3 * nT * nK;
+  const at = lv => {
+    const o = base + ((gi * 3 + lv) * nT) * nK;
+    const A = (a, b) => TAB[o + a * nK + b];
+    return ((1 - fx) * (1 - fy) * A(i, j) + fx * (1 - fy) * A(i + 1, j) + (1 - fx) * fy * A(i, j + 1) + fx * fy * A(i + 1, j + 1)) / META.scale;
+  };
+  if (g === "QB" && level === 0 && pNeed < 1) return 100 * (pNeed * at(0) + (1 - pNeed) * at(1));
+  return 100 * at(level);
+}
+
+// realized titles (% of one) for pool player idx at the team's pick number j; null if not scored
+function realAt(T, j, idx) {
+  if (T.real == null) return null;
+  const v = REAL[T.real + j * D.pools[year].length + idx];
+  return v === -32768 ? null : v / META.real_scale;
+}
+
+// a board player's label can be valued as a blend over the positions it historically moved to
+function blendOf(label) { return (META.blends[year] || {})[label] || null; }
+function value(T, p, level, pick) {
+  const w = blendOf(p[8]), pn = T.p_need ?? 1;
+  if (!w) return lookup(T.table, p[1], level, p[2], pick, pn);
+  return w.reduce((s, [g, x]) => s + x * lookup(T.table, g, level, p[2], pick, pn), 0);
+}
+// "DL" or, for a blended label, "DL/EDGE" (positions with at least 15% weight)
+function posOf(g, label) {
+  const w = blendOf(label);
+  if (!w) return pos(g);
+  const main = [pos(g), ...w.filter(([gg, x]) => gg !== g && x >= 0.15).map(([gg]) => pos(gg))];
+  return [...new Set(main)].join("/");
+}
+
+// --- state ---
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+const key = () => `draftsim:${year}:${team}`;
+function save() { store.set(key(), choices); store.set("draftsim:last", { year, team }); }
+
+function options(T, P, pick, taken, counts) {
+  const out = [];
+  P.forEach((p, idx) => {
+    const [name, g, rank, school, at, by, , , label] = p;
+    if (!(g in GI) || taken.has(idx) || (at != null && at < pick)) return;
+    out.push({ idx, name, g, label, rank, school, at, by, v: value(T, p, Math.min(counts[g] || 0, 2), pick) });
+  });
+  out.sort((a, b) => b.v - a.v);
+  out.forEach((o, n) => o.mr = n + 1);
+  return out;
+}
+const went = o => o.at == null ? "undrafted" : `#${o.at} ${o.by}${o.by === team ? " (this team)" : ""}`;
+
+function render() {
+  const T = D.teams[year][team], P = D.pools[year];
+  const qbNeed = T.qb_from == null ? "no QB need in the window"
+    : `needs a starting QB from season ${T.qb_from}` + (T.p_need < 1 ? ` (${Math.round(T.p_need * 100)}% likely)` : "");
+  $("state").innerHTML = `<b>${esc(team)} going into ${year}:</b> last season ${T.strength >= 0 ? "+" : "−"}${Math.abs(T.strength).toFixed(1)} pts/game vs average · QB ${esc(T.qb)} (${esc(T.status)}) → ${esc(qbNeed)}`;
+
+  const taken = new Set(), counts = {}, hist = [];
+  choices.forEach((pid, n) => {
+    const pk = T.picks[n], k = pk[0], o = options(T, P, k, taken, counts), me = P[pid];
+    const v = value(T, me, Math.min(counts[me[1]] || 0, 2), k);
+    const tm = P.find(p => p[4] === k);
+    hist.push({ pk, me, v, top: o[0], team: tm });
+    taken.add(pid); counts[me[1]] = (counts[me[1]] || 0) + 1;
+  });
+
+  // on the clock
+  const C = $("clock");
+  if (choices.length < T.picks.length) {
+    const [k, rnd, orig, traded, player, grp] = T.picks[choices.length];
+    const o = options(T, P, k, taken, counts);
+    const tp = o.find(x => x.at === k);
+    const teamTile = tp
+      ? `<div class="v">${esc(tp.name)} <span class="pos">${posOf(tp.g, tp.label)}</span></div><div class="d">${fmt(tp.v)} · model #${tp.mr} · consensus ${rankTxt(tp.rank)}</div>`
+      : `<div class="v">${esc(player)} <span class="pos">${pos(grp)}</span></div><div class="d">${(grp in GI) ? "you already drafted him" : "specialist: not valued"}</div>`;
+    const top = o[0];
+    const row = x => `<tr class="${x.at === k ? "teampick" : ""}">
+        <td class="n">${x.mr}</td>
+        <td class="name">${esc(x.name)}<small>${esc(x.school)}${x.at === k ? " · team's pick" : ""}</small></td>
+        <td class="pos-col"><span class="pos">${posOf(x.g, x.label)}</span></td>
+        <td class="n">${rankTxt(x.rank)}</td>
+        <td class="hide-sm">${esc(went(x))}</td>
+        <td class="n">${fmt(x.v)}</td>
+        <td><button class="take" type="button" data-idx="${x.idx}">Draft</button></td></tr>`;
+    C.innerHTML = `
+      <div class="clock"><span class="pick">#${k}</span><h2>On the clock</h2>
+        <span class="chip">Round ${rnd}</span><span class="chip">Pick ${choices.length + 1} of ${T.picks.length}</span>
+        ${traded ? `<span class="chip gold">from ${esc(orig)} on draft night</span>` : ""}</div>
+      <div class="tiles">
+        <div class="tile team"><div class="k">${esc(team)} actually took</div>${teamTile}</div>
+        <div class="tile model"><div class="k">Model's top choice</div><div class="v">${esc(top.name)} <span class="pos">${posOf(top.g, top.label)}</span></div><div class="d">${fmt(top.v)} · consensus ${rankTxt(top.rank)}</div></div>
+      </div>
+      <div class="actions">
+        <button class="primary" type="button" id="takeTop">Take ${esc(top.name)}</button>
+        <button type="button" id="takeTeam" ${tp ? "" : "disabled"}>Take ${esc(team)}'s pick</button>
+      </div>
+      <div class="board">
+        <div class="panel"><h3>Model's top 25</h3><div class="scroll"><table>
+          <thead><tr><th class="n">Model</th><th>Player</th><th>Pos</th><th class="n">Consensus</th><th class="hide-sm">Actually went</th><th class="n">Titles %</th><th></th></tr></thead>
+          <tbody>${o.slice(0, 25).map(row).join("")}</tbody></table></div></div>
+        <div class="panel"><label for="search">More players: #26 on, or search all ${o.length} available<input type="search" id="search" placeholder="Name, school or position" autocomplete="off"></label>
+          <div class="results" id="results"></div></div>
+      </div>
+      <p class="note">Model = order by titles added for this team at this pick, given your draft so far. The team's pick is valued with your draft so far, so it can differ from the team's own value below.</p>`;
+    $("takeTop").onclick = () => take(top.idx);
+    if (tp) $("takeTeam").onclick = () => take(tp.idx);
+    C.querySelectorAll("button.take").forEach(b => b.onclick = () => take(+b.dataset.idx));
+    const srow = x => `<tr class="${x.at === k ? "teampick" : ""}"><td class="n">${x.mr}</td>
+        <td class="name">${esc(x.name)}<small>${esc(x.school)} · ${rankTxt(x.rank)} · went ${esc(went(x))}</small></td>
+        <td class="pos-col"><span class="pos">${posOf(x.g, x.label)}</span></td><td class="n">${fmt(x.v)}</td>
+        <td><button class="take" type="button" data-idx="${x.idx}">Draft</button></td></tr>`;
+    const showResults = q => {
+      const R = $("results");
+      const hits = (q ? o.filter(x => (x.name + " " + x.school + " " + posOf(x.g, x.label)).toLowerCase().includes(q)) : o.slice(25)).slice(0, 100);
+      R.innerHTML = hits.length ? `<table><tbody>${hits.map(srow).join("")}</tbody></table>` : `<p class="note" style="padding:8px">No available player matches “${esc(q)}”.</p>`;
+      R.querySelectorAll("button.take").forEach(b => b.onclick = () => take(+b.dataset.idx));
+    };
+    showResults("");
+    $("search").oninput = e => showResults(e.target.value.trim().toLowerCase());
+  } else {
+    C.innerHTML = `<div class="done">Draft complete</div><p class="note">All ${T.picks.length} of ${esc(team)}'s picks are made. Undo to change the last one, start over, or pick another team.</p>`;
+  }
+
+  // history
+  const H = $("history");
+  if (!hist.length) {
+    H.innerHTML = `<h2>Your draft vs ${esc(team)}'s</h2><p class="note">${esc(team)} made ${T.picks.length} picks in ${year}: ${T.picks.map(p => "#" + p[0]).join(", ")}. Your choices and the team's real picks will line up here.</p>`;
+  } else {
+    let you = 0, them = 0, rY = 0, rT = 0;
+    const scored = T.real != null;
+    const soFar = scored && T.seasons < 4 ? `so far: ${T.seasons} of 4 seasons` : "rookie contracts, as played";
+    const rows = hist.map((h, n) => {
+      const [k, , , , player, grp, br, vTeam, realTeam] = h.pk;
+      you += h.v; them += vTeam ?? 0;
+      const tm = h.team || [];
+      const realYou = realAt(T, n, choices[n]);
+      rY += realYou ?? 0; rT += realTeam ?? 0;
+      const same = !h.top || h.top.idx === choices[hist.indexOf(h)];
+      return `<tr><td class="n">${k}</td><td class="n">${h.pk[1]}</td>
+        <td class="name">${esc(h.me[0])}<small>${posOf(h.me[1], h.me[8])} · ${esc(h.me[3])} · ${rankTxt(h.me[2])}</small></td>
+        <td class="n">${fmt(h.v)}</td>
+        <td class="name">${same ? "<small>same</small>" : `${esc(h.top.name)}<small>${pos(h.top.g)} · ${rankTxt(h.top.rank)}</small>`}</td>
+        <td class="n">${same ? "" : fmt(h.top.v)}</td>
+        <td class="name">${esc(player)}<small>${pos(grp)}${tm[3] ? " · " + esc(tm[3]) : ""} · ${rankTxt(br)}</small></td>
+        <td class="n">${fmt(vTeam)}</td>
+        <td class="n">${scored ? fmt(realYou) : "–"}</td><td class="n">${scored ? fmt(realTeam) : "–"}</td></tr>`;
+    }).join("");
+    const done = hist.length;
+    H.innerHTML = `<h2>Your draft vs ${esc(team)}'s</h2>
+      <div class="sum">
+        <div class="tile model"><div class="k">Your titles</div><div class="v">${fmt(you)}</div><div class="d">${done} pick${done > 1 ? "s" : ""}</div></div>
+        <div class="tile team"><div class="k">${esc(team)}'s titles</div><div class="v">${fmt(them)}</div><div class="d">same slots</div></div>
+        <div class="tile model"><div class="k">You: actually delivered</div><div class="v">${scored ? fmt(rY) : "–"}</div><div class="d">${scored ? soFar : "no season played yet"}</div></div>
+        <div class="tile team"><div class="k">${esc(team)}: actually delivered</div><div class="v">${scored ? fmt(rT) : "–"}</div><div class="d">${scored ? soFar : "no season played yet"}</div></div>
+      </div>
+      <div class="scroll"><table>
+        <thead><tr><th class="n">Pick</th><th class="n">Rd</th><th>You took</th><th class="n">Titles %</th><th>Model's #1 then</th><th class="n">Titles %</th><th>${esc(team)} took</th><th class="n">Titles %</th><th class="n">You: delivered</th><th class="n">Team: delivered</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+      <p class="note">Titles = the model's draft-night value. The team's values follow its own draft (its needs set by its own earlier picks). Delivered = what each player really did in his first four seasons (with the team that actually drafted him, or none if he never reached the NFL), at the cost of this pick, as titles for this team, in % of one.${!scored ? " No season of this draft has been played yet." : T.seasons < 4 ? ` This draft has played ${T.seasons} of its 4 rookie-contract seasons: only those count so far (value and cost), so totals will change.` : ""}</p>`;
+  }
+  $("undo").disabled = !choices.length;
+  $("reset").disabled = !choices.length;
+}
+
+function take(idx) { choices.push(idx); save(); render(); }
+
+function setTeamOptions(keep) {
+  const teams = Object.keys(D.teams[year]).sort();
+  $("team").innerHTML = teams.map(t => `<option>${t}</option>`).join("");
+  team = teams.includes(keep) ? keep : teams[0];
+  $("team").value = team;
+}
+function load() { choices = store.get(key()) || []; render(); }
+
+(async () => {
+  try {
+    const [d, t, r] = await Promise.all([gunzip(DATA_GZ), gunzip(TABLES_GZ), gunzip(REAL_GZ)]);
+    D = JSON.parse(new TextDecoder().decode(d));
+    META = D.meta; TAB = new Int16Array(t); REAL = new Int16Array(r);
+    LT = META.T.map(x => Math.log(x + 10)); LK = META.K.map(x => Math.log(x + 10));
+    GI = Object.fromEntries(META.groups.map((g, i) => [g, i]));
+  } catch (e) {
+    $("loading").textContent = "This browser couldn't unpack the data (it needs gzip decompression support, in Safari 16.4+, Chrome or Firefox). Try updating the browser.";
+    return;
+  }
+  const years = Object.keys(D.teams).sort().reverse();
+  $("year").innerHTML = years.map(y => `<option>${y}</option>`).join("");
+  const last = store.get("draftsim:last") || { year: "2026", team: "NE" };
+  year = years.includes(String(last.year)) ? String(last.year) : years[0];
+  $("year").value = year;
+  setTeamOptions(last.team);
+  $("year").onchange = e => { year = e.target.value; setTeamOptions(team); save(); load(); };
+  $("team").onchange = e => { team = e.target.value; save(); load(); };
+  $("undo").onclick = () => { choices.pop(); save(); render(); };
+  $("reset").onclick = () => { choices = []; save(); render(); };
+  $("loading").hidden = true; $("main").hidden = false;
+  load();
+})();
+</script>
+</body>
+</html>

@@ -130,8 +130,14 @@ def board(year: int, picks: pd.DataFrame) -> pd.DataFrame:
         if pick_ is not None:
             h.at[i, "drafted_at"] = pick_.pick.iloc[0]
     # a drafted player's group comes from the draft record (more reliable)
+    # grp_label: the board's own position (known before the draft; what decisions use, via
+    # positions.blended). grp: for a drafted player, the position his team listed (known only once
+    # he's drafted; used for what he actually delivered)
+    h["grp_label"] = h.grp
     draft_grp = dict(zip(picks.pick, picks.grp))
-    h.loc[h.drafted_at.notna(), "grp"] = h.loc[h.drafted_at.notna(), "drafted_at"].map(draft_grp)
+    rec = h.drafted_at.map(draft_grp)
+    use = h.drafted_at.notna() & rec.isin(GROUPS)  # a record without a usable position keeps the board's
+    h.loc[use, "grp"] = rec[use]
     return h.reset_index(drop=True)
 
 
@@ -305,7 +311,26 @@ def p_need(status: str, qb_from) -> float:
 
 # ---------- 4. the review ----------
 
+def engine_for(year, tables=None):
+    """Point the outcome engine at draft `year` with that draft class left out (classes the engine was
+    fit on: through prospect_model.LAST_SEASON_PLAYED), so past drafts aren't valued with their own
+    careers (scripts/holdout_review.py, README 'Holdout check'). Later drafts use the full engine.
+    Clears `tables` (value tables built with another engine) when the engine changes."""
+    import outcomes_v2 as o
+    import prospect_model as pm
+    want = ("lodo", int(year)) if REVIEW_HOLDOUT and int(year) <= pm.LAST_SEASON_PLAYED else None
+    if o.HOLDOUT != want:
+        o.HOLDOUT, o._MODEL = want, None
+        if tables is not None:
+            tables.clear()
+    return want
+
+
+REVIEW_HOLDOUT = True  # leave-one-draft-out engine for past drafts (review, simulator)
+
+
 def review_year(year, states, ctx, tables):
+    engine_for(year, tables)
     picks, night = draft_night(year)
     b = board(year, picks)
     teams_st = {tm: states.state(tm, year) for tm in sorted(set(picks.team) | set(picks.original_team))}
@@ -317,6 +342,8 @@ def review_year(year, states, ctx, tables):
             tables[key] = Table({"start": s["start"], "shift": dict(key[2]), "qb_from": key[1]}, ctx, fall_weight=0.85)
         return tables[key]
 
+    from positions import blended, weights
+    W = weights(year)
     taken_count = {}
     rows = []
     for _, p in picks.sort_values("pick").iterrows():
@@ -324,9 +351,10 @@ def review_year(year, states, ctx, tables):
         tab = table_for(tm)
         counts = taken_count.setdefault(tm, {})
         lvl = lambda g: min(counts.get(g, 0), 2)  # each player taken at a position lowers the need
-        avail = b[(b.drafted_at.isna() | (b.drafted_at >= k)) & (b.grp != "SPEC")]
+        avail = b[(b.drafted_at.isna() | (b.drafted_at >= k)) & (b.grp_label != "SPEC")]
         pn = teams_st[tm]["p_need"]
-        vals = np.array([tab.lookup(g, lvl(g), r, k, pn) for g, r in zip(avail.grp, avail["rank"])])
+        vals = np.array([blended(tab.lookup, lab, g, lvl(g), r, k, pn, W)
+                         for lab, g, r in zip(avail.pos, avail.grp_label, avail["rank"])])
         best = avail.iloc[int(np.argmax(vals))] if len(avail) else None
         cons = avail.sort_values("rank").iloc[0] if len(avail) else None
         on_board = b[b.drafted_at == k]
@@ -468,9 +496,10 @@ class RealizedV2:
     a given pick: cfdarko's season-by-season labels (same units and encoding as outcomes_v2),
     for classes with all four seasons played (through 2022). Players who never played in the
     NFL count as zero."""
-    def __init__(self, ctx, n=2000, units=None):
+    def __init__(self, ctx, n=2000, units=None, pos_pay=None):
         from pathlib import Path as _P
-        self.ctx, self.n, self.units = ctx, n, units  # units: see outcomes_v2.unit_factor
+        # units: see outcomes_v2.unit_factor; pos_pay: outcomes_v2.pay_factor (None = its default)
+        self.ctx, self.n, self.units, self.pos_pay = ctx, n, units, pos_pay
         L = pd.read_parquet(_P.home() / "cfdarko/data/processed/rookie_value_labels.parquet")
         self.L = L.dropna(subset=["pfr_id"]).drop_duplicates("pfr_id").set_index("pfr_id")
         # undrafted players who reached the NFL (labeled from the 2016 class): find by name + class
@@ -482,7 +511,7 @@ class RealizedV2:
 
     def titles(self, sit, grp, year, drafted_at, pick, name=None, scale=1.0):
         """scale: multiply his seasons' values (e.g. a depth-chart adjustment); 1 = as he played."""
-        from outcomes_v2 import FAMILY, unit_factor
+        from outcomes_v2 import FAMILY, pay_factor, unit_factor
         from pick_value import baseline_paths, pick_effect
         if grp is None or grp == "SPEC" or year > 2022:
             return np.nan
@@ -490,7 +519,7 @@ class RealizedV2:
         pid = self.pfr_at.get((year, int(drafted_at))) if pd.notna(drafted_at) else self.udfa.get((year, _norm(name or "")))
         if pid in L.index:
             row = L.loc[pid]
-            y = np.array([max(row[f"value_y{t}"], 0) for t in range(1, 5)]) / unit_factor(FAMILY.get(grp, grp), self.units) * scale
+            y = np.array([max(row[f"value_y{t}"], 0) for t in range(1, 5)]) / unit_factor(FAMILY.get(grp, grp), self.units) * scale * pay_factor(grp, self.pos_pay)
         else:
             y = np.zeros(4)
         y5 = np.r_[y, y[-1]]
@@ -503,6 +532,52 @@ class RealizedV2:
         s2 = dict(sit); s2["qb_from"] = 99 if sit["qb_from"] is None else sit["qb_from"]
         pts = pick_effect((y5 / price[0])[None, :], price, int(pick), grp, s2, ctx.cost, ctx.bar, ctx.rates)
         return (ctx.sb(b + pts).sum(axis=1).mean() - b0) * 100
+
+    def last_season(self) -> int:
+        """Last NFL season with labels (e.g. 2025: the 2023 class has three seasons)."""
+        L = self.L
+        return int(max((L.draft_year[L[f"value_y{t}"].notna()] + t - 1).max() for t in range(1, 5)))
+
+    def seasons_played(self, year) -> int:
+        return int(np.clip(self.last_season() - year + 1, 0, 4))
+
+    def titles_many(self, sit, year, pick, grps, drafted_at, names, partial=False) -> np.ndarray:
+        """titles() for many players at one pick (same numbers, vectorized by position group).
+        partial=True also scores classes still on their rookie deals, "so far": only the seasons
+        played count, both his value and the pick's cost (later seasons add nothing)."""
+        from outcomes_v2 import FAMILY, pay_factor, unit_factor
+        from pick_value import baseline_paths, pick_effect
+        out = np.full(len(grps), np.nan)
+        n_played = self.seasons_played(year) if partial else (4 if year <= 2022 else 0)
+        if n_played == 0:
+            return out
+        L, ctx = self.L, self.ctx
+        key = (sit["start"], sit["qb_from"], tuple(sorted(sit["shift"].items())))
+        if key not in self.base_cache:
+            b = baseline_paths(sit, np.random.default_rng(0), self.n)
+            self.base_cache[key] = (b, ctx.sb(b).sum(axis=1).mean())
+        b, b0 = self.base_cache[key]
+        s2 = dict(sit); s2["qb_from"] = 99 if sit["qb_from"] is None else sit["qb_from"]
+        vals = L[[f"value_y{t}" for t in range(1, 5)]].clip(lower=0).fillna(0.0)
+        grps = np.asarray(grps, object)
+        for g in set(grps) - {None, "SPEC"}:
+            idx = np.flatnonzero(grps == g)
+            y = np.zeros((len(idx), 4))
+            for r, i in enumerate(idx):
+                at = drafted_at[i]
+                pid = self.pfr_at.get((year, int(at))) if pd.notna(at) else self.udfa.get((year, _norm(names[i] or "")))
+                if pid in vals.index:
+                    y[r] = vals.loc[pid].to_numpy(float)
+            y *= pay_factor(g, self.pos_pay) / unit_factor(FAMILY.get(g, g), self.units)
+            y5 = np.column_stack([y, y[:, -1]])
+            price = np.maximum(y5.max(axis=1), 1e-6)
+            pts = pick_effect(y5 / price[:, None], price, int(pick), g, s2, ctx.cost, ctx.bar, ctx.rates)
+            if n_played < 4:
+                pts[:, n_played:] = 0.0  # seasons not played yet: neither value nor cost
+            for c in range(0, len(idx), 64):  # (players, paths, seasons) in chunks
+                p_ = pts[c:c + 64]
+                out[idx[c:c + 64]] = (ctx.sb(b[None, :, :] + p_[:, None, :]).sum(axis=2).mean(axis=1) - b0) * 100
+        return out
 
 
 def add_realized_v2(df, states, ctx, n=2000):
@@ -538,9 +613,12 @@ def trade_decisions(year, picks_df, states_df, ctx, tables) -> pd.DataFrame:
     pk, night = draft_night(year)
     if night.empty:
         return pd.DataFrame()
+    engine_for(year, tables)
     b = board(year, pk)
     P = picks_df[picks_df.year == year]
     used, val_act, player = (dict(zip(P.pick, P[c])) for c in ["team", "value_actual", "player"])
+    from positions import blended, weights
+    W = weights(year)
     sit = {r.team: _sit(r) for r in states_df[states_df.year == year].itertuples()}
     pneed = {r.team: (r.p_need if "p_need" in states_df.columns else 1.0) for r in states_df[states_df.year == year].itertuples()}
 
@@ -558,13 +636,14 @@ def trade_decisions(year, picks_df, states_df, ctx, tables) -> pd.DataFrame:
         mine = P[(P.team == tm) & (P.pick < k) & (P.grp != "SPEC")].grp.value_counts().to_dict()
         for g_, c_ in (extra or {}).items():
             mine[g_] = mine.get(g_, 0) + c_
-        avail = b[(b.drafted_at.isna() | (b.drafted_at >= k)) & (b.grp != "SPEC") & ~b["name"].isin(list(taken))]
+        avail = b[(b.drafted_at.isna() | (b.drafted_at >= k)) & (b.grp_label != "SPEC") & ~b["name"].isin(list(taken))]
         if avail.empty:
             return 0.0, None, None
         pn = pneed.get(tm, 1.0)
-        vals = np.array([tab.lookup(g, min(int(mine.get(g, 0)), 2), r, k, pn) for g, r in zip(avail.grp, avail["rank"])])
+        vals = np.array([blended(tab.lookup, lab, g, min(int(mine.get(g, 0)), 2), r, k, pn, W)
+                         for lab, g, r in zip(avail.pos, avail.grp_label, avail["rank"])])
         i = int(np.argmax(vals))
-        return vals[i] * 100, avail["name"].iloc[i], avail.grp.iloc[i]
+        return vals[i] * 100, avail["name"].iloc[i], avail.grp_label.iloc[i]
 
     def plan(tm, ks):
         """The model's choices at several picks in one option, in order, no player twice."""

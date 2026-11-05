@@ -1,0 +1,20 @@
+# Same look as the draft simulator page (scripts/simulator_artifact.html): turf green on a
+# green-tinted grey, Barlow Condensed headings, IBM Plex Sans text. Follows the viewer's light/dark choice.
+[theme]
+font = "IBM Plex Sans:https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+headingFont = "Barlow Condensed:https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&display=swap"
+baseRadius = "8px"
+
+[theme.light]
+primaryColor = "#1d6b46"
+backgroundColor = "#f3f5f2"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#18201c"
+borderColor = "#d6ddd8"
+
+[theme.dark]
+primaryColor = "#4fbf86"
+backgroundColor = "#111614"
+secondaryBackgroundColor = "#19201d"
+textColor = "#e6ece8"
+borderColor = "#2c3631"
