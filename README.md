@@ -104,3 +104,10 @@ sons beat their slot more often than others, but not by enough on average to be 
 more, and it's 31 players with several comparisons tried (p ~0.02 is borderline after that).
 Needs more years to confirm: same-name sons (Jr./II matched to an earlier NFL player in
 nflverse) could extend it free to 2014-18.
+
+**Adding 2018** (14 sons, read page by page from the Kindle web reader; `python scripts/nfl_fathers.py wide`,
+2018-22, whole prospect universe as the comparison group): drafted sons beat their slot 56% vs 38%
+(odds x1.98, p 0.04), but 2018's sons didn't (38% vs 42%), nor did 2019's (38% vs 39%); the
+effect comes from 2020-22 (23 sons). Value vs slot x1.15 (0.88-1.45), vs consensus x1.09
+(0.81-1.36), both indistinguishable from 1. The new year weakened rather than confirmed it:
+not used in the model.
