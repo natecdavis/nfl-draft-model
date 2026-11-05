@@ -79,3 +79,11 @@ by models that never saw it), whether the text adds anything to consensus rank +
 Takeaway: the reports mostly restate what the consensus already prices in. What's left helps
 flag likely busts a little, not stars, and stars drive title odds. 2026 uses a different
 (bulleted) layout and isn't parsed yet; 2024-25 PDFs don't allow text copying and are skipped.
+
+**Does the bust signal improve actual choices?** (`scripts/beast_choice.py`) At every pick of the
+2019-22 drafts, the consensus model vs the same model times a text multiplier (fit on the other
+three drafts; a forward-only version for 2021-22). The multiplier learned almost nothing from
+the words (weights ~0.01-0.03) and mostly rewards being in the guide at all. Result, per pick:
++0.03% of cap in 4-season value (95% -0.42 to +0.51) and -0.03% of a title for a middle team
+(95% -0.18 to +0.12); forward-only -0.04 (-0.21 to +0.13); round 1 slightly worse (noise).
+No improvement, so older guides aren't worth buying for this.
