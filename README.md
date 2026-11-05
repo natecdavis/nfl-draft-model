@@ -87,3 +87,20 @@ the words (weights ~0.01-0.03) and mostly rewards being in the guide at all. Res
 +0.03% of cap in 4-season value (95% -0.42 to +0.51) and -0.03% of a title for a middle team
 (95% -0.18 to +0.12); forward-only -0.04 (-0.21 to +0.13); round 1 slightly worse (noise).
 No improvement, so older guides aren't worth buying for this.
+
+## Sons of NFL players (`scripts/nfl_fathers.py`)
+
+Fathers hand-coded from the guides' BACKGROUND text, 2019-22 (every father+NFL sentence read;
+coaches, executives, tryout-only and uncles excluded): 61 sons, 60 matched to outcomes.
+
+| Compared with | Sons' 4-season value vs expected, relative to others | Beat their expectation |
+|---|---|---|
+| Consensus rank (all 60) | x1.05 (95% 0.79-1.31) | 37% vs 33% |
+| Consensus rank (38 board players) | x1.11 (0.83-1.39) | 42% vs 32% (p 0.26) |
+| Draft slot (31 drafted) | x1.16 (0.86-1.51) | **61% vs 38%** (p ~0.02, holds controlling for slot and rank) |
+
+Teams picked sons only slightly earlier than their consensus rank (1.08x vs 1.03x). So drafted
+sons beat their slot more often than others, but not by enough on average to be clearly worth
+more, and it's 31 players with several comparisons tried (p ~0.02 is borderline after that).
+Needs more years to confirm: same-name sons (Jr./II matched to an earlier NFL player in
+nflverse) could extend it free to 2014-18.
