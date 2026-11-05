@@ -243,7 +243,7 @@ class States:
         r = self.ratings.get(year - 1, pd.Series(dtype=float)).get(tm, 0.0)
         q = self.qb(tm, year)
         start = round(0.6 * 0.73 * r * 2) / 2  # to the nearest half point (shared value tables)
-        return {"strength_prior": r, "start": start, **q}
+        return {"strength_prior": r, "start": start, **q, "p_need": p_need(q["status"], q["qb_from"])}
 
 
 # ---------- 3. value tables ----------
@@ -254,20 +254,26 @@ K_GRID = np.unique(np.round(np.exp(np.linspace(np.log(11), np.log(272), 22)) - 1
 
 class Table:
     """Titles for (position, need level, effective talent, pick) on a grid, for one situation.
-    Level 0-2 = starter/rotation/depth for non-QBs; for QBs 0 = fills the need, 1-2 = need filled."""
+    Level 0-2 = starter/rotation/depth for non-QBs; for QBs 0 = fills the need, 1-2 = need filled.
+    The grid is over talent already shaded for a fall; lookup() applies the shading once (the grid
+    used to be built with player_value(), which shades again: fixed Nov 2026)."""
     def __init__(self, sit: dict, ctx: Context, fall_weight=0.8):
         self.eng = DraftEngine(sit, ctx=ctx, fall_weight=fall_weight)
+        e = self.eng
         self.v = {}
         for g in GROUPS:
             arr = np.zeros((3, len(T_GRID), len(K_GRID)))
             for li in range(3):
                 for a, t in enumerate(T_GRID):
                     for b, k in enumerate(K_GRID):
-                        arr[li, a, b] = (self.eng.player_value(g, t, k, qb_filled=li > 0) if g == "QB"
-                                         else self.eng.player_value(g, t, k, LEVELS[li]))
+                        pts = (e.player_points(g, t, k, qb_filled=li > 0) if g == "QB"
+                               else e.player_points(g, t, k, LEVELS[li]))
+                        arr[li, a, b] = e.titles(pts)
             self.v[g] = arr
 
-    def lookup(self, g, level, rank, pick) -> float:
+    def lookup(self, g, level, rank, pick, p_need=1.0) -> float:
+        """p_need: chance the team's QB need is real (QBs at level 0 only): the value is
+        p x (fills the need) + (1 - p) x (need already filled)."""
         if g not in self.v:
             return -1.0
         t = self.eng.effective_talent(min(rank, OFF_BOARD_RANK), pick)
@@ -275,8 +281,26 @@ class Table:
         lt, lk = np.log(t + 10), np.log(pick + 10)
         i = int(np.clip(np.searchsorted(x, lt) - 1, 0, len(x) - 2)); j = int(np.clip(np.searchsorted(y, lk) - 1, 0, len(y) - 2))
         fx = np.clip((lt - x[i]) / (x[i + 1] - x[i]), 0, 1); fy = np.clip((lk - y[j]) / (y[j + 1] - y[j]), 0, 1)
-        A = self.v[g][level]
-        return float((1 - fx) * (1 - fy) * A[i, j] + fx * (1 - fy) * A[i + 1, j] + (1 - fx) * fy * A[i, j + 1] + fx * fy * A[i + 1, j + 1])
+        at = lambda A: float((1 - fx) * (1 - fy) * A[i, j] + fx * (1 - fy) * A[i + 1, j] + (1 - fx) * fy * A[i, j + 1] + fx * fy * A[i + 1, j + 1])
+        if g == "QB" and level == 0 and p_need < 1.0:
+            return p_need * at(self.v[g][0]) + (1 - p_need) * at(self.v[g][1])
+        return at(self.v[g][level])
+
+
+def p_need(status: str, qb_from) -> float:
+    """Chance a flagged QB need is real: share of such team-years 2014-2023 whose main QB two
+    seasons later was someone else (README, 'Why the model's round-1 picks start less')."""
+    if qb_from is None or (isinstance(qb_from, float) and np.isnan(qb_from)):
+        return 1.0  # no need flagged: the tables already give a QB no playing time
+    s = str(status)
+    for prefix, p in [("no starter", 1.0), ("stopgap", 0.79), ("rookie deal (later", 0.62)]:
+        if s.startswith(prefix):
+            return p
+    if "below-average" in s:
+        return 0.54
+    if s.startswith("veteran, "):
+        return 0.52
+    return 1.0
 
 
 # ---------- 4. the review ----------
@@ -301,12 +325,13 @@ def review_year(year, states, ctx, tables):
         counts = taken_count.setdefault(tm, {})
         lvl = lambda g: min(counts.get(g, 0), 2)  # each player taken at a position lowers the need
         avail = b[(b.drafted_at.isna() | (b.drafted_at >= k)) & (b.grp != "SPEC")]
-        vals = np.array([tab.lookup(g, lvl(g), r, k) for g, r in zip(avail.grp, avail["rank"])])
+        pn = teams_st[tm]["p_need"]
+        vals = np.array([tab.lookup(g, lvl(g), r, k, pn) for g, r in zip(avail.grp, avail["rank"])])
         best = avail.iloc[int(np.argmax(vals))] if len(avail) else None
         cons = avail.sort_values("rank").iloc[0] if len(avail) else None
         on_board = b[b.drafted_at == k]
         rank_actual = int(on_board["rank"].iloc[0]) if len(on_board) else OFF_BOARD_RANK
-        v_actual = tab.lookup(p.grp, lvl(p.grp), rank_actual, k) if p.grp != "SPEC" else np.nan
+        v_actual = tab.lookup(p.grp, lvl(p.grp), rank_actual, k, pn) if p.grp != "SPEC" else np.nan
         rows.append({"year": year, "pick": k, "round": p["round"], "team": tm, "original_team": p.original_team,
                      "traded_on_night": p.traded_on_night, "player": p.pfr_player_name, "grp": p.grp,
                      "board_rank": rank_actual if rank_actual < OFF_BOARD_RANK else np.nan,
@@ -438,47 +463,58 @@ def main(first=YEARS[0], last=YEARS[-1]):
 
 
 
-def add_realized_v2(df, states, ctx, n=2000):
-    """Realized value with cfdarko's season-by-season labels (same units and encoding as
-    outcomes_v2), for classes with all four seasons played (through 2022). Players who
-    never played in the NFL count as zero."""
-    from pathlib import Path as _P
-    from outcomes_v2 import CF_OVER_OURS, FAMILY
-    from pick_value import baseline_paths, pick_effect
-    L = pd.read_parquet(_P.home() / "cfdarko/data/processed/rookie_value_labels.parquet")
-    L = L.dropna(subset=["pfr_id"]).drop_duplicates("pfr_id").set_index("pfr_id")
-    # undrafted players who reached the NFL (labeled from the 2016 class): find by name + class
-    udfa = {(int(y), _norm(nm)): i for i, y, nm, u in zip(L.index, L.draft_year, L.player_name, L.is_udfa) if u}
-    dp = pd.read_parquet(RAW / "draft_picks.parquet")
-    pfr_at = {(y, p): i for y, p, i in zip(dp.season, dp.pick, dp.pfr_player_id)}
-    sits = {(r.year, r.team): {"start": r.start, "shift": r.shift if isinstance(r.shift, dict) else eval(r.shift),
-                               "qb_from": None if pd.isna(r.qb_from) else int(r.qb_from)}
-            for r in states.itertuples()}
-    base_cache = {}
+class RealizedV2:
+    """What a player actually delivered, in title odds for one team's situation, at the cost of
+    a given pick: cfdarko's season-by-season labels (same units and encoding as outcomes_v2),
+    for classes with all four seasons played (through 2022). Players who never played in the
+    NFL count as zero."""
+    def __init__(self, ctx, n=2000, units=None):
+        from pathlib import Path as _P
+        self.ctx, self.n, self.units = ctx, n, units  # units: see outcomes_v2.unit_factor
+        L = pd.read_parquet(_P.home() / "cfdarko/data/processed/rookie_value_labels.parquet")
+        self.L = L.dropna(subset=["pfr_id"]).drop_duplicates("pfr_id").set_index("pfr_id")
+        # undrafted players who reached the NFL (labeled from the 2016 class): find by name + class
+        self.udfa = {(int(y), _norm(nm)): i for i, y, nm, u in
+                     zip(self.L.index, self.L.draft_year, self.L.player_name, self.L.is_udfa) if u}
+        dp = pd.read_parquet(RAW / "draft_picks.parquet")
+        self.pfr_at = {(y, p): i for y, p, i in zip(dp.season, dp.pick, dp.pfr_player_id)}
+        self.base_cache = {}
 
-    def titles(sit, grp, year, drafted_at, pick, name=None):
+    def titles(self, sit, grp, year, drafted_at, pick, name=None, scale=1.0):
+        """scale: multiply his seasons' values (e.g. a depth-chart adjustment); 1 = as he played."""
+        from outcomes_v2 import FAMILY, unit_factor
+        from pick_value import baseline_paths, pick_effect
         if grp is None or grp == "SPEC" or year > 2022:
             return np.nan
-        pid = pfr_at.get((year, int(drafted_at))) if pd.notna(drafted_at) else udfa.get((year, _norm(name or "")))
+        L, ctx = self.L, self.ctx
+        pid = self.pfr_at.get((year, int(drafted_at))) if pd.notna(drafted_at) else self.udfa.get((year, _norm(name or "")))
         if pid in L.index:
             row = L.loc[pid]
-            y = np.array([max(row[f"value_y{t}"], 0) for t in range(1, 5)]) / CF_OVER_OURS.get(FAMILY.get(grp, grp), 1.0)
+            y = np.array([max(row[f"value_y{t}"], 0) for t in range(1, 5)]) / unit_factor(FAMILY.get(grp, grp), self.units) * scale
         else:
             y = np.zeros(4)
         y5 = np.r_[y, y[-1]]
         price = np.array([max(y5.max(), 1e-6)])
         key = (sit["start"], sit["qb_from"], tuple(sorted(sit["shift"].items())))
-        if key not in base_cache:
-            b = baseline_paths(sit, np.random.default_rng(0), n)
-            base_cache[key] = (b, ctx.sb(b).sum(axis=1).mean())
-        b, b0 = base_cache[key]
+        if key not in self.base_cache:
+            b = baseline_paths(sit, np.random.default_rng(0), self.n)
+            self.base_cache[key] = (b, ctx.sb(b).sum(axis=1).mean())
+        b, b0 = self.base_cache[key]
         s2 = dict(sit); s2["qb_from"] = 99 if sit["qb_from"] is None else sit["qb_from"]
         pts = pick_effect((y5 / price[0])[None, :], price, int(pick), grp, s2, ctx.cost, ctx.bar, ctx.rates)
         return (ctx.sb(b + pts).sum(axis=1).mean() - b0) * 100
 
+
+def add_realized_v2(df, states, ctx, n=2000):
+    """Realized value (RealizedV2) for the team's pick, the model's pick and the best player
+    left on the consensus board."""
+    sits = {(r.year, r.team): {"start": r.start, "shift": r.shift if isinstance(r.shift, dict) else eval(r.shift),
+                               "qb_from": None if pd.isna(r.qb_from) else int(r.qb_from)}
+            for r in states.itertuples()}
+    R = RealizedV2(ctx, n)
     for col, g, at, nm in [("real_team", "grp", "pick", "player"), ("real_model", "rec_grp", "rec_drafted_at", "rec_player"),
                            ("real_consensus", "best_available_grp", "best_available_drafted_at", "best_available")]:
-        df[col] = [titles(sits[(y, tm)], gg, y, a, k, n_) for y, tm, gg, a, k, n_ in
+        df[col] = [R.titles(sits[(y, tm)], gg, y, a, k, n_) for y, tm, gg, a, k, n_ in
                    zip(df.year, df.team, df[g], df[at], df.pick, df[nm])]
     return df
 
@@ -506,6 +542,7 @@ def trade_decisions(year, picks_df, states_df, ctx, tables) -> pd.DataFrame:
     P = picks_df[picks_df.year == year]
     used, val_act, player = (dict(zip(P.pick, P[c])) for c in ["team", "value_actual", "player"])
     sit = {r.team: _sit(r) for r in states_df[states_df.year == year].itertuples()}
+    pneed = {r.team: (r.p_need if "p_need" in states_df.columns else 1.0) for r in states_df[states_df.year == year].itertuples()}
 
     def table(tm):
         s = sit[tm]
@@ -524,7 +561,8 @@ def trade_decisions(year, picks_df, states_df, ctx, tables) -> pd.DataFrame:
         avail = b[(b.drafted_at.isna() | (b.drafted_at >= k)) & (b.grp != "SPEC") & ~b["name"].isin(list(taken))]
         if avail.empty:
             return 0.0, None, None
-        vals = np.array([tab.lookup(g, min(int(mine.get(g, 0)), 2), r, k) for g, r in zip(avail.grp, avail["rank"])])
+        pn = pneed.get(tm, 1.0)
+        vals = np.array([tab.lookup(g, min(int(mine.get(g, 0)), 2), r, k, pn) for g, r in zip(avail.grp, avail["rank"])])
         i = int(np.argmax(vals))
         return vals[i] * 100, avail["name"].iloc[i], avail.grp.iloc[i]
 

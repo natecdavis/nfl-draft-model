@@ -1,0 +1,137 @@
+"""Draft simulator: replay one team's past draft, making your own choice at each of its picks.
+
+Same currency and board as the Past drafts review (src/review.py): Arif Hasan's consensus board,
+the team's state on draft day, titles over 5 seasons for that team's situation, fall weight 0.85.
+
+Rules (model: outcome units outcomes_v2.UNITS, fall shading once, QB need as a probability):
+  - The decision points are the picks the team actually made (including picks it traded for
+    on draft night). Trades aren't simulated.
+  - Other teams draft exactly as they really did. At pick k, every player actually taken
+    before k is gone, including the team's own earlier choices, even if you passed on them.
+  - Players you took are gone at your later picks (even if, in reality, they went later).
+  - Your choices set your needs: each player you take at a position lowers the value of
+    the next one there (after one QB, the QB need is filled), as in the review.
+  - Candidates: every board player still available, plus drafted players who weren't on the
+    board (valued as ranked just past it). Kickers / punters / snappers aren't valued.
+
+Value tables (one per team situation, ~16s to build) are cached on disk in
+data/derived/sim_tables/. Build them all ahead of time with:
+    python src/simulator.py build [workers=6]
+"""
+import sys
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).parent))
+from draftday import DraftEngine  # noqa: E402
+from outlook import GROUPS, OUT  # noqa: E402
+from review import OFF_BOARD_RANK, Table, board, draft_night  # noqa: E402
+
+TABLE_DIR = OUT / "sim_tables"
+FALL_WEIGHT = 0.85  # same as the review
+
+
+def situation(state_row) -> dict:
+    """Review state row -> situation dict."""
+    sh = state_row["shift"]
+    sh = sh if isinstance(sh, dict) else eval(sh)
+    q = state_row["qb_from"]
+    return {"start": float(state_row["start"]), "shift": {int(k): float(v) for k, v in sh.items()},
+            "qb_from": None if pd.isna(q) else int(q)}
+
+
+def _key(sit) -> str:
+    sh = "_".join(f"{k}:{v:g}" for k, v in sorted(sit["shift"].items())) or "none"
+    from outcomes_v2 import UNITS
+    # v2: fall shading applied once (Nov 2026); units = outcome units (outcomes_v2.UNITS)
+    return f"start{sit['start']:g}_qb{sit['qb_from']}_shift{sh}_fw{FALL_WEIGHT:g}_v2_{UNITS}"
+
+
+class _Talent:
+    """Stand-in for DraftEngine when a table is loaded from disk (only effective_talent is used)."""
+    effective_talent = DraftEngine.effective_talent
+
+    def __init__(self, fall_weight):
+        self.fall_weight = fall_weight
+
+
+def get_table(sit, ctx=None) -> Table:
+    """The value table for this situation: from disk if built, else build (~16s) and save."""
+    f = TABLE_DIR / f"{_key(sit)}.npz"
+    if f.exists():
+        z = np.load(f)
+        t = Table.__new__(Table)
+        t.eng, t.v = _Talent(FALL_WEIGHT), {g: z[g] for g in z.files}
+        return t
+    from trade import Context
+    t = Table(sit, ctx or Context(), fall_weight=FALL_WEIGHT)
+    TABLE_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = f.with_suffix(".tmp.npz")
+    np.savez(tmp, **t.v)
+    tmp.replace(f)
+    return t
+
+
+def pool(year: int) -> pd.DataFrame:
+    """Everyone who can be chosen in this draft: the consensus board plus drafted players
+    who weren't on it. Columns: pid, name, pos, grp, rank (NaN = off board), school,
+    drafted_at (NaN = undrafted), drafted_by."""
+    picks, _ = draft_night(year)
+    b = board(year, picks)
+    by = dict(zip(picks.pick, picks.team))
+    on = pd.DataFrame({"name": b["name"].str.replace(r"\s*\(.*?\)", "", regex=True), "pos": b.pos, "grp": b.grp,
+                       "rank": b["rank"].astype(float), "school": b.school, "drafted_at": b.drafted_at})
+    off = picks[~picks.pick.isin(b.drafted_at.dropna())]
+    dp = pd.read_parquet(Path(__file__).resolve().parents[1] / "data" / "raw" / "draft_picks.parquet")
+    college = dict(zip(dp[dp.season == year].pick, dp[dp.season == year].college))
+    off = pd.DataFrame({"name": off.pfr_player_name, "pos": off.position, "grp": off.grp, "rank": np.nan,
+                        "school": off.pick.map(college), "drafted_at": off.pick.astype(float)})
+    p = pd.concat([on, off], ignore_index=True)
+    p["drafted_by"] = p.drafted_at.map(by)
+    p = p.sort_values(["rank", "drafted_at"], na_position="last").reset_index(drop=True)
+    p.insert(0, "pid", np.arange(len(p)))
+    return p
+
+
+def options(P: pd.DataFrame, table: Table, pick: int, taken: set, counts: dict, p_need: float = 1.0) -> pd.DataFrame:
+    """Players available at `pick` with their titles for this team (in % of one title),
+    best first. taken = pids you already chose; counts = your players per position group;
+    p_need = chance the team's QB need is real (review.p_need)."""
+    a = P[(P.drafted_at.isna() | (P.drafted_at >= pick)) & ~P.pid.isin(list(taken)) & P.grp.isin(GROUPS)].copy()
+    r = a["rank"].fillna(OFF_BOARD_RANK)
+    a["titles"] = [table.lookup(g, min(counts.get(g, 0), 2), rk, pick, p_need) * 100 for g, rk in zip(a.grp, r)]
+    a = a.sort_values("titles", ascending=False).reset_index(drop=True)
+    a.insert(0, "model_rank", np.arange(1, len(a) + 1))
+    return a
+
+
+def value_of(table, grp, rank, pick, counts, p_need=1.0) -> float:
+    if grp not in GROUPS:
+        return np.nan
+    r = OFF_BOARD_RANK if pd.isna(rank) else rank
+    return table.lookup(grp, min(counts.get(grp, 0), 2), r, pick, p_need) * 100
+
+
+def _build_one(args):
+    sit = args
+    get_table(sit)
+    return _key(sit)
+
+
+def build_all(workers=6):
+    """Build value tables for every team situation in the review (skips ones on disk)."""
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+    S = pd.read_parquet(OUT / "review_states.parquet")
+    sits = {_key(s): s for s in (situation(r) for _, r in S.iterrows())}
+    todo = [s for k, s in sits.items() if not (TABLE_DIR / f"{k}.npz").exists()]
+    print(f"{len(sits)} situations, {len(todo)} to build", flush=True)
+    with ProcessPoolExecutor(workers) as ex:
+        for i, f in enumerate(as_completed([ex.submit(_build_one, s) for s in todo]), 1):
+            print(f"{i}/{len(todo)} {f.result()}", flush=True)
+
+
+if __name__ == "__main__":
+    if sys.argv[1:2] == ["build"]:
+        build_all(int(sys.argv[2]) if len(sys.argv) > 2 else 6)

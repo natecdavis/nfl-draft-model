@@ -52,6 +52,20 @@ Replay test: scripts/replay_2021.py (49ers 2021 with ESPN's board). App test: sc
 - [x] Fall shading (scripts/fall_weight.py): players who fell past consensus turned out ~80-87% like the pick where they went (Hasan 2014-21; ~/cfdarko's 01f draft-slide experiment found the same with a rookie-value label). The app shades a falling player's talent toward the pick, weight 0.8 by default (Advanced setting).
 - Relation to ~/cfdarko (the user's college prospect pipeline): its board-player values come from consensus rank + position; its own features didn't beat the board either. Reused here: Hasan consensus boards (calibration only), the draft-slide finding. Not used: its PFF / PFR-scraped inputs.
 - [x] Past drafts review (src/review.py -> app page "Past drafts"): drafts 2014-2024 pick by pick, owner at start of draft night vs team that picked, each team's state on draft day (prior-season strength; QB on hand incl. March moves, his contract known by draft day, age, and prior-season EPA vs median), the model's recommendation from Hasan's board, draft-night trades scored for both sides. Scorecard on realized value (2014-21): round 1 model's choices +4.49 vs teams +2.40 (mostly QB picks for QB-needy teams); rounds 2-4 tie; rounds 5-7 model worse (candidates limited to Hasan's board; 60% of late recs went undrafted) -> don't use recommendations in rounds 5-7. By star rate (independent of the model's QB valuation) teams' picks did better.
+- [x] Model changes adopted (Nov 2026), review and simulator rebuilt: (1) outcome units "single":
+  cfdarko's within-position pricing with one overall factor (1.10), replacing per-family factors that
+  discounted rotational positions and favored OL (`outcomes_v2.UNITS`, override with OUTCOME_UNITS=family);
+  this also changes the draft-day app and trade calculator, which compute outcomes live (reports/
+  teams_2027.md and the pick-value chart were built before and need a rerun); (2) fall shading applied
+  once (`review.Table` shaded twice before); (3) QB need as a probability (`review.p_need`: no starter
+  1.0, stopgap 0.79, later-round rookie 0.62, below-median paid veteran 0.54, age 36+ 0.52).
+  Not adopted: roster need, lookahead (rollout / position drop-off). Past drafts scorecard, model
+  minus team where they disagree (each rec once, 2014-2022), titles in each version's own units:
+  round 1 +1.24 -> +1.16, rounds 2-4 +0.42 -> +0.48, rounds 5-7 -0.18 -> -0.11 (none outside noise);
+  seasons started: round 1 -1.32 -> -1.68, rounds 2-4 -0.76 -> -1.04, rounds 5-7 -0.43 -> -0.36.
+  Recommendations: round 1 QB 40% / WR 58%; rounds 2-4 WR 34%, EDGE 31%, QB 23%; OL from 54% to
+  6% of rounds 2-4 recommendations. QBs in round 1 still dominate: the open question is whether a
+  rookie-deal QB's cap savings are worth as many titles as the model says.
 - [x] Prospect model v2 test (src/prospect_model.py, scripts/pm_choice.py, scripts/pm_timing.py; data read-only from ~/cfdarko: rookie-value labels by season y1-y4, prospect features, bridge). Findings:
   - Draft position can't be an input for "what if we take him at k": it carries other teams' information (an off-board player "taken at #5" inherits #5 outcomes). Value is predicted from pre-draft info; draft-day info enters only as fall shading.
   - Pick-by-pick choice test 2019-22: consensus-only (board rank + position) matches teams in round 1 (16.4 vs 16.4 % of cap over 4 yrs); adding player features (age, combine, PFF college grades, recruiting, team context) makes choices WORSE (-0.55/pick, 95% -1.0 to -0.1), no late-round gain. Same conclusion as cfdarko's own experiments.
@@ -59,6 +73,140 @@ Replay test: scripts/replay_2021.py (49ers 2021 with ESPN's board). App test: sc
   - Outcome ranges from 60 nearest drafted comps are calibrated (6% below p10, 9% above p90).
 - [x] Outcome engine v2 is now the default (src/outcomes_v2.py; pick_value.OUTCOMES = "v2", "v1" kept). Season-by-season values from cfdarko labels (classes through 2025), consensus rank + position only, careers sampled from similar drafted players (smooth weights; QB pool ~20), rescaled to this project's value units per position family (scripts/units_check.py). Effect: each season is priced on what the player did that year (v1 credited future stars with second-contract pay from year 1), so top-5 non-QB picks now lose value on average and non-QB value peaks ~picks 20-64; QB value peaks ~#15-20 (consensus top-10 QBs haven't outperformed 10-20). Trade-down and QB-need conclusions hold.
 - [x] Review rebuilt on engine v2; realized value from cfdarko season labels (2014-2022 drafts; undrafted NFL players matched by name from 2016). Each recommended player counted once per draft (the model can recommend one available player to many teams). Model minus team where they disagreed: round 1 +1.41 (95% +0.10 to +2.90; non-QB recs alone +0.97, +0.16 to +1.92), rounds 2-4 +0.31 (tie), rounds 5-7 -0.17 (tie / slightly worse). QB recommendations: large point estimates, too few to be sure.
+
+## Draft simulator (app page "Draft simulator", `src/simulator.py`)
+
+Pick a team and a past draft (2014-2026) and make your own choice at each pick the team actually
+made (including picks it traded for on draft night; trades themselves aren't simulated). At each
+pick: what the team really did, the model's top 15 for that team at that moment, and a searchable
+list of every available player (Hasan board players plus drafted players who weren't on it).
+Other teams draft as they really did: at pick k, everyone actually taken before k is gone, including
+the team's own earlier picks you passed on; players you took are gone at your later picks. Your
+choices set your position needs. Same values as the Past drafts review (choosing the team's own
+picks reproduces its numbers exactly); drafts through 2022 also show what your players actually
+delivered vs the team's (`review.RealizedV2`). Value tables per team situation (current model: units, shading, QB-need probability) are cached in
+`data/derived/sim_tables/` (`python src/simulator.py build` builds all 105, ~6 min on 6 workers;
+otherwise ~20s the first time a situation is opened). Test: `scripts/test_simulator_page.py`.
+
+## Roster need test (`scripts/roster_need.py`)
+
+The model ignores the non-QB roster: every first pick at a position is treated as filling a starting
+spot; only picks earlier in the same draft lower need (2nd at a group x0.6, 3rd x0.3 of years 1-2
+playing time). Test: open starting spots on draft day per team and position group (last season's
+snaps by players still on the team, plus veterans added before the draft, vs the league-typical
+amount; 2014-2025 drafts, 2,825 non-QB rookies), against what each rookie did, controlling for
+position x pick, position x consensus rank, team strength and year (SEs clustered by team-draft).
+
+| +1 open starting spot at the group | Effect (95%) | Average |
+|---|---|---|
+| Year-1 snap share | +2.0 pts (+0.9 to +3.0) | 27% |
+| Years 1-2 snap share | +1.9 pts (+0.8 to +3.0) | 29% |
+| Value, year 1 (% of cap) | +0.09 (+0.03 to +0.15) | 1.15 |
+| Value, years 1-4 | +0.50 (+0.18 to +0.82) | 5.8 |
+
+A rookie drafted after another rookie at the same group in that draft: years 1-2 snap share
+-2.2 pts (-4.3 to -0.1). Roster need is real but small: about 7-9% more playing time and value per
+open spot, from a fully covered position to a wide-open one roughly 15-20%. The model's within-draft
+discount (-40% for the 2nd rookie at a group, -70% for the 3rd) is several times larger than the
+measured ~-8%. Strongest in rounds 2-7 and at CB, RB, WR; none detectable in round 1 (first-rounders
+play regardless) or at OT/C (small samples).
+
+**Do need-aware choices beat teams' picks?** (`scripts/need_choice.py`, drafts 2014-2022) At every pick,
+the model's choice under four rules: current (within-draft x0.6 / x0.3, no roster), measured
+within-draft effect, measured roster effect, both; effects re-estimated leaving out the draft being
+scored (roster +7-10% of value per open spot; 2nd / 3rd rookie at a group -2 to -9% / -8 to -18%).
+Scored on realized titles as in the review; "adjusted" rescales a recommended player's real career
+for this team's open spots vs those of the team that actually drafted him.
+
+| Rule | Model minus team, disagreements (each rec once) | vs current rule, all picks | Same choice as current |
+|---|---|---|---|
+| current | +0.57 (+0.04 to +1.23) | | |
+| within-draft measured | +0.61 (+0.07 to +1.23) | +0.004 (-0.005 to +0.013) | 97% |
+| roster | +0.53 (+0.07 to +1.08); adjusted +0.58 | +0.008 (-0.025 to +0.040) | 70% |
+| both | +0.53 (+0.05 to +1.12); adjusted +0.57 | -0.007 (-0.038 to +0.026) | 74% |
+
+Roster need changes about 30% of choices but not their realized value, and doesn't change the position
+mix (OL, QB and WR still make up nearly all recommendations). Not adopted. Rounds 5-7 stay slightly
+worse than teams under every rule.
+
+Found on the way: `review.Table` applies the fall shading twice (once when the grid is built, again on
+lookup), so a player who falls far past his rank is shaded with an effective weight of ~0.97 instead
+of 0.85 (e.g. #50 at pick 150 valued 0.64 vs 0.80). The tables in this test shade once; with the
+current need rule they pick a different player than the stored review at 24% of picks. The review and
+the draft simulator still use the double-shaded tables.
+
+## Units fix: within-position pricing (`scripts/units_choice.py`)
+
+Outcome engine v2 rescales cfdarko's season values per position family to match this project's
+measure (snap share x the player's own later pay). That measure multiplies by absolute snap share, so
+rotational positions are discounted (typical starter snap share vs the family factor: correlation
+0.74; RB x0.61, TE x0.67, EDGE x0.78 ... OL x1.15). cfdarko prices each season at what veterans at
+that position earn for that snap share and grade, so a 56%-snap DT is priced as a starter.
+`OUTCOME_UNITS=single` uses one overall factor (1.10) instead; default stays "family".
+
+Choice test, drafts 2014-2022, current need rule, fall shading applied once:
+
+| Single minus family model, paired at every pick | All | Round 1 | Rounds 2-4 | Rounds 5-7 |
+|---|---|---|---|---|
+| Titles, family units | +0.00 (-0.05 to +0.05) | +0.09 | -0.03 | +0.01 |
+| Titles, single units | +0.10 (+0.05 to +0.14) | +0.24 | +0.13 | +0.02 |
+| Second-contract pay, % of cap (drafted) | +0.44 (+0.27 to +0.62) | +0.27 | +0.59 | +0.19 |
+| PFR AV (drafted) | +0.47 (-0.44 to +1.51) | | | |
+| Seasons started (drafted) | -0.10 (-0.22 to +0.04) | | | |
+
+The choice changes at 36% of picks. Rounds 2-4 move from OL (45% of recommendations) to EDGE (24%), WR (28%) and
+TE (6%); rounds 5-7 stay mostly OL (54%); CB, LB, IDL and RB are still almost never recommended. Each
+title yardstick favors its own model; on outside yardsticks the single-units choices earned more later
+pay (partly because EDGE / WR are paid more than OL) and tie on AV and starts. Against teams' actual
+picks, both models lose on AV and seasons started (round 1 starts: -1.2 family, -1.6 single), while
+winning on title value: teams' picks play more than the model's.
+
+**Why the model's round-1 picks start less than teams' picks (2014-2022):** it's the QB recommendations.
+Where the model disagreed in round 1, its non-QB recommendations matched or beat the teams' picks (seasons
+started 4.3 vs 3.8, AV 34 vs 33); its 18 distinct QB recommendations started 2.4 seasons vs 6.5 (AV 29 vs
+59), while scoring higher in titles (+5.5 vs +3.5, driven by Watson, Lamar Jackson, Herbert and Wentz;
+misses such as Manziel, Hundley, Lynch, Rosen, Haskins and Willis cost about -1 each). Two causes:
+- Greedy picks: the review recommends the best player for this pick only, ignoring whether he'd still be
+  there at the team's next pick. Recommended QBs were still available at the team's next pick 42% of the
+  time in round 1 (non-QBs 23%) and sat 13 spots below the pick on the consensus board (e.g. Hundley
+  recommended at #4, went #147; Willis at #2, went #86). The draft-day app has the availability model;
+  the review doesn't use it.
+- QB need is treated as certain: 45% of team-years are flagged. Flags do separate (different main QB two
+  seasons later: stopgap vet 79%, later-round rookie 62%, one below-median season of a paid vet 54%, age
+  36+ 52%, vs 25-29% for unflagged teams), but a flag counts as a 100% need where about half of those teams
+  kept their QB, and unflagged teams changed QBs a quarter of the time.
+
+## Whole-draft choice test: lookahead, units, QB need (`scripts/plan_choice.py`)
+
+The model drafts each team's whole draft at its real picks (other teams as they really drafted),
+2014-2022, five versions, compared with the team's real draft (sums per team-draft, 288 drafts):
+A greedy, family units, QB need certain (today, shading once) | B greedy, single units, QB need as a
+probability | C position drop-off (value now minus expected best at his position at the next pick) |
+D rollout (value now + simulated value of the team's later picks if we take him; later picks greedy;
+other teams simulated around consensus rank) | E rollout, family units, certain QB need.
+
+| Per team-draft | Titles (single) | Titles (family) | AV | Seasons started | 2nd-contract pay |
+|---|---|---|---|---|---|
+| Model (B) minus team | +2.31 | +2.30 | -24.7 | -3.4 | +0.07 |
+| B - A (units + QB prob.) | +0.85 (+0.55 to +1.18) | -0.25 (-0.55 to +0.04) | -1.6 (-6.4 to +3.0) | -0.86 (-1.50 to -0.21) | +2.40 (+1.61 to +3.21) |
+| D - B (rollout) | -0.25 (-0.64 to +0.09) | -0.31 (-0.81 to +0.10) | -0.8 (-3.7 to +2.3) | -0.25 (-0.68 to +0.19) | -0.46 (-1.01 to +0.06) |
+| C - B (drop-off) | -0.77 (-1.27 to -0.31) | -0.96 (-1.57 to -0.44) | -1.9 (-6.3 to +2.5) | -0.97 (-1.49 to -0.44) | -0.83 (-1.62 to +0.00) |
+| E - A (rollout) | +0.02 | -0.24 | -1.0 | -0.41 | +0.30 |
+
+- Looking ahead doesn't help: the rollout ties greedy, the position drop-off is worse (it chases
+  positions whose talent falls off fastest even when they're worth little).
+- QB need as a probability changed no picks: every flagged team still takes a QB (104 in round 1
+  over 288 drafts, vs teams' 0.35 QBs per draft in all rounds). A round-1 QB for a needy team is worth
+  ~10x a non-QB in title value, so halving the need doesn't flip the choice. That value is calibrated
+  in its own currency (teams' actual round-1 QBs for needy teams: predicted +10.1, delivered +11.2).
+- Units fix: more second-contract pay, fewer seasons started (EDGE / WR / TE instead of OL).
+- Against teams: the model wins on title value and loses on AV and starts. Part of that is
+  measurement: the model's undrafted picks count 0 on AV / starts / pay (rounds 5-7 hold about half
+  the AV gap), and its players' real careers happened as later picks with less playing time
+  invested in them.
+- Scoring note: one team using the model against 31 real teams is the right counterfactual, so the same
+  faller can appear on many teams' model drafts (La'el Collins on 32 in 2015); dividing his value by
+  the number of drafts he appears on understates the model and isn't used.
 
 ## Scouting text test (Brugler's "The Beast", 2019-2022)
 

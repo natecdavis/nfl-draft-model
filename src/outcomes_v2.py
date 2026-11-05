@@ -18,6 +18,7 @@ Interface matches pick_value.sample_outcomes: returns (shares (n,5), price (n,))
 shares x price reproduces each season's value and the replacement-level adjustment in
 pick_effect scales with playing time. Season 5 (round-1 option year) repeats season 4.
 """
+import os
 from functools import lru_cache
 
 import numpy as np
@@ -30,6 +31,19 @@ FAMILY = {"QB": "QB", "RB": "RB", "WR": "WR", "TE": "TE", "T": "OL", "G": "OL", 
 # cfdarko / this project, 4-season totals by family (scripts/units_check.py)
 CF_OVER_OURS = {"DB": 1.09, "DL": 1.24, "EDGE": 1.28, "LB": 0.91, "OL": 0.87, "QB": 0.97, "RB": 1.64,
                 "TE": 1.50, "WR": 1.25}
+# "single" (default since Nov 2026): one overall factor, keeping cfdarko's within-position pricing (a role
+# is priced at what veterans at that position earn for that snap share and grade). "family": one factor
+# per position family (above), matching this project's snap share x own-pay measure, which discounts
+# rotational positions (RB, TE, EDGE, DL) and favors OL. Override with the environment variable
+# OUTCOME_UNITS. Choice test: scripts/units_choice.py, scripts/plan_choice.py (README).
+CF_OVER_OURS_ALL = 1.10  # 4-season totals, all positions (scripts/units_check.py)
+UNITS = os.environ.get("OUTCOME_UNITS", "single")
+
+
+def unit_factor(family: str, units: str | None = None) -> float:
+    return CF_OVER_OURS_ALL if (units or UNITS) == "single" else CF_OVER_OURS.get(family, 1.0)
+
+
 N_COMPS = 60
 MIN_COMPS, COMP_SHARE = 15, 1 / 6  # small position pools (QB): use the nearest sixth, at least 15
 REG = dict(min_child_samples=150, n_estimators=300, colsample_bytree=0.5, num_leaves=7, reg_lambda=5.0)
@@ -39,7 +53,7 @@ class OutcomeModel:
     def __init__(self):
         df = pm.load()
         for t in pm.SEASONS:
-            df[f"y{t}"] = df[f"y{t}"] / df.grp.map(CF_OVER_OURS).fillna(1.0)
+            df[f"y{t}"] = df[f"y{t}"] / df.grp.map(unit_factor)
         self.cats = df.grp.astype("category").cat.categories
         saved = dict(pm.PARAMS)
         pm.PARAMS.update(REG)
