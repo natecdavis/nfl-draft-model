@@ -73,6 +73,16 @@ def expect_factor(grp: str) -> float:
 
 
 N_COMPS = 60
+# Comparison-career correction (scripts/misses.py, scripts/comp_correct.py). The comparison set is the k
+# nearest drafted players by expected value; at the top of a family every neighbour is below the player,
+# so the sampled careers ran ~0.71x what consensus top-10 non-QBs actually did (every family 0.60-0.85x),
+# while matching elsewhere. "ll": rescale the sampled careers so their weighted mean equals a local-linear
+# fit (weighted regression of comparison 4-season value on log expected value, read at the player's own
+# expectation): the standard fix for kernel boundary bias; shape of the distribution kept. "off": before Nov 2026.
+# Adopted Nov 2026 (held-out calibration better, choices tie or improve on every yardstick: README). Environment
+# variable COMP_CORRECT overrides it.
+COMP_CORRECT = os.environ.get("COMP_CORRECT", "ll")
+SCALE_CLIP = (0.5, 2.0)
 MIN_COMPS, COMP_SHARE = 15, 1 / 6  # small position pools (QB): use the nearest sixth, at least 15
 REG = dict(min_child_samples=150, n_estimators=300, colsample_bytree=0.5, num_leaves=7, reg_lambda=5.0)
 
@@ -114,6 +124,7 @@ class OutcomeModel:
         self.comps = {g: (np.log(d.p14.to_numpy() + 1e-3), d[[f"y{t}" for t in pm.SEASONS]].to_numpy())
                       for g, d in comps.groupby("grp")}
         self._near = lru_cache(maxsize=None)(self._nearest)
+        self._scale = lru_cache(maxsize=None)(self._ll_scale)
 
     def _predict(self, d: pd.DataFrame) -> np.ndarray:
         return sum(m.predict(d[f]) for m, f in self.models)
@@ -138,6 +149,20 @@ class OutcomeModel:
         w = np.exp(-0.5 * (d / width) ** 2)
         return paths, w / w.sum()
 
+    def _ll_scale(self, family: str, rank: int) -> float:
+        """Local-linear comparison mean / plain weighted comparison mean (1.0 when COMP_CORRECT is off)."""
+        lp = np.log(self.expected(family, rank).sum() + 1e-3)
+        keys, _ = self.comps[family]
+        paths, w = self._near(family, rank)
+        y, x = paths.sum(1), keys - lp
+        X = np.column_stack([np.ones_like(x), x])
+        beta = np.linalg.solve(X.T @ (X * w[:, None]) + 1e-9 * np.eye(2), X.T @ (w * y))
+        plain = float((y * w).sum())
+        return float(np.clip(max(beta[0], 1e-6) / max(plain, 1e-9), *SCALE_CLIP))
+
+    def scale(self, family: str, rank: int) -> float:
+        return self._scale(family, int(np.clip(rank, 1, pm.OFF_BOARD))) if COMP_CORRECT == "ll" else 1.0
+
     def sample(self, grp: str, rank: int, rng, n: int):
         """(shares (n,5), price (n,)) for pick_value.pick_effect."""
         fam = FAMILY.get(grp, grp)
@@ -145,7 +170,7 @@ class OutcomeModel:
         y = paths[rng.choice(len(paths), size=n, p=w)]
         y5 = np.column_stack([y, y[:, -1]])  # option year ~ season 4
         price = np.maximum(y5.max(axis=1), 1e-6)
-        return y5 / price[:, None], price * expect_factor(grp)
+        return y5 / price[:, None], price * expect_factor(grp) * self.scale(fam, rank)
 
 
 _MODEL = None

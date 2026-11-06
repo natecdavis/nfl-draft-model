@@ -517,3 +517,114 @@ rounds 2-4 +0.42 (-0.23 to +1.24), rounds 5-7 -0.18 (-0.40 to +0.01).
 - **Brugler off-board test**, fair version: −0.008 titles per pick (−0.120 to +0.104), unchanged.
 - The bust signal, scouting text level and NFL fathers tests are about board or drafted players, whom the fix
   barely touched, so they weren't rerun.
+
+## Biggest misses (`scripts/misses.py`, Nov 2026)
+
+Past drafts 2014-2022, leave-one-draft-out engine. Each available player at each pick has the model's titles and
+what he actually delivered at that pick's cost (`holdout/defer_candidates.parquet`). Model recommendations are
+counted once per player per draft.
+
+**Where the error is.** QBs are 22% of the model's distinct recommendations and 55% of its absolute error; the 20
+largest misses are 46%. Flops: Manziel (predicted 8.2 titles, delivered -0.5), Lance, Haskins, Lynch, Willis, Rosen,
+Kizer, Cook; the worst non-QBs are WRs (Skyy Moore, Jaelen Strong, Treadwell, Ross, ~2 below each). Hits: Watson
+(+18), Lamar Jackson, Herbert, Carr, Love, Michael Thomas. At the picks where players were really drafted, the
+biggest under-predictions are QBs (Watson, Prescott at 0.1 predicted, Herbert, Allen, Lamar, Jones, Wentz, Goff)
+and then top-10 non-QBs the model ranked far down its list: Khalil Mack (#5, predicted -0.14, the model's 83rd
+choice there), Micah Parsons (56th), T.J. Watt, Aaron Donald, Kenny Clark.
+
+**1. Top-10 non-QBs are under-valued (engine flaw).** Team non-QB picks, delivered minus predicted titles (95% over
+draft years):
+
+| Consensus rank | n | Predicted | Delivered | Miss | Below prediction |
+|---|---|---|---|---|---|
+| 1-5 | 38 | 0.59 | 1.31 | +0.72 (+0.35 to +1.05) | 32% |
+| 6-10 | 40 | 0.96 | 1.62 | +0.65 (+0.24 to +1.07) | 35% |
+| 11-20 | 82 | 1.17 | 1.52 | +0.35 (+0.05 to +0.64) | 49% |
+| 21-32 | 98 | 1.04 | 0.99 | -0.05 (-0.36 to +0.25) | 55% |
+| 33-120 | 732 | 0.66 | 0.76 | +0.10 | 57% |
+
+Cause: the comparison careers. The engine values a player by sampling the 60 drafted players of his family whose
+expected value is closest; at the top of a family every neighbour is below him, so the sample reaches down to
+rank ~30-50. Drafted board players 2014-2022, 4-season value (full engine):
+
+| | Actual | Regression | Comparison careers (used) | Local-linear correction |
+|---|---|---|---|---|
+| Non-QB rank 1-10 (n 76) | 0.173 | 1.10x | **0.71x** (every family 0.60-0.85) | 0.94x |
+| Non-QB rank 11-32 / 33-64 / 65-120 / 121+ | | | 0.99 / 1.00 / 0.98 / 1.06x | 1.08 / 1.01 / 1.00 / 1.02x |
+| QB rank 1-10 / 11-32 | | 0.80 / 0.61x | 0.98 / 0.93x | 1.01 / 0.91x |
+| QB rank 33-64 (n 10) | 0.095 | 1.25x | **1.86x** | 1.71x |
+
+The regression itself is close for top non-QBs; the comparison sample loses ~30% of their value. A local-linear
+correction (weighted regression of comparison values on expected value, read at the player's own expectation)
+removes the gap without moving other bands. Affects pick values, trade-up/down and "top-5 non-QB picks lose value"
+more than which player to take (the shortfall is similar across families). Tested and adopted below
+("Comparison-career correction").
+
+**2. QB reaches bust.** QB recommendations by how far below the current pick the QB sat on the consensus board
+(delivered / predicted, each player once per bucket): at or above the pick 1.00 (n 20), 1-15 below 0.95 (30), 16-40
+below 0.65 (15), 40+ below 0.24 (17, no hits). By where they actually went: taken at or before the recommended pick
+1.37, within 32 picks after 1.17, 33+ picks after 0.22, undrafted 0.08 (non-QBs: 1.14 / 0.57 / 0.29). This is
+knowable on draft day (board distance), unlike where he goes. Part of it is the engine: QB comparison careers for
+ranks 33-64 run 1.86x actual (only 10 such QBs drafted 2014-22), because the regression barely separates QB ranks
+(QBs share tree leaves with other families) and the comparison window borrows from QBs ranked 11-32. Round-1 QB
+recommendations from near the top of the board are on target.
+
+## Comparison-career correction (`outcomes_v2.COMP_CORRECT`, `scripts/comp_correct.py`, Nov 2026)
+
+`COMP_CORRECT=ll` (default since Nov 2026) rescales each player's sampled careers so their weighted mean equals a local-linear fit of
+comparison value on expected value, read at the player's own expectation (factor clipped to 0.5-2; shape of the
+distribution kept). Factors, full engine: consensus #1-10 non-QBs x1.2-1.65 (OL lowest, RB highest), ranks 15-20
+x1.05-1.3, ranks 32-120 ~1, the bottom of the board (rank ~300) x0.5-0.9; QBs ~1 except ranks 32-50 (x0.91).
+Simulator tables carry a `_ccll` suffix when on; `COMP_CORRECT=off` reproduces the earlier engine.
+
+**Engine, leave-one-draft-out** (each class valued by an engine fit without it; drafted players 2014-2022,
+comparison mean / actual 4-season value):
+
+| | Off | ll |
+|---|---|---|
+| Non-QB rank 1-10 (n 76) | 0.70 | 0.93 |
+| Non-QB 11-32 / 33-64 / 65-120 / 121-200 / 201-300 | 0.99 / 1.00 / 0.98 / 1.03 / 1.14 | 1.08 / 1.01 / 1.00 / 1.02 / 1.04 |
+| QB 1-10 / 11-32 / 33-64 (n 10) | 0.99 / 0.92 / 1.93 | 1.02 / 0.90 / 1.76 |
+| Board players: mean abs error / rmse (cap share) | 0.0441 / 0.0654 | 0.0436 / 0.0645 |
+
+Not fixed: QBs ranked 33-64 (small sample), and drafted players who weren't on the board (comparison careers
+1.78x actual for non-QBs: the comparison pool is drafted-only, and off-board drafted players do worse than it).
+
+**Past drafts review, leave-one-draft-out** (model minus team where they disagree, each rec once; realized value
+doesn't use the engine, so both versions are scored on the same yardstick):
+
+| | Titles | Seasons started | AV | 2nd-contract pay |
+|---|---|---|---|---|
+| Round 1, off / ll | +0.92 / +1.07 | -1.63 / -1.24 | -12.0 / -8.1 | -1.00 / -0.46 |
+| Rounds 2-4 | -0.11 / +0.42 | -1.52 / -1.01 | -10.4 / -6.5 | -0.69 / +0.04 |
+| Rounds 5-7 | -0.08 / -0.11 | -0.74 / -0.68 | -6.6 / -6.3 | -0.81 / -0.71 |
+
+Paired at each pick (ll's rec minus off's rec, realized titles): round 1 +0.05 per pick (-0.16 to +0.28), rounds 2-4
++0.005, rounds 5-7 -0.002; recommendations change at 18% / 14% / 11% of picks. The title gain is QB swaps (Wentz for
+Lynch, Bridgewater for Manziel; Rosen for Mayfield the other way) and Hurts in round 2: luck either way. Changed
+non-QB recommendations, each swap once: round 1 (n 20) titles -0.16, starts +0.50, AV +5.3, pay +0.89 (DL / EDGE such
+as Donald, Allen, Hutchinson instead of some WRs; also Ed Oliver over Metcalf); rounds 2-4 (n 29) titles +0.50,
+starts +0.14, AV +4.1, pay +0.99. Calibration: team non-QB picks ranked 1-5 / 6-10 delivered minus predicted
++0.66 / +0.71 -> +0.06 / +0.28; model recs ranked 1-10 delivered / predicted 1.61 -> 0.92 (18 recs instead of 8).
+
+**Whole-draft replay** (simulator tables, both leave-one-draft-out; the model drafts each team's whole draft at its
+real picks, greedy, its own choices setting needs; ll minus off per team-draft, 288 drafts): titles +0.16 (-0.10 to
++0.45), seasons started +0.08 (-0.27 to +0.43), AV +1.9 (-1.0 to +5.0), 2nd-contract pay +0.38 (-0.10 to +0.87);
+same player at 70% of picks (round 1 78%); round-1 mix WR 59 -> 52%, QB 39 -> 38%, IDL / EDGE 3 -> 10%.
+
+**Pick values** (titles added over 5 seasons, % of one): the big change. Middle of the pack, average non-QB position:
+#1 0.48 -> 1.41, #5 0.64 -> 1.42, #10 1.03 -> 1.72, #20 1.19 -> 1.39, #32 1.12 -> 1.18, #64 unchanged. Non-QB value now
+peaks around #10 and #1 is worth about what #16-20 is (before: a third of it). EDGE / DL / WR at #1 roughly double;
+LB, RB, TE, CB, S at the top go from ~0 or negative to positive. QB picks #1-10 +2-8%, #32 10.4 -> 8.8, #48
+7.5 -> 6.3. Trade-down advice and the trade calculator weaken at the top of round 1 for non-QBs.
+
+Verdict: the engine is better calibrated out of sample, and choices tie or improve slightly on every yardstick
+(none significant). **Adopted** (Nov 2026; `COMP_CORRECT` default "ll"). Rebuilt: past drafts review and trade
+decisions (2014-2022 identical to the leave-one-draft-out "ll" run above, so the Past drafts scorecard is now its
+column: round 1 +1.07, rounds 2-4 +0.42, rounds 5-7 -0.11 titles), simulator tables and artifact, pick-value chart,
+real trades, 2027 team report, 2021 replay. Earlier sections quote pick values from before the change (e.g.
+"top-5 non-QB picks now lose value on average" no longer holds: a top-5 non-QB is now worth about a #16-20 pick).
+Effect on the 2027 team report: value of firsts up (most for top-10 slots: LAC #4 0.7 -> 1.5, MIA #2 0.5 -> 1.1),
+trade-down still positive for every team but smaller at the top (LAC +1.7 -> +1.3, NO / TB +1.0 -> +0.6), QB moves
+down slightly (TB +5.9 -> +5.1), selling next year's first from ~0 to -0.1 to -0.3. Real trades: teams trading down
+for a non-QB still gain in 93-97% of trades.

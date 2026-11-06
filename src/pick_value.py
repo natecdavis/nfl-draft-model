@@ -251,16 +251,16 @@ def chart(nonqb, res):
         ax.set_title(title, loc="left", color=ink, fontsize=12, fontweight="bold")
         ax.set_xlabel("Draft pick (log scale)", color=ink2)
 
-    # Direct labels: non-QB lines are well separated just right of their peak
+    # Direct labels on the flat stretch at the top of the draft, where the lines are well separated
     for sname in SITUATIONS:
         s = nonqb[nonqb.situation == sname].set_index("pick").titles_added * 100
-        axes[0].annotate(sname, (40, s.loc[40]), xytext=(0, 7), textcoords="offset points",
+        axes[0].annotate(sname, (1, s.loc[1]), xytext=(0, 6), textcoords="offset points",
                          color=ink2, fontsize=9, ha="left")
     q = res[res.grp == "QB"].pivot(index="pick", columns="situation", values="titles_added") * 100
-    axes[1].annotate("Middle of the pack", (2, q.loc[2, "Middle of the pack"] if 2 in q.index else q.iloc[1]["Middle of the pack"]),
-                     xytext=(0, 7), textcoords="offset points", color=ink2, fontsize=9)
-    axes[1].annotate("Contender (veteran QB) and Rebuilding:\nnearly the same", (16, q.loc[16].drop("Middle of the pack").max()),
-                     xytext=(4, 10), textcoords="offset points", color=ink2, fontsize=9)
+    for sname, dy in [("Middle of the pack", 6), ("Contender, veteran QB", 6), ("Rebuilding", -13)]:
+        if sname in q:
+            axes[1].annotate(sname, (1, q.loc[1, sname]), xytext=(0, dy), textcoords="offset points",
+                             color=ink2, fontsize=9, ha="left")
     axes[0].set_ylabel("Super Bowls added over 5 seasons\n(% of one title)", color=ink2)
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper left", bbox_to_anchor=(0.06, 0.935), ncol=4, frameon=False,
