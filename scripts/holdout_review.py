@@ -30,8 +30,9 @@ import os  # noqa: E402
 HD = OUT / "holdout"
 FW = os.environ.get("REVIEW_FALL_WEIGHT")  # set: fall-shading test, leave-one-draft-out only
 CR = os.environ.get("COST_RATE")  # set: cap-cost test (pick_value.COST_RATE)
-SUF = (f"_fw{FW}" if FW else "") + (f"_cost{CR}" if CR else "")
-FW = FW or CR  # either test: leave-one-draft-out only
+WF = os.environ.get("WR_FACTOR")  # set: WR value test (pick_value.WR_FACTOR)
+SUF = (f"_fw{FW}" if FW else "") + (f"_cost{CR}" if CR else "") + (f"_wr{WF}" if WF else "")
+FW = FW or CR or WF  # either test: leave-one-draft-out only
 JOBS = [("lodo", y) for y in range(2014, 2023)] + ([] if FW else [("expand", y) for y in range(2019, 2023)])
 
 

@@ -134,6 +134,8 @@ if len(choices) < len(mine):
     if len(o):
         b.metric("Model's top choice for you", f"{o.iloc[0]['name']} ({pos(o.iloc[0].grp)})",
                  f"{o.iloc[0].titles:+.2f}% of a title", delta_color="off")
+        if int(r["round"]) > 1:
+            b.caption("No tested edge after round 1: in past drafts (2014-2022) the model's picks here did no better than teams'.")
 
     top = o.head(TOP_N).assign(
         pos=lambda d: d.grp.map(pos),

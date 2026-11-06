@@ -67,6 +67,7 @@ input[type=search] { width: 100%; }
 .tile .d { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .tile.team { border-left: 4px solid var(--gold); }
 .tile.model { border-left: 4px solid var(--turf); }
+.tile .d.edge { font-size: 12px; font-style: italic; }
 .scroll { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: 14px; }
 th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
@@ -255,7 +256,7 @@ function render() {
         ${traded ? `<span class="chip gold">from ${esc(orig)} on draft night</span>` : ""}</div>
       <div class="tiles">
         <div class="tile team"><div class="k">${esc(team)} actually took</div>${teamTile}</div>
-        <div class="tile model"><div class="k">Model's top choice</div><div class="v">${esc(top.name)} <span class="pos">${posOf(top.g, top.label)}</span></div><div class="d">${fmt(top.v)} · consensus ${rankTxt(top.rank)}</div></div>
+        <div class="tile model"><div class="k">Model's top choice</div><div class="v">${esc(top.name)} <span class="pos">${posOf(top.g, top.label)}</span></div><div class="d">${fmt(top.v)} · consensus ${rankTxt(top.rank)}</div>${rnd > 1 ? `<div class="d edge">No tested edge after round 1: in past drafts (2014-2022) the model's picks here did no better than teams'.</div>` : ""}</div>
       </div>
       <div class="actions">
         <button class="primary" type="button" id="takeTop">Take ${esc(top.name)}</button>

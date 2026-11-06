@@ -124,6 +124,9 @@ def sample_outcomes(lib, curves, grp, pick, rng, bw=0.4, n=N):
 # savings into non-QB value (implied charge ~0.05, 0 to 0.09); 0.10 is a cautious step toward that.
 # Env COST_RATE overrides it for tests (scripts/cost_compare.py).
 COST_RATE = float(os.environ.get("COST_RATE") or 0.10)
+# WR on-field value per 1% of cap, relative to other non-QBs (scripts/wr_check.py: 0.45-0.75, not
+# significant). Tests only (env WR_FACTOR); 1.0 = same as every non-QB.
+WR_FACTOR = float(os.environ.get("WR_FACTOR") or 1.0)
 
 def pick_effect(shares, price, pick, grp, sit, cost, bar, rates):
     """(N, 5) points of team strength the pick adds each season."""
@@ -132,7 +135,7 @@ def pick_effect(shares, price, pick, grp, sit, cost, bar, rates):
         if sit["qb_from"] is None:
             return None
         shares[:, : sit["qb_from"] - 1] = 0.0  # sits behind the starter
-    rate = rates["qb"] if grp == "QB" else rates["nonqb"]
+    rate = rates["qb"] if grp == "QB" else rates["nonqb"] * (WR_FACTOR if grp == "WR" else 1.0)
     value = shares * np.maximum(price - VET_MIN, 0)[:, None] * 100
     rc = cost[pick]
     on_roster = (pick <= 64) | (shares[:, :4] > 0)

@@ -330,6 +330,47 @@ starts -1.67 / -1.63 / -1.61 at 0.19 / 0.10 / 0). The charge matters for compari
 up / down, the trade calculator), not for which player to take. **Adopted 0.10** (Nov 2026; `pick_value.COST_RATE`):
 a cautious step toward the data's ~0.05, since the evidence is QB contracts only.
 
+## Deferring to the board, and WR value (Nov 2026)
+
+The model takes the consensus board's best available player only 8-16% of the time: it reweights board
+rank by position (outcomes, pay) and team situation, and 53% of its round-1 recommendations are WRs
+(3% of board-best players). Two tests, past drafts 2014-2022, leave-one-draft-out engine.
+
+**Deferring to the board** (`scripts/defer_test.py`; every pick each team made, every available player
+valued as in the review): the model's choice vs the board's best, a margin rule (model's choice only if it
+beats the board's best by m) and a rank window (model's top among the k best-ranked available), QB calls
+kept; m and k tuned leave-one-draft-out. Titles vs the team's pick, per pick:
+
+| | Model | Board | Margin (tuned) | Window (tuned) |
+|---|---|---|---|---|
+| Round 1 | +1.56 (+0.92 to +2.24) | -0.35 | +1.56 | +1.56 |
+| Rounds 2-4 | +0.06 (-0.04 to +0.17) | -0.08 | +0.01 | +0.06 |
+| Rounds 5-7 | +0.04 (-0.02 to +0.09) | -0.04 | +0.02 | -0.01 |
+
+Tuning lands on the model in nearly every year; board-best loses on titles in every round (it does better
+on starts, +0.31 vs -1.39 in round 1, which don't price position). Not adopted. Rounds 2-7 are within
+noise of teams under every rule, so the simulator now labels them "no tested edge". (The replay's top
+choice matches the review's recommendation at 89% of picks, not 100%: small differences in how earlier
+picks set needs.)
+
+**WR value** (`scripts/wr_check.py`). Predicted vs delivered, out of sample: the model's WR
+recommendations delivered 1.52x prediction in round 1 (0.94-2.13), 1.04x in rounds 2-4: the outcome
+engine doesn't overrate WR careers. Team rating per 1% of cap in on-field value, WRs split out:
+
+| | QB | WR | Other non-QB | WR minus other |
+|---|---|---|---|---|
+| Career-best prices | +0.32 | +0.11 | +0.21 | -0.10 (-0.23 to +0.04) |
+| Within team | +0.31 | +0.14 | +0.20 | -0.05 (-0.19 to +0.08) |
+| Pre-season prices | +0.34 | +0.09 | +0.21 | -0.12 (-0.31 to +0.06) |
+| Within team | +0.29 | +0.16 | +0.21 | -0.06 (-0.23 to +0.11) |
+
+WR pay buys 45-75% as much rating as other non-QB pay, not significant; a separate WR rate doesn't predict
+2021-25 better. Tried anyway: WR value x0.75 (`WR_FACTOR`, `scripts/wr_compare.py`) cuts WRs from 22% to 9%
+of recommendations (round 1: edge rushers and DTs instead; QBs unchanged at 46%), and the review gets worse:
+round 1 +0.92 -> +0.30 in titles (+0.48 -> +0.26 scored with WRs at 0.75 too), starts -1.63 -> -1.67;
+rounds 2-4 -0.11 -> +0.21 (noise). The WRs it liked delivered (Thomas, Jefferson, Lamb, Metcalf, Pickens):
+the changed round-1 picks delivered 2.21 vs 1.18 for their replacements. Not adopted (`WR_FACTOR` = 1.0).
+
 ## Position pay within families, and projecting position changes
 
 **Pay within OL and DB** (`scripts/paypos_choice.py`, `outcomes_v2.POS_PAY`, default off). cfdarko prices
