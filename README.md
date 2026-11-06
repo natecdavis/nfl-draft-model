@@ -371,6 +371,28 @@ round 1 +0.92 -> +0.30 in titles (+0.48 -> +0.26 scored with WRs at 0.75 too), s
 rounds 2-4 -0.11 -> +0.21 (noise). The WRs it liked delivered (Thomas, Jefferson, Lamb, Metcalf, Pickens):
 the changed round-1 picks delivered 2.21 vs 1.18 for their replacements. Not adopted (`WR_FACTOR` = 1.0).
 
+## Team strength to titles, and carryover (Nov 2026)
+
+Pick values are points of team strength x how fast title odds rise with strength (the season simulator on a
+generic league). Checked on real seasons 2003-2025, 736 team-seasons, each simulated on its real schedule
+(`scripts/title_check.py`). Calibration slope = logistic regression of the outcome on the model's log-odds
+(1 = odds rise with strength as fast as the model says; < 1 = too fast):
+
+| | Playoffs | Conference title | Super Bowl |
+|---|---|---|---|
+| Pre-season (last season's rating x carryover) | 0.95 (0.71 to 1.20) | 1.19 (0.73 to 1.65) | 1.35 (0.73 to 1.98) |
+| In-season luck-adjusted rating | (circular) | 1.17 (0.84 to 1.50) | 0.82 (0.49 to 1.16) |
+
+Teams rated +6 or better in-season (n=80): 11 Super Bowls vs 12.7 predicted, 23 conference titles vs
+21.9. Fine as is.
+
+Carryover: correlation of ratings k seasons apart, actual 0.44 / 0.32 / 0.20 / 0.15 (k = 1-4) vs the
+model's 0.44 / 0.26 / 0.16 / 0.10: strength fades a little more slowly after year one (each gap ~1.5
+standard errors). Best fit: 0.58 per season plus a permanent 11%. Sensitivity (`CARRY_MODEL=persist`,
+outputs in data/derived/holdout/carry/): pick values move ~5-10% (contenders up, rebuilders down; a
+contender's #20 non-QB 2.54 -> 2.64, a rebuilder's 0.74 -> 0.67), no team's trade-down, QB-move or
+value-of-firsts advice changes sign (QB moves 7.49 -> 7.04 on average). Not adopted (default `ar`, 0.60).
+
 ## Position pay within families, and projecting position changes
 
 **Pay within OL and DB** (`scripts/paypos_choice.py`, `outcomes_v2.POS_PAY`, default off). cfdarko prices

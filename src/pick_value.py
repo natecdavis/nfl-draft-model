@@ -70,17 +70,30 @@ def strength_curve(sched, teams_df, params) -> pd.DataFrame:
     return c
 
 
+# How strength fades: "ar" = 0.60 per season (default); "persist" (tests, env CARRY_MODEL) = 0.58 per
+# season plus a permanent 11% (fit to rating correlations 1-4 seasons apart, scripts/title_check.py).
+CARRY_MODEL = os.environ.get("CARRY_MODEL") or "ar"
+RHO, PERM = (0.58, 0.11) if CARRY_MODEL == "persist" else (CARRY, 0.0)
+
+
+def decay(t):
+    """Share of a team's expected strength left t seasons later."""
+    return PERM + (1 - PERM) * RHO ** np.asarray(t)
+
+
 def baseline_paths(sit: dict, rng, n: int = N) -> np.ndarray:
     """(n, 5) true strength without the pick."""
     # Expected path drifts back toward average; scheduled shifts (e.g. a QB's big
     # second contract) last from their season on, since that money is paid every year.
-    m = sit["start"] * CARRY ** np.arange(5)
+    m = sit["start"] * decay(np.arange(5))
     for season, delta in sit["shift"].items():
         m[season - 1:] += delta
-    u = np.zeros((n, 5)); u[:, 0] = rng.normal(0, START_SD, n)
-    innov = np.sqrt(1 - CARRY ** 2) * 5.3
+    u = np.zeros((n, 5)); u[:, 0] = rng.normal(0, np.sqrt(1 - PERM) * START_SD, n)
+    innov = np.sqrt(1 - RHO ** 2) * np.sqrt(1 - PERM) * 5.3
     for t in range(1, 5):
-        u[:, t] = CARRY * u[:, t - 1] + rng.normal(0, innov, n)
+        u[:, t] = RHO * u[:, t - 1] + rng.normal(0, innov, n)
+    if PERM:  # drawn last, so the default model's random draws are unchanged
+        u += rng.normal(0, np.sqrt(PERM) * START_SD, n)[:, None]
     return m + u
 
 

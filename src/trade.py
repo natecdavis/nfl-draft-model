@@ -28,7 +28,7 @@ import pandas as pd
 import polars as pl
 
 from outlook import GROUPS, OUT, RAW, star_thresholds
-from pick_value import (CARRY, SITUATIONS, START_SD, baseline_paths, pick_effect,
+from pick_value import (CARRY, SITUATIONS, decay, START_SD, baseline_paths, pick_effect,
                         sample_outcomes, strength_curve)
 from simulate import league_params, load_schedules
 from value import rookie_cost_curve
@@ -77,7 +77,7 @@ def _slots(pick: Pick, sit: dict, base: np.ndarray, rng) -> np.ndarray:
         start = SITUATIONS[pick.src]["start"] if isinstance(pick.src, str) and pick.src in SITUATIONS else (
             pick.src["start"] if isinstance(pick.src, dict) else 0.0)
         sd = TRUE_SD if pick.src == "typical" else START_SD
-        x = rng.normal(start * CARRY ** (pick.year - 1), sd, n)
+        x = rng.normal(start * decay(pick.year - 1), sd, n)
     observed = x + rng.normal(0, LUCK_SD, n)
     others = rng.normal(0, np.hypot(TRUE_SD, LUCK_SD), (n, 31))
     slot = 1 + (others < observed[:, None]).sum(axis=1)  # worst record picks first
