@@ -494,17 +494,54 @@ def main(first=YEARS[0], last=YEARS[-1]):
 
 
 
+UDFA_CACHE = OUT / "udfa_pre2016_labels.parquet"
+
+
+def udfa_pre2016_labels() -> pd.DataFrame:
+    """Season values for undrafted players of the 2014-2015 classes, whom cfdarko doesn't label (its undrafted
+    labels start with the 2016 class; before this every one of them counted as zero, e.g. La'el Collins, board
+    #16 in 2015, a starting tackle). This project's measure, as in value.py: snap share in seasons 1-4 x his
+    market price (best contract signed after his first, share of cap; veteran minimum if none), converted to
+    cfdarko's units with the bridge's overall factor (outcomes_v2.CF_OVER_OURS_ALL, scripts/units_check.py).
+    Columns as cfdarko's labels (index pfr_id; draft_year, player_name, is_udfa, value_y1-4)."""
+    if UDFA_CACHE.exists():
+        return pd.read_parquet(UDFA_CACHE)
+    import polars as pl
+    from outcomes_v2 import CF_OVER_OURS_ALL
+    from outlook import season_shares
+    P = pd.read_parquet(RAW / "players.parquet")
+    P = P[P.draft_round.isna() & P.rookie_season.isin([2014, 2015]) & P.pfr_id.notna()]
+    sh = season_shares(pl.read_parquet(RAW / "snap_counts.parquet")).to_pandas()
+    sh = sh.set_index(["pfr_player_id", "season"]).share
+    C = pd.read_parquet(RAW / "contracts.parquet")
+    C = C[C.apy_cap_pct.notna()]
+    rows = []
+    for r in P.itertuples():
+        y = int(r.rookie_season)
+        later = C[(C.gsis_id == r.gsis_id) & (C.year_signed > y)].apy_cap_pct
+        price = max(float(later.max()) if len(later) else 0.0, 0.005)
+        v = [float(sh.get((r.pfr_id, y + t - 1), 0.0)) * price * CF_OVER_OURS_ALL for t in range(1, 5)]
+        if sum(v) > 0:
+            rows.append({"pfr_id": r.pfr_id, "draft_year": y, "player_name": r.display_name, "is_udfa": True,
+                         **{f"value_y{t}": v[t - 1] for t in range(1, 5)}})
+    out = pd.DataFrame(rows).set_index("pfr_id")
+    out.to_parquet(UDFA_CACHE)
+    return out
+
+
 class RealizedV2:
     """What a player actually delivered, in title odds for one team's situation, at the cost of
     a given pick: cfdarko's season-by-season labels (same units and encoding as outcomes_v2),
-    for classes with all four seasons played (through 2022). Players who never played in the
-    NFL count as zero."""
+    for classes with all four seasons played (through 2022); undrafted players of 2014-2015 from
+    udfa_pre2016_labels. Players who never played in the NFL count as zero."""
     def __init__(self, ctx, n=2000, units=None, pos_pay=None):
         from pathlib import Path as _P
         # units: see outcomes_v2.unit_factor; pos_pay: outcomes_v2.pay_factor (None = its default)
         self.ctx, self.n, self.units, self.pos_pay = ctx, n, units, pos_pay
         L = pd.read_parquet(_P.home() / "cfdarko/data/processed/rookie_value_labels.parquet")
         self.L = L.dropna(subset=["pfr_id"]).drop_duplicates("pfr_id").set_index("pfr_id")
+        extra = udfa_pre2016_labels()  # 2014-2015 undrafted players, missing from cfdarko's labels
+        self.L = pd.concat([self.L, extra[~extra.index.isin(self.L.index)]])
         # undrafted players who reached the NFL (labeled from the 2016 class): find by name + class
         self.udfa = {(int(y), _norm(nm)): i for i, y, nm, u in
                      zip(self.L.index, self.L.draft_year, self.L.player_name, self.L.is_udfa) if u}

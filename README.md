@@ -707,3 +707,23 @@ pattern came from the engine before the comparison-career and off-board fixes. (
 drafts (0.25 in one, which swaps Hurts at #37 for Denzel Mims: -30.5). Fixed lam, round 1 titles vs teams per pick:
 0 +1.56, 0.25 +1.62, 0.5 +1.51, 1 +1.36, 2 +1.32, 3 +1.07; starts improve (-1.33 -> -0.74 at 3) because fewer QBs are taken (44% ->
 23%). Rounds 2-4 and 5-7 unchanged. Not adopted.
+
+## Undrafted players of 2014-2015 in realized value (Nov 2026)
+
+La'el Collins (board #16 in 2015, undrafted during a police investigation, then a starting tackle for Dallas) showed
+as delivering 0. Realized value (review.RealizedV2) finds a player in cfdarko's season labels by draft slot, or for
+undrafted players by name and class, and cfdarko labels undrafted players only from the 2016 class: every 2014-2015
+undrafted player counted as zero. `review.udfa_pre2016_labels()` (cached in data/derived/udfa_pre2016_labels.parquet)
+fills them in with this project's measure: snap share in seasons 1-4 x market price (best contract signed after his
+first, share of cap; veteran minimum if none), times the bridge's 1.10 (outcomes_v2.CF_OVER_OURS_ALL). Check on 2016-2018
+undrafted players, where both exist: correlation 0.86; cfdarko / ours 1.22 for players with real careers (cfdarko >
+0.05 of cap over 4 seasons, n 41), so the filled-in values run ~10% conservative (more for fringe players, whom the
+veteran-minimum price understates). 328 players, led by Norwell, Malcolm Butler, Hurns, Collins (0.17 of cap over 4
+seasons), Tyrell Williams, Shaquil Barrett.
+
+Effect: the model recommended Collins at 134 picks in 2015 (rounds 2-5): those rows now deliver +2.2% of a title
+instead of 0 (and he was the board's best available at 196 picks). Recommendations unchanged. Scorecard (each
+recommendation once): rounds 2-4 +0.11 -> +0.14, others unchanged. Review picks rescored for 2014-2015, simulator
+realized cache and artifact rebuilt. Not changed: the training labels (prospect_model still gives pre-2016 undrafted
+players cell averages) and the starts / AV / second-contract-pay yardsticks, which come from draft records and so
+count any undrafted player as zero in every year.
