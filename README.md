@@ -687,3 +687,23 @@ chart, real trades, 2027 team report, 2021 replay. Pick values barely move (midd
 ~0.5 smaller (LA +10.9 -> +10.3, TB +5.1 -> +4.6, NO +4.9 -> +4.4). No off-board player is a top recommendation in
 any reviewed draft (2014-2022 before, 2014-2026 after), so the off-board fix matters for the engine's calibration and for
 off-board players' values in the simulator, not for the past recommendations.
+
+## QB reach penalty (`scripts/qb_reach.py`, Nov 2026): not adopted
+
+Prompted by the misses study (QB recommendations 16-40 spots below the pick delivered 0.65x prediction, 40+ below
+0.24x) and the QB ranks 33-64 gap. First, the 33-64 gap itself (leave-one-draft-out engine, drafted QBs 2014-2022):
+it is five players ranked 33-48 (Lock, Love, Kizer, Ridder, Corral: engine 0.197 of cap over 4 seasons, actual
+0.073) next to Mahomes, Allen, Watson, Jackson and Carr at 21-32. Not significant (ranks 33-64 actual / engine 95%
+0.21-1.21; ranks 33-120 engine 1.18x actual), and no smoothing removes it: comparison players by consensus rank
+instead of expected value 1.74 -> 1.63x; QB window of 5-20 nearest leaves ranks 33-48 at 2.1-2.7x with no change in
+QB error (all within +-0.003). Left as is.
+
+**Reach penalty.** A QB ranked below the pick has his value multiplied by ((pick + 10) / (rank + 10)) ^ lam
+(off-board = rank 330), tuned leave-one-draft-out over every pick each team made 2014-2022 (candidates rebuilt with the
+current engine). With the current engine the reach pattern is gone: the model's QB choices deliver 0.78x / 0.77x /
+0.81x of prediction at the pick or above / 1-15 below / 16-40 below (40+ below: 4 picks, 0.45x), so the misses-study
+pattern came from the engine before the comparison-career and off-board fixes. (All available QBs: 1.16 / 1.00 /
+1.18; the ~20% shortfall of QB choices at every distance is ordinary selection.) Tuning picks lam = 0 in 8 of 9
+drafts (0.25 in one, which swaps Hurts at #37 for Denzel Mims: -30.5). Fixed lam, round 1 titles vs teams per pick:
+0 +1.56, 0.25 +1.62, 0.5 +1.51, 1 +1.36, 2 +1.32, 3 +1.07; starts improve (-1.33 -> -0.74 at 3) because fewer QBs are taken (44% ->
+23%). Rounds 2-4 and 5-7 unchanged. Not adopted.
