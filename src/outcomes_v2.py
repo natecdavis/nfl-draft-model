@@ -83,6 +83,22 @@ N_COMPS = 60
 # variable COMP_CORRECT overrides it.
 COMP_CORRECT = os.environ.get("COMP_CORRECT", "ll")
 SCALE_CLIP = (0.5, 2.0)
+# Draft classes without a consensus board (2012-2013: Hasan's board starts in 2014). Every player in them
+# reads as off-board, first-rounders included, so they made up ~2/3 of the off-board comparison pool
+# (off-board QBs drew Luck, Wilson, Cousins) and drafted off-board players were valued ~1.8x what they
+# delivered (QBs ~10x). "drop" (adopted Nov 2026): leave those classes out of the regression and the
+# comparison pool. "keep": before Nov 2026. Environment variable NO_BOARD_CLASSES overrides it.
+NO_BOARD_CLASSES = os.environ.get("NO_BOARD_CLASSES", "drop")
+# Monotone value in consensus rank. Small pools leave bumps late in the board: QBs ranked 250-297 drew
+# ~0.08 of cap over 4 seasons (vs 0.024 at rank 200), from one comparison (Brock Purdy, rank 290, 0.44),
+# and leave-one-draft-out reviews recommended QBs ranked ~270-300 in rounds 2-4. Per family, the mean of
+# the sampled careers (after COMP_CORRECT) over board ranks 1-329 is made non-increasing in rank, shape of
+# each distribution kept. "min" (adopted Nov 2026): each rank capped at the lowest value of any better rank
+# (only lowers values). "iso": isotonic fit (violating stretches pooled; lifted QBs ranked 150-250 and
+# their recommendations delivered ~0: tested, not adopted). "off": none. Off-board players keep their own
+# value (drafted off-board players did better than board players ranked 251-300; pooling them put them
+# at 0.78x actual). Test: scripts/no_board.py (README). Environment variable MONOTONE overrides it.
+MONOTONE = os.environ.get("MONOTONE", "min")
 MIN_COMPS, COMP_SHARE = 15, 1 / 6  # small position pools (QB): use the nearest sixth, at least 15
 REG = dict(min_child_samples=150, n_estimators=300, colsample_bytree=0.5, num_leaves=7, reg_lambda=5.0)
 
@@ -109,6 +125,9 @@ def apply_holdout(df: pd.DataFrame, holdout) -> pd.DataFrame:
 class OutcomeModel:
     def __init__(self):
         df = apply_holdout(pm.load(), HOLDOUT)
+        if NO_BOARD_CLASSES == "drop":
+            ranked = df.hasan_rank.notna().where(df.drafted).groupby(df.cls).mean()  # share of drafted on board
+            df = df[df.cls.map(ranked) > 0.5]
         last = pm.LAST_SEASON_PLAYED if HOLDOUT is None or HOLDOUT[0] != "expand" else HOLDOUT[1] - 1
         for t in pm.SEASONS:
             df[f"y{t}"] = df[f"y{t}"] / df.grp.map(unit_factor)
@@ -125,6 +144,7 @@ class OutcomeModel:
                       for g, d in comps.groupby("grp")}
         self._near = lru_cache(maxsize=None)(self._nearest)
         self._scale = lru_cache(maxsize=None)(self._ll_scale)
+        self._mono = {}
 
     def _predict(self, d: pd.DataFrame) -> np.ndarray:
         return sum(m.predict(d[f]) for m, f in self.models)
@@ -160,8 +180,26 @@ class OutcomeModel:
         plain = float((y * w).sum())
         return float(np.clip(max(beta[0], 1e-6) / max(plain, 1e-9), *SCALE_CLIP))
 
+    def _ll(self, family: str, r: int) -> float:
+        return self._scale(family, r) if COMP_CORRECT == "ll" else 1.0
+
+    def _mono_factor(self, family: str) -> np.ndarray:
+        """Non-increasing-in-rank fit / raw mean of the sampled careers, ranks 1..OFF_BOARD (off-board: 1)."""
+        if family not in self._mono:
+            from sklearn.isotonic import IsotonicRegression
+            r = np.arange(1, pm.OFF_BOARD)  # board ranks; off-board keeps its own value (factor 1)
+            raw = np.array([float((lambda pw: (pw[0].sum(1) * pw[1]).sum())(self._near(family, int(k))))
+                            * self._ll(family, int(k)) for k in r])
+            iso = (IsotonicRegression(increasing=False).fit_transform(r, raw) if MONOTONE == "iso"
+                   else np.minimum.accumulate(raw))  # "min": capped at the lowest value of any better rank
+            self._mono[family] = np.append(np.where(raw > 1e-9, iso / np.maximum(raw, 1e-9), 1.0), 1.0)
+        return self._mono[family]
+
     def scale(self, family: str, rank: int) -> float:
-        return self._scale(family, int(np.clip(rank, 1, pm.OFF_BOARD))) if COMP_CORRECT == "ll" else 1.0
+        """Factor on the sampled careers: local-linear correction x monotone fit (1.0 with both off)."""
+        r = int(np.clip(rank, 1, pm.OFF_BOARD))
+        mono = self._mono_factor(family)[r - 1] if MONOTONE in ("iso", "min") else 1.0
+        return self._ll(family, r) * float(mono)
 
     def sample(self, grp: str, rank: int, rng, n: int):
         """(shares (n,5), price (n,)) for pick_value.pick_effect."""

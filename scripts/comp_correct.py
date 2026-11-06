@@ -87,15 +87,16 @@ def engine():
               f"{np.mean(np.abs(b[k] - b.actual)):.4f}, rmse {np.sqrt(np.mean((b[k] - b.actual) ** 2)):.4f}")
 
 
-def review():
+def review(a="review_picks_lodo_cost0.1.parquet", b="review_picks_lodo_ccll.parquet", save="comp_correct_review"):
+    """Labels "off" / "ll" = files a / b (any two leave-one-draft-out reviews: scripts/no_board.py reuses this)."""
     dp = pd.read_parquet(RAW / "draft_picks.parquet")
     po = pd.read_parquet(OUT / "pick_outcomes.parquet")
     look = {"gs": {(y, p): a for y, p, a in zip(dp.season, dp.pick, dp.seasons_started)},
             "av": {(y, p): a for y, p, a in zip(dp.season, dp.pick, dp.w_av)},
             "pay": {(y, p): a * 100 for y, p, a in zip(po.draft_year, po.pick, po.best_pay)}}
     get = lambda d, y, a: 0.0 if pd.isna(a) else float(np.nan_to_num(d.get((y, int(a)), 0.0)))
-    V = {"off": pd.read_parquet(HD / "review_picks_lodo_cost0.1.parquet"),
-         "ll": pd.read_parquet(HD / "review_picks_lodo_ccll.parquet")}
+    print(f"off = {a}, ll = {b}")
+    V = {"off": pd.read_parquet(HD / a), "ll": pd.read_parquet(HD / b)}
     V = {k: d[d.year <= 2022].reset_index(drop=True) for k, d in V.items()}
     out = []
     for v, d in V.items():
@@ -141,7 +142,7 @@ def review():
     print("changed round-1 recommendations:")
     print(ch[ch.round_off == 1][["year", "pick", "team_off", "rec_player_off", "rec_grp_off", "real_model_off",
                                  "rec_player_ll", "rec_grp_ll", "real_model_ll"]].round(2).to_string(index=False))
-    pd.concat(out).to_parquet(HD / "comp_correct_review.parquet")
+    pd.concat(out).to_parquet(HD / f"{save}.parquet")
 
 
 def draft():

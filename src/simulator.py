@@ -45,14 +45,16 @@ def situation(state_row) -> dict:
 
 def _key(sit, year=None) -> str:
     sh = "_".join(f"{k}:{v:g}" for k, v in sorted(sit["shift"].items())) or "none"
-    from outcomes_v2 import COMP_CORRECT, UNITS
+    from outcomes_v2 import COMP_CORRECT, MONOTONE, NO_BOARD_CLASSES, UNITS
     # v2: fall shading applied once (Nov 2026); units = outcome units (outcomes_v2.UNITS)
     import prospect_model as pm
     from review import REVIEW_HOLDOUT
     # past drafts: engine fit without that draft class (review.engine_for), so one table per draft year
     ho = f"_lodo{int(year)}" if year is not None and REVIEW_HOLDOUT and int(year) <= pm.LAST_SEASON_PLAYED else ""
     cc = "" if COMP_CORRECT == "off" else f"_cc{COMP_CORRECT}"  # comparison-career correction (outcomes_v2)
-    return f"start{sit['start']:g}_qb{sit['qb_from']}_shift{sh}_fw{FALL_WEIGHT:g}_v2_{UNITS}{ho}{cc}"
+    nb = "_nbdrop" if NO_BOARD_CLASSES == "drop" else ""  # board-less classes left out (outcomes_v2)
+    nb += "_mono" + MONOTONE if MONOTONE != "off" else ""  # monotone value in rank (outcomes_v2)
+    return f"start{sit['start']:g}_qb{sit['qb_from']}_shift{sh}_fw{FALL_WEIGHT:g}_v2_{UNITS}{ho}{cc}{nb}"
 
 
 class _Talent:

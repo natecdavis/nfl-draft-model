@@ -628,3 +628,62 @@ Effect on the 2027 team report: value of firsts up (most for top-10 slots: LAC #
 trade-down still positive for every team but smaller at the top (LAC +1.7 -> +1.3, NO / TB +1.0 -> +0.6), QB moves
 down slightly (TB +5.9 -> +5.1), selling next year's first from ~0 to -0.1 to -0.3. Real trades: teams trading down
 for a non-QB still gain in 93-97% of trades.
+
+## Board-less draft classes and monotone value (`outcomes_v2.NO_BOARD_CLASSES`, `MONOTONE`, `scripts/no_board.py`, Nov 2026)
+
+**The off-board miss.** Drafted players who weren't on Hasan's board got comparison careers worth 1.78x what they
+delivered (QBs 10.7x; leave-one-draft-out, 2014-2022). Cause: the board starts with the 2014 class, so every drafted
+player in 2012-2013 (first-rounders included) read as off-board. The comparison set for an off-board player is
+exactly the past off-board drafted players at his family (they share one expected value), and 2012-2013 were ~2/3 of
+them (off-board 2012-13 drafted players averaged 0.05-0.06 of cap over 4 seasons vs 0.01-0.025 for 2014-22; off-board
+QBs drew Luck, Wilson, Cousins). `NO_BOARD_CLASSES=drop` (default) leaves classes where fewer than half the drafted
+players are on the board (2012, 2013) out of the regression and the comparison pool.
+
+**The late-QB bump.** Dropping those classes exposed a second problem, already flagged: QBs ranked 250-297 drew ~0.08
+of cap (vs 0.024 at rank 200) from one comparison, Brock Purdy (rank 290, 0.44), in a pool of ~14 late board QBs. With
+drop alone, leave-one-draft-out reviews recommended QBs ranked ~270-300 in rounds 2-4 (Huntley at #37 over Hurts;
+Silvers, Rush, Buechele, Bonner). `MONOTONE=min` (default) makes each family's mean value non-increasing in consensus
+rank: each board rank capped at the lowest value of any better rank (only lowers values; off-board keeps its own
+value). Tried first, `MONOTONE=iso` (isotonic fit, pooling violators) spread the bump over QBs ranked 150-250 (0.030
+-> 0.038), tripled QB recommendations ranked 121+ (8 -> 24; they delivered 3% of prediction) and worsened rounds 2-4
+starts (-1.01 -> -1.49): not adopted. Isotonic including the off-board point pulled off-board players to 0.78x actual
+(they did better than board players ranked 251-300), so off-board is left out of the fit.
+
+**Engine, leave-one-draft-out** (engine mean / actual 4-season value; before = keep + no monotone):
+
+| Drafted players 2014-2022 | n | before | drop | drop + iso | drop + min (adopted) |
+|---|---|---|---|---|---|
+| Non-QB, off board | 360 | 1.78 | 0.93 | 0.93 | 0.93 |
+| Non-QB, ranked 201-250 / 251-300 | 185 / 127 | 0.96 / 1.22 | 0.96 / 1.11 | 0.94 / 1.15 | 0.87 / 1.00 |
+| Non-QB, ranked 121-200 | 496 | 1.02 | 1.01 | 1.02 | 0.96 |
+| Non-QB, ranked 1-120 | 964 | 0.93-1.08 | same | same | same |
+| QB, off board | 11 | 10.7 | 1.69 | 1.69 | 1.69 |
+| QB, ranked 121-200 / 201-250 / 251-300 | 15 / 10 / 4 | 0.93 / 3.35 / 0.49 | 0.88 / 3.08 / 0.50 | 1.25 / 3.43 / 0.24 | 0.44 / 1.24 / 0.10 |
+| Board players, mean abs error / rmse | | 0.0433 / 0.0644 | 0.0432 / 0.0644 | 0.0432 / 0.0641 | 0.0426 / 0.0642 |
+
+Off-board by family, before -> adopted: DB 1.45 -> 0.97, DL 3.11 -> 0.86, EDGE 1.88 -> 0.84, LB 1.84 -> 1.02, OL 1.53
+-> 0.87, RB 1.89 -> 0.98, TE 2.48 -> 0.93, WR 1.86 -> 0.97. Late-QB numbers rest on a handful of players (Purdy alone
+is the 251-300 actual).
+
+**Past-drafts review, leave-one-draft-out** (model minus team where they disagree, each recommendation once; before =
+production before this change):
+
+| | before | drop | drop + iso | drop + min (adopted) |
+|---|---|---|---|---|
+| Round 1 titles / starts | +1.07 / -1.24 | +1.11 / -1.33 | +1.35 / -1.30 | +1.07 / -1.24 |
+| Rounds 2-4 titles / starts | +0.42 / -1.01 | -0.06 / -0.98 | +0.23 / -1.49 | +0.11 / -1.09 |
+| Rounds 2-4 titles without Hurts, Carr | -0.10 | -0.06 | -0.10 | -0.23 |
+| Rounds 5-7 titles / starts / pay | -0.11 / -0.68 / -0.71 | -0.12 / -0.81 / -0.81 | -0.10 / -0.52 / -0.68 | -0.07 / -0.40 / -0.45 |
+| QB recommendations ranked 121+ (delivered / predicted) | 8 (0.01) | 8 (0.01) | 24 (0.03) | 1 (0) |
+| Same recommendation as before | | 86% | 66% | 59% (R1 90%) |
+
+Rounds 2-4 titles swing on two hits (Hurts at #37, +29.5; Carr at #33, +15.1, who under "min" is recommended in round
+1 instead, +15.5 there); without them the versions are within noise of each other (ranges ~+-0.6). Round 1 is
+unchanged; rounds 5-7 improve on every yardstick. **Adopted** (Nov 2026).
+Rebuilt: past drafts review and trade decisions (2014-2022 identical to the leave-one-draft-out "drop + min" run, so
+the Past drafts scorecard is now its column), simulator tables (suffix `_nbdrop_monomin`) and artifact, pick-value
+chart, real trades, 2027 team report, 2021 replay. Pick values barely move (middle of the pack, typical non-QB #1
+1.46 -> 1.48, #10 1.72 -> 1.77). 2027 team report: value of firsts and trade-down within +-0.1; QB trade-up moves
+~0.5 smaller (LA +10.9 -> +10.3, TB +5.1 -> +4.6, NO +4.9 -> +4.4). No off-board player is a top recommendation in
+any reviewed draft (2014-2022 before, 2014-2026 after), so the off-board fix matters for the engine's calibration and for
+off-board players' values in the simulator, not for the past recommendations.

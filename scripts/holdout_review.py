@@ -32,8 +32,10 @@ FW = os.environ.get("REVIEW_FALL_WEIGHT")  # set: fall-shading test, leave-one-d
 CR = os.environ.get("COST_RATE")  # set: cap-cost test (pick_value.COST_RATE)
 WF = os.environ.get("WR_FACTOR")  # set: WR value test (pick_value.WR_FACTOR)
 CC = os.environ.get("COMP_CORRECT")  # set: comparison-career correction test (outcomes_v2.COMP_CORRECT)
-SUF = (f"_fw{FW}" if FW else "") + (f"_cost{CR}" if CR else "") + (f"_wr{WF}" if WF else "") + (f"_cc{CC}" if CC else "")
-FW = FW or CR or WF or CC  # any test: leave-one-draft-out only
+NB = os.environ.get("NO_BOARD_CLASSES")  # set: board-less classes test (outcomes_v2.NO_BOARD_CLASSES)
+MO = os.environ.get("MONOTONE")  # set: monotone-in-rank test (outcomes_v2.MONOTONE)
+SUF = (f"_fw{FW}" if FW else "") + (f"_cost{CR}" if CR else "") + (f"_wr{WF}" if WF else "") + (f"_cc{CC}" if CC else "") + (f"_nb{NB}" if NB else "") + (f"_mono{MO}" if MO else "")
+FW = FW or CR or WF or CC or NB or MO  # any test: leave-one-draft-out only
 JOBS = [("lodo", y) for y in range(2014, 2023)] + ([] if FW else [("expand", y) for y in range(2019, 2023)])
 
 
