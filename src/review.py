@@ -27,6 +27,8 @@ Run:  python src/review.py [first_year last_year]   -> data/derived/review_picks
 import sys
 from pathlib import Path
 
+import os
+
 import numpy as np
 import pandas as pd
 
@@ -326,6 +328,7 @@ def engine_for(year, tables=None):
     return want
 
 
+FALL_W = float(os.environ.get("REVIEW_FALL_WEIGHT", 0.85))  # fall shading (tests: scripts/holdout_review.py)
 REVIEW_HOLDOUT = True  # leave-one-draft-out engine for past drafts (review, simulator)
 
 
@@ -339,7 +342,7 @@ def review_year(year, states, ctx, tables):
         s = teams_st[tm]
         key = (s["start"], s["qb_from"], tuple(sorted(s["shift"].items())))
         if key not in tables:
-            tables[key] = Table({"start": s["start"], "shift": dict(key[2]), "qb_from": key[1]}, ctx, fall_weight=0.85)
+            tables[key] = Table({"start": s["start"], "shift": dict(key[2]), "qb_from": key[1]}, ctx, fall_weight=FALL_W)
         return tables[key]
 
     from positions import blended, weights
@@ -626,7 +629,7 @@ def trade_decisions(year, picks_df, states_df, ctx, tables) -> pd.DataFrame:
         s = sit[tm]
         key = (s["start"], s["qb_from"], tuple(sorted(s["shift"].items())))
         if key not in tables:
-            tables[key] = Table({"start": s["start"], "shift": dict(key[2]), "qb_from": key[1]}, ctx, fall_weight=0.85)
+            tables[key] = Table({"start": s["start"], "shift": dict(key[2]), "qb_from": key[1]}, ctx, fall_weight=FALL_W)
         return tables[key]
 
     def best(tm, k, taken=(), extra=None):

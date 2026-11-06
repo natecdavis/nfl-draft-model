@@ -25,8 +25,14 @@ import pandas as pd  # noqa: E402
 
 from outlook import OUT, RAW  # noqa: E402
 
+import os  # noqa: E402
+
 HD = OUT / "holdout"
-JOBS = [("lodo", y) for y in range(2014, 2023)] + [("expand", y) for y in range(2019, 2023)]
+FW = os.environ.get("REVIEW_FALL_WEIGHT")  # set: fall-shading test, leave-one-draft-out only
+CR = os.environ.get("COST_RATE")  # set: cap-cost test (pick_value.COST_RATE)
+SUF = (f"_fw{FW}" if FW else "") + (f"_cost{CR}" if CR else "")
+FW = FW or CR  # either test: leave-one-draft-out only
+JOBS = [("lodo", y) for y in range(2014, 2023)] + ([] if FW else [("expand", y) for y in range(2019, 2023)])
 
 
 def qb_ev():
@@ -60,15 +66,16 @@ def main(workers=7):
     import outcomes_v2 as o
     o.HOLDOUT, o._MODEL = None, None
     ev.append({"mode": "full", "year": 0, **{f"qb_ev_{r}": v for r, v in qb_ev().items()}})
-    pd.DataFrame(ev).to_parquet(HD / "qb_ev.parquet")
+    if not FW:
+        pd.DataFrame(ev).to_parquet(HD / "qb_ev.parquet")
     import review as R
     from trade import Context
-    for mode in ("lodo", "expand"):
+    for mode in sorted({k[0] for k in res}):
         ks = [k for k in res if k[0] == mode]
         df = pd.concat([res[k][0] for k in ks], ignore_index=True)
         st = pd.concat([res[k][1] for k in ks], ignore_index=True)
         df = R.add_realized_v2(df, st, Context())
-        df.to_parquet(HD / f"review_picks_{mode}.parquet")
+        df.to_parquet(HD / f"review_picks_{mode}{SUF}.parquet")
     print(f"saved ({time.time() - t0:.0f}s)", flush=True)
     report()
 

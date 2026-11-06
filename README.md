@@ -26,7 +26,7 @@ middle-of-the-pack team, rebuilding team. Real teams come later.
 - [x] M2: pick value (src/value.py) - value per season = snap share x later market price; minus rookie cost; 5th-year option for rd 1. Outputs value_library (per historical pick) and pick_value (expected, by pick x position)
 - [x] M3: simulator (src/simulate.py) - real schedule + seeding + bracket. Estimated: game noise 12.6 pts, home edge 2.0, true strength sd 5.3, carryover 0.60. Playoff-game Brier 0.226 vs betting line 0.219; champion rank pattern matches history
 - [x] M3b: bridge (src/bridge.py) - points of team strength per 1% of cap in player value: QB ~0.31-0.34, everyone else ~0.19, league-wide ~0.22. Same answer with leak-free pre-season prices. Position splits beyond QB vs non-QB do not predict better out of sample
-- [x] M4: pick value in Super Bowl odds (src/pick_value.py, chart in reports/pick_value_titles.png). Assumes: the pick fills a need (his snaps would otherwise go to a min-salary player); saved cap buys non-QB veterans at 0.19 pts per 1%; situations start at +7 / +7 then -3 from season 3 / 0 / -5, drifting to average at 60% carryover
+- [x] M4: pick value in Super Bowl odds (src/pick_value.py, chart in reports/pick_value_titles.png). Assumes: the pick fills a need (his snaps would otherwise go to a min-salary player); cap is charged at 0.10 pts per 1% (was 0.19, the bridge's non-QB rate; see 'Cap cost'); situations start at +7 / +7 then -3 from season 3 / 0 / -5, drifting to average at 60% carryover
 - [x] Trade calculator (src/trade.py): evaluate(ctx, situation, give=[Pick...], get=[Pick...]) -> change in Super Bowls over 5 seasons. Future picks' slots drawn from the source team's likely finish. Scored 394 real pick-only trades 2013-2025 (`python src/trade.py --real-only`).
 - [x] Real teams (src/teams.py -> reports/teams_2027.md): market ratings from 2026 betting lines, QB situation from snaps/contracts/age, 2027 slots from simulating the rest of 2026. Per-team overrides in OVERRIDES. Note: QB cap hit from a rookie-deal QB's second contract now lasts every season (was fading); M4 numbers for that situation moved by <=0.2.
 - [x] Better player outlook (src/prospects.py, src/college.py, src/college_features.py). Rolling test 2016-21 vs slot-only (log loss 0.7655): age + athletic testing 0.7606 (0.6% better, borderline vs chance; gains at TE, ED, S); adding college production (free play-by-play 2008-21, 85-98% matched) 0.7615 = no extra gain. Free college play-by-play host has no 2022+ seasons as of Nov 2026.
@@ -282,6 +282,53 @@ Drafted QBs 1999-2022, seasons 1-4, all measured the same way from nflverse play
 - Conclusion: the engine's QB level is about right (within ~10%); a 10% trim wouldn't flip round-1 QB
   calls (worth ~10x a non-QB for a needy team). Not adopted; older consensus boards not worth pursuing
   for QB value.
+
+## Calibration, fall shading and cap cost (Nov 2026)
+
+**Calibration out of sample** (leave-one-draft-out review, 2014-2022; realized / predicted titles):
+team picks round 1 1.53, rounds 2-4 1.23, rounds 5-7 0.83 (teams know more than consensus rank; QB
+picks 1.55). Model recommendations (each once): round 1 1.15, rounds 2-4 0.73, rounds 5-7 0.36. Recs at or
+above the current pick on the board are on target (non-QB 1.10); recs who had already fallen past their
+consensus rank deliver 37-72% of prediction, and recs who went undrafted 16%.
+
+**Stronger fall shading** (`REVIEW_FALL_WEIGHT`, LODO review): doesn't fix it. Model minus team, titles:
+
+| Fall weight | Round 1 | Rounds 2-4 | Rounds 5-7 | Same recs as 0.85 |
+|---|---|---|---|---|
+| 0.85 (current) | +0.92 | -0.11 | -0.11 | |
+| 1.0 | +1.15 | -0.07 | -0.13 | 83% |
+| 1.2 | +1.43 | -0.22 | -0.13 | 51% |
+
+Late recs still go far later or undrafted (76-79% in rounds 5-7) and calibrate at 0.34-0.37 under every
+weight: what's wrong isn't the shading formula but that players teams keep passing on are worse than
+consensus says (an optimizer's curse on the board). Not changed. Consistent with "no tested edge after
+round 1".
+
+**Cap cost** (`scripts/qb_savings.py`, team-seasons 2013-2025). The model charges every contract its cap
+at 0.19 points of team strength per 1% (cap spent on him can't buy non-QB value). Tested on QB
+contracts, holding the QB's on-field value fixed:
+
+| | Model | Data | Within team |
+|---|---|---|---|
+| Non-QB roster value per 1% of QB cap hit | -1.00 | -0.26 (-0.47 to -0.05) | -0.23 (-0.46 to +0.00) |
+| Team rating per 1% of QB cap hit | -0.19 | +0.11 (-0.05 to +0.27) | -0.02 (-0.16 to +0.12) |
+| Team rating per 1% of QB value (check) | +0.31 to +0.34 | +0.27 | +0.29 |
+| Team rating per 1% of non-QB value (check) | +0.19 | +0.19 | +0.20 |
+
+Same over 3-season blocks (+0.06 within team) and with 1-2 season lags (no negative effect). Teams with good
+rookie-deal QBs rated no better than teams with equally good paid QBs (+2.27 vs +2.44) despite spending
+~8% of cap less on him. The on-field links hold; the cost of cap doesn't show up (restructures, rollover,
+void years make the cap soft in practice, or teams don't spend savings well). This matters well beyond
+QBs: the cap charge is what makes top-10 non-QB picks nearly worthless in the model (#3 WR: 0.45 points
+over 5 seasons with the charge, 4.0 without; #3 QB 7.9 vs 12.8). Implied charge: savings buy ~0.25% of non-QB value per 1% (0 to 0.46), so ~0.05 points per 1% of cap
+(0 to ~0.09) instead of 0.19.
+
+Smaller charge in the leave-one-draft-out review (`COST_RATE`, `scripts/cost_compare.py`): recommendations
+are 98-99% the same at 0.10 and 0 (at a given pick every candidate costs the same rookie contract, so the
+charge mostly cancels); scorecards on every yardstick move by <= 0.15 (round 1 titles +0.92 / +0.90 / +0.86,
+starts -1.67 / -1.63 / -1.61 at 0.19 / 0.10 / 0). The charge matters for comparing picks (pick values, trade
+up / down, the trade calculator), not for which player to take. **Adopted 0.10** (Nov 2026; `pick_value.COST_RATE`):
+a cautious step toward the data's ~0.05, since the evidence is QB contracts only.
 
 ## Position pay within families, and projecting position changes
 

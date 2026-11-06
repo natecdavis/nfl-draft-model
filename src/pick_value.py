@@ -30,6 +30,7 @@ Title odds come from the simulator's strength-to-title curve. With and without t
 pick share the same random draws, so differences aren't swamped by noise.
 """
 import json
+import os
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -118,6 +119,12 @@ def sample_outcomes(lib, curves, grp, pick, rng, bw=0.4, n=N):
     return sample_outcomes_v1(lib, curves, grp, pick, rng, bw, n)
 
 
+# Points of team strength charged per 1% of cap a contract uses. 0.10, not the bridge's non-QB rate
+# (0.19): scripts/qb_savings.py found a team saving on its QB turns only about a quarter of the
+# savings into non-QB value (implied charge ~0.05, 0 to 0.09); 0.10 is a cautious step toward that.
+# Env COST_RATE overrides it for tests (scripts/cost_compare.py).
+COST_RATE = float(os.environ.get("COST_RATE") or 0.10)
+
 def pick_effect(shares, price, pick, grp, sit, cost, bar, rates):
     """(N, 5) points of team strength the pick adds each season."""
     shares = shares.copy()
@@ -131,7 +138,7 @@ def pick_effect(shares, price, pick, grp, sit, cost, bar, rates):
     on_roster = (pick <= 64) | (shares[:, :4] > 0)
     c = np.where(on_roster, rc - VET_MIN, 0) * 100
     pts = np.zeros_like(value)
-    fa = rates["nonqb"]
+    fa = COST_RATE
     pts[:, :4] = rate * value[:, :4] - fa * c
     if pick <= 32:  # fifth-year option, used only when worth it
         opt = bar[grp] * (1.0 if pick <= 10 else 0.7)
