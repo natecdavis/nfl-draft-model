@@ -43,9 +43,8 @@ def candidates() -> pd.DataFrame:
     S = pd.read_parquet(OUT / "review_states.parquet")
     R = pd.read_parquet(OUT / "review_picks.parquet")
     real = realized_arrays(S, R)
-    dp = pd.read_parquet(RAW / "draft_picks.parquet")
-    gs = {(y, p): a for y, p, a in zip(dp.season, dp.pick, dp.seasons_started)}
-    av = {(y, p): a for y, p, a in zip(dp.season, dp.pick, dp.w_av)}
+    from review import Careers
+    car = Careers()  # starts / AV, undrafted players included
     out = []
     for y in YEARS:
         P, W = pool(y), weights(y)
@@ -60,8 +59,8 @@ def candidates() -> pd.DataFrame:
                 o = options(P, table, k, set(), counts, float(s.p_need), W)
                 o = o.assign(year=y, team=s.team, pick=k, rnd=int(p["round"]), team_player=p.player,
                              real=arr[j, o.pid.to_numpy()],
-                             gs=[0.0 if pd.isna(a) else float(np.nan_to_num(gs.get((y, int(a)), 0))) for a in o.drafted_at],
-                             av=[0.0 if pd.isna(a) else float(np.nan_to_num(av.get((y, int(a)), 0))) for a in o.drafted_at])
+                             gs=[car.get("gs", y, a, n) for a, n in zip(o.drafted_at, o["name"])],
+                             av=[car.get("av", y, a, n) for a, n in zip(o.drafted_at, o["name"])])
                 own = P[P.drafted_at == k]
                 o["is_team"] = o.pid.isin(own.pid)
                 out.append(o[["year", "team", "pick", "rnd", "pid", "name", "grp", "rank", "drafted_at", "titles",

@@ -23,6 +23,7 @@ Honest test: each class 2019-2022 predicted from earlier classes, using only sea
 that had been played before that draft (class c's model sees season t of class k only
 if k + t - 1 <= c - 1).
 """
+import os
 from pathlib import Path
 
 import lightgbm as lgb
@@ -58,6 +59,21 @@ FEATURES["full"] = FEATURES["consensus"] + PLAYER
 FEATURES["consensus_pre"] = ["log_rank", "on_board"]
 FEATURES["full_pre"] = FEATURES["consensus_pre"] + PLAYER
 FALL_WEIGHT = 0.85
+# Training-data repair (Nov 2026; _repair_links): cfdarko's prospect rows are linked to draft picks and to
+# Hasan's board imperfectly. 115 picks 2012-2025 had no prospect row (Bolles #20, Dugger #37, Marpet, Judon,
+# Mailata: mostly small schools; cfdarko labels them, but without a prospect id) or sat on an "undrafted"
+# row (Maurice Hurst Jr., Okoronkwo, Spencer Brown: name mismatches); board-only rows can carry the wrong
+# class (Hasan's 2015 #12 "Alvin" Dupree read as a 2014 board player who went undrafted, apart from the
+# drafted Bud Dupree row); and 2014-2015 undrafted players got cell averages instead of their careers.
+# "on": board rows matched to Hasan's board (rank + name, class +-1; the class taken from the board) and
+# linked to picks with the review's matcher (review.board: names, nicknames by last name + school /
+# position); a pick already on another row is merged into it; unlinked picks and unmatched board players
+# added; 2014-2015 undrafted players get review.udfa_pre2016_labels (this project's snap share x market
+# price) or 0 if they never played. "off": before. Environment variable LINK_FIX overrides it.
+LINK_FIX = os.environ.get("LINK_FIX", "on")
+LINK_CACHE = OUT / "board_links.parquet"
+FAMILY_OF = {"QB": "QB", "RB": "RB", "WR": "WR", "TE": "TE", "T": "OL", "G": "OL", "C": "OL", "ED": "EDGE",
+             "IDL": "DL", "LB": "LB", "CB": "DB", "S": "DB"}
 GROUP_MAP = {"QB": "QB", "RB": "RB", "WR": "WR", "TE": "TE", "OL": "OL", "OT": "OL", "IOL": "OL",
              "DL": "DL", "EDGE": "EDGE", "LB": "LB", "DB": "DB", "CB": "DB", "S": "DB"}
 
@@ -85,11 +101,15 @@ def load() -> pd.DataFrame:
     df["imputed"] = ~df.drafted & (df.cls < FIRST_UDFA_CLASS)
     df = df.merge(L[["player_id"] + [f"value_y{t}" for t in SEASONS + [5]] + ["group", "pfr_id"]]
                   .rename(columns={"pfr_id": "pfr_id_label"}), on="player_id", how="left")
+    df["grp"] = df.group.fillna(df.position_group.map(GROUP_MAP)).fillna(df.position_group)
+    if LINK_FIX == "on":
+        df = _repair_links(df)
     for t in SEASONS:
         played = df.cls + t - 1 <= LAST_SEASON_PLAYED
         # never reached NFL = 0; tiny negatives (cfdarko depth-chart pricing artifacts, > -1% of cap) -> 0
         df[f"y{t}"] = np.where(played, df[f"value_y{t}"].fillna(0.0).clip(lower=0), np.nan)
-    df["grp"] = df.group.fillna(df.position_group.map(GROUP_MAP)).fillna(df.position_group)
+    # with LINK_FIX, 2014-2015 undrafted players carry real values (_repair_links): only 2012-2013 imputed
+    df["imputed"] = ~df.drafted & (df.cls < (FIRST_BOARD_CLASS if LINK_FIX == "on" else FIRST_UDFA_CLASS))
     df["pick"] = np.where(df.drafted, df.overall_pick, UNDRAFTED)
     df["log_pick"] = np.log(df.pick + 10)
     df["on_board"] = df.hasan_rank.notna().astype(int)
@@ -105,6 +125,113 @@ def load() -> pd.DataFrame:
         played = df.cls + t - 1 <= LAST_SEASON_PLAYED
         df.loc[df.imputed & played, f"y{t}"] = fill[df.imputed & played]
     return df.reset_index(drop=True)
+
+
+def board_links() -> pd.DataFrame:
+    """Hasan's boards 2014-2025 with the review's link to draft picks: year, rank, key (normalized name), name,
+    fam (board position family), drafted_at, pfr_id (of the pick), fam_rec (the drafting team's position)."""
+    if LINK_CACHE.exists():
+        return pd.read_parquet(LINK_CACHE)
+    from review import board, draft_night
+    out = []
+    for y in range(FIRST_BOARD_CLASS, 2026):
+        picks, _ = draft_night(y)
+        b = board(y, picks)
+        pf = dict(zip(picks.pick, picks.pfr_player_id))
+        out.append(pd.DataFrame({"year": y, "rank": b["rank"].astype(float), "key": b.key, "name": b["name"],
+                                 "fam": b.grp_label.map(FAMILY_OF), "fam_rec": b.grp.map(FAMILY_OF),
+                                 "drafted_at": b.drafted_at, "pfr_id": b.drafted_at.map(pf)}))
+    T = pd.concat(out, ignore_index=True)
+    T.to_parquet(LINK_CACHE)
+    return T
+
+
+def _repair_links(df: pd.DataFrame) -> pd.DataFrame:
+    """See LINK_FIX. Works on the raw columns (cls, drafted, overall_pick, hasan_rank, value_y*, group, grp)."""
+    from public_board import _norm
+    from review import udfa_pre2016_labels
+    Lall = pd.read_parquet(CF / "data/processed/rookie_value_labels.parquet")
+    vcols = [f"value_y{t}" for t in SEASONS + [5]]
+    by_pfr = Lall.dropna(subset=["pfr_id"]).drop_duplicates("pfr_id").set_index("pfr_id")
+    U = Lall[Lall.is_udfa.fillna(False).astype(bool)].assign(key=lambda d: d.player_name.map(_norm))
+    udfa = {(int(y), k): r for y, k, r in zip(U.draft_year, U.key, U[vcols].to_numpy())}
+    pre = udfa_pre2016_labels().assign(key=lambda d: d.player_name.map(_norm))
+    for y, k, r in zip(pre.draft_year, pre.key, pre[[f"value_y{t}" for t in SEASONS]].to_numpy()):
+        udfa[(int(y), k)] = np.r_[r, r[-1]]
+    T = board_links()
+    dp = pd.read_parquet(Path(__file__).resolve().parents[1] / "data/raw/draft_picks.parquet")
+    dp = dp[dp.season.between(2012, 2025)]
+    df = df.copy().reset_index(drop=True)
+    df["key"] = df.player_name.map(_norm)
+    df["fixed"] = ""
+
+    def set_drafted(i, y, k, pfr):
+        df.loc[i, ["drafted", "cls", "overall_pick", "draft_year", "is_udfa"]] = [True, y, k, y, False]
+        if pfr in by_pfr.index:
+            row = by_pfr.loc[pfr]
+            df.loc[i, vcols] = row[vcols].to_numpy(float)
+            if pd.notna(row.group):
+                df.loc[i, ["group", "grp"]] = [row.group, row.group]
+
+    # 1. board rows <-> Hasan's board (rank + name, class within one year; else rank + last name)
+    on = df[df.hasan_rank.notna()][["hasan_rank", "key", "cls"]].reset_index()
+    m = on.merge(T.reset_index().rename(columns={"index": "t"}), left_on=["hasan_rank", "key"], right_on=["rank", "key"])
+    m = m[(m.cls - m.year).abs() <= 1]
+    left_t = T.index.difference(m.t)
+    on2 = on[~on["index"].isin(m["index"])].assign(last=lambda d: d.key.str.split().str[-1])
+    T2 = T.loc[left_t].reset_index().rename(columns={"index": "t"}).assign(last=lambda d: d.key.str.split().str[-1])
+    m2 = on2.merge(T2, left_on=["hasan_rank", "last"], right_on=["rank", "last"])
+    m2 = m2[(m2.cls - m2.year).abs() <= 1]
+    m = pd.concat([m, m2]).drop_duplicates("index").drop_duplicates("t")
+    owner = {(int(c), int(k)): i for i, c, k in zip(df.index[df.drafted], df.cls[df.drafted], df.overall_pick[df.drafted])}
+    drop = []
+    for r in m.itertuples():
+        i, y = r.index, int(r.year)
+        if df.at[i, "cls"] != y:
+            df.at[i, "cls"] = y
+            df.at[i, "fixed"] += "class;"
+        if pd.isna(r.drafted_at) or df.at[i, "drafted"]:
+            continue
+        k = int(r.drafted_at)
+        j = owner.get((y, k))
+        if j is not None and j != i:  # the pick is on another row (e.g. the drafted Bud Dupree): give it the rank
+            if pd.isna(df.at[j, "hasan_rank"]):
+                df.at[j, "hasan_rank"] = df.at[i, "hasan_rank"]
+                df.at[j, "fixed"] += "rank from board-only row;"
+                drop.append(i)
+        elif j is None:
+            set_drafted(i, y, k, r.pfr_id)
+            owner[(y, k)] = i
+            df.at[i, "fixed"] += "linked to pick;"
+    df = df.drop(index=drop)
+    # 2. picks still on no row; 3. board players with no row
+    T_un = T.loc[T.index.difference(m.t)]
+    new = []
+    for r in dp.itertuples():
+        if (r.season, r.pick) in owner:
+            continue
+        hb = T_un[(T_un.year == r.season) & (T_un.drafted_at == r.pick)]
+        lab = by_pfr.loc[r.pfr_player_id] if r.pfr_player_id in by_pfr.index else None
+        grp = (lab.group if lab is not None and pd.notna(lab.group) else
+               FAMILY_OF.get(hb.fam_rec.iat[0]) if len(hb) else GROUP_MAP.get(r.position, r.position))
+        new.append({"player_id": f"pick_{r.season}_{r.pick}", "player_name": r.pfr_player_name, "cls": r.season,
+                    "draft_year": r.season, "overall_pick": r.pick, "drafted": True, "is_udfa": False,
+                    "hasan_rank": hb["rank"].iat[0] if len(hb) else np.nan, "group": grp, "grp": grp,
+                    "position_group": r.position, "fixed": "added pick;",
+                    **({c: float(lab[c]) for c in vcols} if lab is not None else {})})
+    for r in T_un[T_un.drafted_at.isna()].itertuples():
+        v = udfa.get((int(r.year), r.key))
+        new.append({"player_id": f"board_{r.year}_{int(r.rank)}", "player_name": r.name, "cls": r.year,
+                    "drafted": False, "is_udfa": True, "hasan_rank": r.rank, "group": r.fam, "grp": r.fam,
+                    "fixed": "added board player;", **({c: float(x) for c, x in zip(vcols, v)} if v is not None else {})})
+    df = pd.concat([df, pd.DataFrame(new)], ignore_index=True)
+    # 4. 2014-2015 undrafted players: their careers (or 0), not cell averages
+    m4 = ~df.drafted.astype(bool) & df.cls.between(FIRST_BOARD_CLASS, FIRST_UDFA_CLASS - 1)
+    for i in df.index[m4]:
+        v = udfa.get((int(df.at[i, "cls"]), df.at[i, "key"]))
+        df.loc[i, vcols] = v if v is not None else 0.0
+    df["drafted"] = df.drafted.astype(bool)
+    return df.drop(columns="key")
 
 
 PARAMS = dict(objective="tweedie", tweedie_variance_power=1.3, n_estimators=500, learning_rate=0.03,

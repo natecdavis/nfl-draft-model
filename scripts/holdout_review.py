@@ -34,8 +34,9 @@ WF = os.environ.get("WR_FACTOR")  # set: WR value test (pick_value.WR_FACTOR)
 CC = os.environ.get("COMP_CORRECT")  # set: comparison-career correction test (outcomes_v2.COMP_CORRECT)
 NB = os.environ.get("NO_BOARD_CLASSES")  # set: board-less classes test (outcomes_v2.NO_BOARD_CLASSES)
 MO = os.environ.get("MONOTONE")  # set: monotone-in-rank test (outcomes_v2.MONOTONE)
-SUF = (f"_fw{FW}" if FW else "") + (f"_cost{CR}" if CR else "") + (f"_wr{WF}" if WF else "") + (f"_cc{CC}" if CC else "") + (f"_nb{NB}" if NB else "") + (f"_mono{MO}" if MO else "")
-FW = FW or CR or WF or CC or NB or MO  # any test: leave-one-draft-out only
+LF = os.environ.get("LINK_FIX")  # set: training-data link repair test (prospect_model.LINK_FIX)
+SUF = (f"_fw{FW}" if FW else "") + (f"_cost{CR}" if CR else "") + (f"_wr{WF}" if WF else "") + (f"_cc{CC}" if CC else "") + (f"_nb{NB}" if NB else "") + (f"_mono{MO}" if MO else "") + (f"_lf{LF}" if LF else "")
+FW = FW or CR or WF or CC or NB or MO or LF  # any test: leave-one-draft-out only
 JOBS = [("lodo", y) for y in range(2014, 2023)] + ([] if FW else [("expand", y) for y in range(2019, 2023)])
 
 
@@ -86,10 +87,8 @@ def main(workers=7):
 
 def report():
     full = pd.read_parquet(OUT / "review_picks.parquet").assign(mode="full")
-    dp = pd.read_parquet(RAW / "draft_picks.parquet")
-    av = {(y, p): a for y, p, a in zip(dp.season, dp.pick, dp.w_av)}
-    gs = {(y, p): a for y, p, a in zip(dp.season, dp.pick, dp.seasons_started)}
-    get = lambda d, y, a: 0.0 if pd.isna(a) else float(np.nan_to_num(d.get((y, int(a)), 0.0)))
+    from review import Careers
+    car = Careers()  # starts / AV, undrafted players included
     rng = np.random.default_rng(0)
 
     def boot(x):
@@ -103,8 +102,9 @@ def report():
         d = d[d.real_team.notna()].copy()
         once = d[d.player != d.rec_player].drop_duplicates(["year", "rec_player"]).copy()
         once["d_t"] = once.real_model - once.real_team
-        once["d_gs"] = [get(gs, y, a) - get(gs, y, k) for y, a, k in zip(once.year, once.rec_drafted_at, once.pick)]
-        once["d_av"] = [get(av, y, a) - get(av, y, k) for y, a, k in zip(once.year, once.rec_drafted_at, once.pick)]
+        for m in ("gs", "av"):
+            once[f"d_{m}"] = [car.get(m, y, a, rn) - car.get(m, y, k, tn) for y, a, rn, k, tn in
+                              zip(once.year, once.rec_drafted_at, once.rec_player, once.pick, once.player)]
         print(f"  {label}")
         for gl, f in [("R1", once["round"] == 1), ("R2-4", once["round"].between(2, 4)), ("R5-7", once["round"] >= 5)]:
             o = once[f]

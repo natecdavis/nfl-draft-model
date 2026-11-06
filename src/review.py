@@ -529,6 +529,48 @@ def udfa_pre2016_labels() -> pd.DataFrame:
     return out
 
 
+AV_PER_SNAP_SEASON = 8.25  # drafted players 2014-2021: career AV ~ 8.25 x career snap-share sum (R2 0.82)
+
+
+class Careers:
+    """Seasons as a starter, career AV and best second-contract pay (% of cap) for any player in a draft,
+    drafted or not: the old yardsticks came from draft records by (year, pick), so every undrafted player
+    counted as zero (La'el Collins: 0 starts). Drafted players: PFR's seasons_started and w_av, and
+    pick_outcomes' best_pay (best contract after the rookie deal). Undrafted players (found by name and rookie
+    season in nflverse's player list): seasons with >= 50% of his side's snaps (outlook.START_SHARE; for
+    drafted players 2014-2021 this tracks PFR's count, corr 0.94), AV_PER_SNAP_SEASON x career snap-share sum,
+    best contract signed after his first season. Never on an NFL roster = 0.
+
+    get(metric, year, drafted_at, name): metric "gs", "av" or "pay"."""
+    def __init__(self):
+        import polars as pl
+        from outlook import START_SHARE, season_shares
+        dp = pd.read_parquet(RAW / "draft_picks.parquet")
+        po = pd.read_parquet(OUT / "pick_outcomes.parquet")
+        self.pick = {"gs": dict(zip(zip(dp.season, dp.pick), dp.seasons_started)),
+                     "av": dict(zip(zip(dp.season, dp.pick), dp.w_av)),
+                     "pay": {k: v * 100 for k, v in zip(zip(po.draft_year, po.pick), po.best_pay)}}
+        P = pd.read_parquet(RAW / "players.parquet")
+        P = P[P.draft_round.isna() & P.pfr_id.notna() & P.rookie_season.notna()]
+        sh = season_shares(pl.read_parquet(RAW / "snap_counts.parquet")).to_pandas()
+        g = sh.groupby("pfr_player_id").share
+        st, tot = g.apply(lambda x: int((x >= START_SHARE).sum())), g.sum()
+        C = pd.read_parquet(RAW / "contracts.parquet")
+        C = C[C.apy_cap_pct.notna()]
+        self.udfa = {}
+        for r in P.itertuples():
+            y = int(r.rookie_season)
+            later = C[(C.gsis_id == r.gsis_id) & (C.year_signed > y)].apy_cap_pct
+            self.udfa[(y, _norm(r.display_name))] = {
+                "gs": float(st.get(r.pfr_id, 0)), "av": AV_PER_SNAP_SEASON * float(tot.get(r.pfr_id, 0.0)),
+                "pay": float(later.max()) * 100 if len(later) else 0.0}
+
+    def get(self, metric: str, year, drafted_at, name=None) -> float:
+        if pd.notna(drafted_at):
+            return float(np.nan_to_num(self.pick[metric].get((int(year), int(drafted_at)), 0.0)))
+        return self.udfa.get((int(year), _norm(name or "")), {}).get(metric, 0.0)
+
+
 class RealizedV2:
     """What a player actually delivered, in title odds for one team's situation, at the cost of
     a given pick: cfdarko's season-by-season labels (same units and encoding as outcomes_v2),

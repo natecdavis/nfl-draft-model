@@ -65,9 +65,9 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
     theme: "light" / "dark" pins the palette (e.g. to match the Streamlit app); None follows the viewer."""
     S = pd.read_parquet(OUT / "review_states.parquet")
     R = pd.read_parquet(OUT / "review_picks.parquet")
-    dp = pd.read_parquet(RAW / "draft_picks.parquet")
-    av = {(y, p): a for y, p, a in zip(dp.season, dp.pick, dp.w_av)}
-    gs = {(y, p): a for y, p, a in zip(dp.season, dp.pick, dp.seasons_started)}
+    from review import Careers
+    car = Careers()  # starts / AV, undrafted players included
+    dp = pd.read_parquet(RAW / "draft_picks.parquet")  # latest AV season
     num = lambda x, nd=3: None if pd.isna(x) else round(float(x), nd)
 
     real = realized_arrays(S, R, verbose)
@@ -112,8 +112,7 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
     for y in sorted(R.year.unique()):
         P = pool(int(y))
         pools[str(int(y))] = [[n, g, num(rk, 0), sc if isinstance(sc, str) else "", num(at, 0), by if isinstance(by, str) else None,
-                               num(av.get((y, int(at))) if pd.notna(at) else None, 0),
-                               num(gs.get((y, int(at))) if pd.notna(at) else None, 0),
+                               num(car.get("av", y, at, n), 0), num(car.get("gs", y, at, n), 0),
                                lab if isinstance(lab, str) else None]
                               for n, g, rk, sc, at, by, lab in zip(P["name"], P.grp, P["rank"], P.school, P.drafted_at,
                                                                    P.drafted_by, P.label)]

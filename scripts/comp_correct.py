@@ -89,12 +89,8 @@ def engine():
 
 def review(a="review_picks_lodo_cost0.1.parquet", b="review_picks_lodo_ccll.parquet", save="comp_correct_review"):
     """Labels "off" / "ll" = files a / b (any two leave-one-draft-out reviews: scripts/no_board.py reuses this)."""
-    dp = pd.read_parquet(RAW / "draft_picks.parquet")
-    po = pd.read_parquet(OUT / "pick_outcomes.parquet")
-    look = {"gs": {(y, p): a for y, p, a in zip(dp.season, dp.pick, dp.seasons_started)},
-            "av": {(y, p): a for y, p, a in zip(dp.season, dp.pick, dp.w_av)},
-            "pay": {(y, p): a * 100 for y, p, a in zip(po.draft_year, po.pick, po.best_pay)}}
-    get = lambda d, y, a: 0.0 if pd.isna(a) else float(np.nan_to_num(d.get((y, int(a)), 0.0)))
+    from review import Careers
+    car = Careers()  # starts / AV / pay, undrafted players included
     print(f"off = {a}, ll = {b}")
     V = {"off": pd.read_parquet(HD / a), "ll": pd.read_parquet(HD / b)}
     V = {k: d[d.year <= 2022].reset_index(drop=True) for k, d in V.items()}
@@ -102,8 +98,9 @@ def review(a="review_picks_lodo_cost0.1.parquet", b="review_picks_lodo_ccll.parq
     for v, d in V.items():
         d = d[d.real_team.notna()]
         o = d[d.player != d.rec_player].drop_duplicates(["year", "rec_player"]).copy()
-        for m, dd in look.items():
-            o[m] = [get(dd, y, a) - get(dd, y, k) for y, a, k in zip(o.year, o.rec_drafted_at, o.pick)]
+        for m in ("gs", "av", "pay"):
+            o[m] = [car.get(m, y, a, rn) - car.get(m, y, k, tn)
+                    for y, a, rn, k, tn in zip(o.year, o.rec_drafted_at, o.rec_player, o.pick, o.player)]
         o["t"] = o.real_model - o.real_team
         print(f"\n=== {v}: model minus team where they disagree, each rec once (titles realized; same yardstick) ===")
         for g, f in [("R1", o["round"] == 1), ("R2-4", o["round"].between(2, 4)), ("R5-7", o["round"] >= 5)]:
@@ -154,12 +151,8 @@ def draft():
     S = pd.read_parquet(OUT / "review_states.parquet")
     R = pd.read_parquet(OUT / "review_picks.parquet")
     real = realized_arrays(S, R)
-    dp = pd.read_parquet(RAW / "draft_picks.parquet")
-    po = pd.read_parquet(OUT / "pick_outcomes.parquet")
-    gs = {(y, p): a for y, p, a in zip(dp.season, dp.pick, dp.seasons_started)}
-    av = {(y, p): a for y, p, a in zip(dp.season, dp.pick, dp.w_av)}
-    pay = {(y, p): a * 100 for y, p, a in zip(po.draft_year, po.pick, po.best_pay)}
-    get = lambda d, y, a: 0.0 if pd.isna(a) else float(np.nan_to_num(d.get((y, int(a)), 0.0)))
+    from review import Careers
+    car = Careers()
     rows = []
     for y in YEARS:
         P, W = sm.pool(y), weights(y)
@@ -183,7 +176,8 @@ def draft():
             for v, picks in res.items():
                 for j, k, pid, nm, g, ti, at in picks:
                     rows.append({"year": y, "team": s.team, "version": v, "pick": k, "name": nm, "grp": g, "pred": ti,
-                                 "real": float(arr[j, pid]), "gs": get(gs, y, at), "av": get(av, y, at), "pay": get(pay, y, at)})
+                                 "real": float(arr[j, pid]), "gs": car.get("gs", y, at, nm), "av": car.get("av", y, at, nm),
+                                 "pay": car.get("pay", y, at, nm)})
         print(f"{y} done", flush=True)
     ov.COMP_CORRECT = "off"
     D = pd.DataFrame(rows)

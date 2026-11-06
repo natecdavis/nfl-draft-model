@@ -727,3 +727,41 @@ recommendation once): rounds 2-4 +0.11 -> +0.14, others unchanged. Review picks 
 realized cache and artifact rebuilt. Not changed: the training labels (prospect_model still gives pre-2016 undrafted
 players cell averages) and the starts / AV / second-contract-pay yardsticks, which come from draft records and so
 count any undrafted player as zero in every year.
+
+## Training-data links and undrafted players' yardsticks (`prospect_model.LINK_FIX`, `review.Careers`, Nov 2026)
+
+Two more data gaps found while fixing La'el Collins.
+
+**Training data** (`prospect_model._repair_links`, `LINK_FIX=on` default). cfdarko's prospect rows are linked to draft
+picks and to Hasan's board imperfectly: 115 picks 2012-2025 had no prospect row (mostly small schools: Bolles #20,
+Dugger #37, Marpet, Judon, Mailata, Duvernay-Tardif, Meinerz, Oluokun; cfdarko labels them, but without a prospect id,
+and load() dropped labels without one) or sat on an "undrafted" row (Maurice Hurst Jr. #140 and board #19,
+Okoronkwo, Spencer Brown, Buck Allen: name mismatches); board-only rows could carry the wrong class (Hasan's 2015 #12
+"Alvin" Dupree was a 2014 board player who went undrafted, separate from the drafted Bud Dupree with no rank); and
+2014-2015 undrafted players had cell averages. The repair matches board rows to Hasan's board (rank + name, class
++-1; class from the board), links them to picks with the review's own matcher (review.board), merges a board-only
+row into the drafted row that holds its pick, adds unlinked picks (labels from cfdarko by PFR id) and unmatched
+board players, and gives 2014-2015 undrafted players their careers (review.udfa_pre2016_labels) or 0. Result:
+110 picks added, 34 board players added, 26 classes corrected, 9 board-only rows merged, 5 relinked; drafted rows
+per class now match the draft (e.g. 2014: 238 -> 256), no pick on two rows. Links cached in
+data/derived/board_links.parquet; simulator tables carry `_lf`.
+
+Engine, leave-one-draft-out (both scored on the repaired actuals): every band within +-0.02 of before; board players
+mean abs error 0.0424 both. Past-drafts review, leave-one-draft-out (before rescored with the 2014-2015 undrafted
+careers and the new yardsticks below): recommendations change at 22% of picks (round 1 4%); scorecard titles round 1
++1.07 -> +0.76, rounds 2-4 +0.14 -> +0.01, rounds 5-7 -0.06 -> -0.10, mostly bookkeeping and one coin flip: Carr's
+recommendation moves from #22 to #33 (his +15.6 moves to round 2), and Hurts at #37 loses a near tie to Denzel Mims
+(-29.5; his value 3.38 -> just under Mims's 3.06). Paired at changed picks: round 1 -0.06 titles in total (11
+picks), rounds 3-4 +46, rounds 5-7 ~0. Adopted as a data fix.
+
+**Yardsticks** (`review.Careers`). Seasons started, AV and second-contract pay came from draft records by (year,
+pick), so any undrafted player scored 0 in every year (Collins: 0 starts). Now undrafted players (by name and rookie
+season in nflverse's player list) get seasons with >= 50% of snaps (tracks PFR's count for drafted players, corr
+0.94), AV = 8.25 x career snap-share sum (drafted players: R2 0.82) and best contract after his first season
+(Collins: 6 starter seasons, AV 42.5, 5.3% of cap). Used by the scorecards (comp_correct, holdout_review, defer_test,
+qb_reach) and the simulator's player pool. Effect on the past-drafts scorecard, rounds 5-7 (model minus team): starts
+-0.40 -> -0.07, AV -4.5 -> -1.5, pay -0.45 -> -0.01 (the model's late picks who went undrafted had careers); rounds
+1-4 within 0.1. Earlier sections quote starts / AV / pay on the old yardsticks.
+Rebuilt: past drafts review (2014-2022 identical to the leave-one-draft-out run; Past drafts scorecard now round 1
++0.76, rounds 2-4 +0.01, rounds 5-7 -0.10 titles), simulator tables and artifact, pick-value chart, real trades, 2027
+team report (every number within +-0.1), 2021 replay. Pick values within +-0.04.
