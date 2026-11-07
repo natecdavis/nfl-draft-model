@@ -791,17 +791,26 @@ per draft would be the better yardstick.
 
 **Board deference rescored once per draft** (`scripts/defer_test.py`, Nov 2026). The test scored every pick each
 team made, so one player could be "taken" at many picks (the board rule took La'el Collins at 100 picks in 2015,
-once his career was scored). Now as every other scorecard: picks where the rule's choice differs from the team's,
-each chosen player once per draft (first such pick); tuning uses the same score. Candidates rebuilt with the current
-engine and yardsticks (model top = review recommendation at 98% of picks). Titles vs the team's pick:
+once his career was scored). Now: picks where the rule's choice differs from the team's, each chosen player once per
+draft, averaged over the picks where he was the choice; tuning uses the same score. (Counting him at his first such
+pick instead, the review scorecard's convention, is fragile when comparing rules: a rule that moves a player to a
+later pick changes his score without changing the choice, e.g. Watson at #1 vs Garrett +13, at #11 vs Lattimore
++32.) Candidates rebuilt with the current engine and yardsticks (model top = review recommendation at 98% of picks).
+Titles vs the team's pick:
 
 | | Model | Board | Margin (tuned) | Window (tuned) |
 |---|---|---|---|---|
-| Round 1 | +0.85 (-0.60 to +2.29) | -1.05 | +0.77 | +0.85 |
-| Rounds 2-4 | +0.02 (-0.33 to +0.44) | -0.81 (-1.79 to -0.16) | +0.01 | +0.08 |
-| Rounds 5-7 | -0.05 (-0.21 to +0.10) | +0.13 (-0.10 to +0.43, n 28) | -0.14 | -0.10 |
+| Round 1 | +1.95 (+0.58 to +3.49) | -0.86 (-1.98 to +0.18) | +1.95 | +1.95 |
+| Rounds 2-4 | +0.29 (-0.04 to +0.73) | -0.58 (-1.50 to +0.05) | +0.27 | +0.25 |
+| Rounds 5-7 | -0.04 (-0.20 to +0.10) | +0.09 (-0.10 to +0.31, n 28) | +0.05 | +0.03 |
 
-Round 1 and rounds 2-4 as before (the board's best loses clearly in rounds 2-4 now). Rounds 5-7: the board's best
-edges ahead within noise (28 distinct players; Collins alone adds ~0.08) but the board-leaning rules tuned out of
-sample do worse than the model. Verdict unchanged: not adopted; rounds 2-7 stay "no tested edge". (Per-pick
-numbers are still printed; old candidates kept as holdout/defer_candidates_nov5.parquet.)
+Rounds 1-4: the model ahead, tuning keeps it. Rounds 5-7: the board and board-leaning rules edge ahead within noise
+(28 distinct board choices). Verdict unchanged: not adopted; rounds 2-7 stay "no tested edge". (Per-pick numbers are
+still printed; old candidates kept as holdout/defer_candidates_nov5.parquet.)
+
+**QB reach penalty, same scoring** (`scripts/qb_reach.py`, current candidates). Tuning now picks lam = 0.75 in 8 of
+9 drafts (1.5 in 2017), but the tuned rule loses out of sample in round 1 (+1.95 -> +1.59; it drops Watson in 2017);
+rounds 2-4 +0.29 -> +0.33, rounds 5-7 unchanged. Fixed lam 0.75 vs 0, round 1: +0.28 (-0.20 to +0.67 over draft
+years), an isolated bump (0.5: +0.00, 1.0: -0.36). Scored at each player's first pick instead, the tuned rule
+looked better (+0.85 -> +1.39), almost half of it Watson's re-anchoring alone; paired at the 20 changed choices
+the penalty costs -2.2 titles each (-5.7 to +0.9). Verdict unchanged: not adopted.

@@ -13,7 +13,7 @@ deal). Rules for which player to take:
 
 Scored as delivered minus the team's actual pick (titles), plus seasons started and AV of the chosen
 player, by round, as every other scorecard: only picks where the rule's choice differs from the team's
-player, each chosen player once per draft (his first such pick). (Until Nov 2026 every pick counted, so
+player, each chosen player once per draft (averaged over the picks where he was the choice). (Until Nov 2026 every pick counted, so
 one player could be "taken" at many picks: the board rule took La'el Collins at 100 picks in 2015;
 per-pick numbers are still printed.) m and k are chosen leave-one-draft-out (best on the other 8
 drafts, same once-per-draft score) so the tuned rules aren't scored on the drafts they were tuned on.
@@ -109,9 +109,15 @@ def main():
           f"(model top = review rec: {np.mean([groups[k]['name'].iat[0] == R.get((k[0], k[2])) for k in keys]):.0%})")
 
     def once(d):
-        """Picks where the choice differs from the team's player, each chosen player once per draft."""
+        """Picks where the choice differs from the team's player; each chosen player once per draft, averaged over
+        the picks where he was the choice. (Not his first such pick: that anchors him to one team's player and
+        situation, and a rule that moves him to a later pick changes his score without changing the choice:
+        Watson at #1 vs Garrett +13 or at #11 vs Lattimore +32.)"""
         d = d[d["name"].to_numpy() != d.team_player.to_numpy()]
-        return d.reset_index(drop=True).sort_values(["year", "pick"]).drop_duplicates(["year", "name"])
+        d = d.reset_index(drop=True) if "year" in d.columns else d.reset_index()
+        num = [c for c in ["d_real", "d_gs", "d_av"] if c in d.columns]
+        keep = [c for c in ["grp", "gap", "rnd", "band"] if c in d.columns]
+        return d.groupby(["year", "name"], as_index=False).agg({**{c: "mean" for c in num}, **{c: "first" for c in keep}})
 
     def picks(rule, x=None):
         rows = [groups[k].loc[choose(groups[k], rule, x)] for k in keys]
