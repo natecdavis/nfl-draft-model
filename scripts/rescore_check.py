@@ -28,7 +28,7 @@ import pandas as pd  # noqa: E402
 
 import pick_value as pv  # noqa: E402
 from outlook import OUT, RAW  # noqa: E402
-from review import Careers, RealizedV2, _norm, udfa_pre2016_labels  # noqa: E402
+from review import Careers, RealizedV2, _norm, band_of, once_per_draft, udfa_pre2016_labels  # noqa: E402
 from trade import Context  # noqa: E402
 
 pd.set_option("display.width", 250)
@@ -104,19 +104,22 @@ class Scorer:
         return d, st, n
 
     def card(self, d, new):
-        d = d[(d.year <= 2022) & d.real_team.notna()]
-        o = d[d.player != d.rec_player].drop_duplicates(["year", "rec_player"]).copy()
-        o["t"] = o.real_model - o.real_team
+        d = d[(d.year <= 2022) & d.real_team.notna()].copy()
+        d["t"] = d.real_model - d.real_team
         for m in ("gs", "av", "pay"):
             if new:
-                o[m] = [self.car.get(m, y, a, rn) - self.car.get(m, y, k, tn)
-                        for y, a, rn, k, tn in zip(o.year, o.rec_drafted_at, o.rec_player, o.pick, o.player)]
+                d[m] = [self.car.get(m, y, a, rn) - self.car.get(m, y, k, tn)
+                        for y, a, rn, k, tn in zip(d.year, d.rec_drafted_at, d.rec_player, d.pick, d.player)]
             else:
                 g = lambda y, a: 0.0 if pd.isna(a) else float(np.nan_to_num(self.old[m].get((y, int(a)), 0.0)))
-                o[m] = [g(y, a) - g(y, k) for y, a, k in zip(o.year, o.rec_drafted_at, o.pick)]
+                d[m] = [g(y, a) - g(y, k) for y, a, k in zip(d.year, d.rec_drafted_at, d.pick)]
+        # each rec once per draft and band: "new" averages over his picks; "old" at his first pick (as before)
+        o = (once_per_draft(d) if new else
+             d[d.player != d.rec_player].sort_values(["year", "pick"]).drop_duplicates(["year", "rec_player"])
+             .assign(band=lambda x: band_of(x["round"])))
         rows = {}
-        for b, f in [("R1", o["round"] == 1), ("R2-4", o["round"].between(2, 4)), ("R5-7", o["round"] >= 5)]:
-            x = o[f]
+        for b in ["R1", "R2-4", "R5-7"]:
+            x = o[o.band == b]
             rows[b] = {"titles": x.t.mean(), "starts": x.gs.mean(), "AV": x.av.mean(), "pay": x.pay.mean(), "n": len(x)}
         return pd.DataFrame(rows).T
 

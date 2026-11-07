@@ -1,8 +1,12 @@
 """Past drafts: what teams did on draft night vs what the model would have recommended."""
+import sys
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from review import once_per_draft  # noqa: E402
 
 OUT = Path(__file__).resolve().parents[2] / "data" / "derived"
 st.set_page_config(page_title="Past drafts", layout="wide")
@@ -155,13 +159,18 @@ with tab4:
     }, index=["Team's pick", "Model's pick", "Best left on consensus board"])
     st.dataframe(real.style.format({"Avg titles delivered per pick": "{:+.2f}", "Worth more than the pick cost": "{:.0%}"}),
                  width="content")
-    dis = d[d.player != d.rec_player].sort_values(["year", "pick"])
-    once = dis.drop_duplicates(["year", "rec_player"])
+    once = once_per_draft(d, "first")
+    avg = once_per_draft(d, "mean")
     st.markdown(f"**Where the model disagreed, counting each recommended player once per draft** "
-                f"({len(once)} picks): team's pick {once.real_team.mean():+.2f}, model's pick "
-                f"{once.real_model.mean():+.2f}, difference **{(once.real_model - once.real_team).mean():+.2f}**.")
+                f"({len(once)} players), at the first pick where the model recommended him: team's pick "
+                f"{once.real_team.mean():+.2f}, model's pick {once.real_model.mean():+.2f}, difference "
+                f"**{(once.real_model - once.real_team).mean():+.2f}**. Averaged over every pick where he was the "
+                f"recommendation instead: difference {(avg.real_model - avg.real_team).mean():+.2f}.")
     st.caption("Why 'once': the model can recommend the same available player to many teams in a row (e.g. a "
                "late-round QB who later started), but only one team could have drafted him, so repeated "
-               "recommendations would count his career many times. Other caveats: a player drafted by another "
-               "team had that team's role and coaching; undrafted players count only if they reached the NFL "
-               "(labeled from 2016).")
+               "recommendations would count his career many times. The headline counts him at the first such pick: "
+               "what a team following the model would have got. The average over his picks is also real (each of "
+               "those teams passed on him) but flatters the model: later picks in a run face weaker team picks at "
+               "a lower cost. Each player counts once per draft and round band. Other caveats: a player drafted by "
+               "another team had that team's role and coaching; undrafted players count if they reached the NFL "
+               "(2014-2015 from snap counts and contracts, later from cfdarko's labels).")

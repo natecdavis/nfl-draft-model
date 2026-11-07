@@ -87,7 +87,7 @@ def main(workers=7):
 
 def report():
     full = pd.read_parquet(OUT / "review_picks.parquet").assign(mode="full")
-    from review import Careers
+    from review import Careers, once_per_draft
     car = Careers()  # starts / AV, undrafted players included
     rng = np.random.default_rng(0)
 
@@ -100,14 +100,14 @@ def report():
 
     def card(d, label):
         d = d[d.real_team.notna()].copy()
-        once = d[d.player != d.rec_player].drop_duplicates(["year", "rec_player"]).copy()
-        once["d_t"] = once.real_model - once.real_team
+        d["d_t"] = d.real_model - d.real_team
         for m in ("gs", "av"):
-            once[f"d_{m}"] = [car.get(m, y, a, rn) - car.get(m, y, k, tn) for y, a, rn, k, tn in
-                              zip(once.year, once.rec_drafted_at, once.rec_player, once.pick, once.player)]
+            d[f"d_{m}"] = [car.get(m, y, a, rn) - car.get(m, y, k, tn) for y, a, rn, k, tn in
+                           zip(d.year, d.rec_drafted_at, d.rec_player, d.pick, d.player)]
+        once = once_per_draft(d)  # each rec once per draft and band, averaged over his picks
         print(f"  {label}")
-        for gl, f in [("R1", once["round"] == 1), ("R2-4", once["round"].between(2, 4)), ("R5-7", once["round"] >= 5)]:
-            o = once[f]
+        for gl in ["R1", "R2-4", "R5-7"]:
+            o = once[once.band == gl]
             print(f"    {gl:5s} titles {boot(o.d_t)} | starts {o.d_gs.mean():+.2f} | AV {o.d_av.mean():+.1f}"
                   f" | QB recs {(o.rec_grp == 'QB').mean():.0%}")
 

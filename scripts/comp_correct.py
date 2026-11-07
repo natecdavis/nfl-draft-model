@@ -89,23 +89,26 @@ def engine():
 
 def review(a="review_picks_lodo_cost0.1.parquet", b="review_picks_lodo_ccll.parquet", save="comp_correct_review"):
     """Labels "off" / "ll" = files a / b (any two leave-one-draft-out reviews: scripts/no_board.py reuses this)."""
-    from review import Careers
+    from review import Careers, once_per_draft
     car = Careers()  # starts / AV / pay, undrafted players included
     print(f"off = {a}, ll = {b}")
     V = {"off": pd.read_parquet(HD / a), "ll": pd.read_parquet(HD / b)}
     V = {k: d[d.year <= 2022].reset_index(drop=True) for k, d in V.items()}
     out = []
     for v, d in V.items():
-        d = d[d.real_team.notna()]
-        o = d[d.player != d.rec_player].drop_duplicates(["year", "rec_player"]).copy()
+        d = d[d.real_team.notna()].copy()
         for m in ("gs", "av", "pay"):
-            o[m] = [car.get(m, y, a, rn) - car.get(m, y, k, tn)
-                    for y, a, rn, k, tn in zip(o.year, o.rec_drafted_at, o.rec_player, o.pick, o.player)]
-        o["t"] = o.real_model - o.real_team
-        print(f"\n=== {v}: model minus team where they disagree, each rec once (titles realized; same yardstick) ===")
-        for g, f in [("R1", o["round"] == 1), ("R2-4", o["round"].between(2, 4)), ("R5-7", o["round"] >= 5)]:
-            x = o[f]
-            print(f"  {g:5s} n={len(x):3d} | titles {boot(x.t)} | starts {boot(x.gs)} | AV {x.av.mean():+.1f} | "
+            d[m] = [car.get(m, y, a, rn) - car.get(m, y, k, tn)
+                    for y, a, rn, k, tn in zip(d.year, d.rec_drafted_at, d.rec_player, d.pick, d.player)]
+        d["t"] = d.real_model - d.real_team
+        o = once_per_draft(d)  # each rec once per draft and band, averaged over his picks
+        first = once_per_draft(d, "first")
+        print(f"\n=== {v}: model minus team where they disagree, each rec once per draft and band, averaged over his "
+              f"picks (titles realized; same yardstick; 'first' = at his first pick) ===")
+        for g in ["R1", "R2-4", "R5-7"]:
+            x = o[o.band == g]
+            f1 = first[first.band == g]
+            print(f"  {g:5s} n={len(x):3d} | titles {boot(x.t)} (first {f1.t.mean():+.2f}) | starts {boot(x.gs)} | AV {x.av.mean():+.1f} | "
                   f"2nd-contract pay {boot(x.pay)}")
         r1 = d[d["round"] == 1]
         print(f"  round-1 recs: QB {(r1.rec_grp == 'QB').mean():.0%}, position mix round 1: "
@@ -113,7 +116,9 @@ def review(a="review_picks_lodo_cost0.1.parquet", b="review_picks_lodo_ccll.parq
         r24 = d[d["round"].between(2, 4)]
         print(f"  rounds 2-4 mix: {r24.rec_grp.value_counts(normalize=True).head(6).round(2).to_dict()}")
         # calibration: recs each once, and team picks, by consensus band
-        recs = d.drop_duplicates(["year", "rec_player"]).copy()
+        recs = d.groupby(["year", "rec_player"], as_index=False).agg(
+            rec_rank=("rec_rank", "first"), rec_grp=("rec_grp", "first"), value_rec=("value_rec", "mean"),
+            real_model=("real_model", "mean"))  # each rec once, averaged over his picks
         recs["band"] = pd.cut(recs.rec_rank, [0, 10, 32, 64, 120, 1e9], labels=["1-10", "11-32", "33-64", "65-120", "121+"])
         recs["kind"] = np.where(recs.rec_grp == "QB", "QB", "non-QB")
         g = recs.groupby(["kind", "band"], observed=True).agg(n=("value_rec", "size"), pred=("value_rec", "sum"),

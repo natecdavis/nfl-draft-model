@@ -814,3 +814,36 @@ rounds 2-4 +0.29 -> +0.33, rounds 5-7 unchanged. Fixed lam 0.75 vs 0, round 1: +
 years), an isolated bump (0.5: +0.00, 1.0: -0.36). Scored at each player's first pick instead, the tuned rule
 looked better (+0.85 -> +1.39), almost half of it Watson's re-anchoring alone; paired at the 20 changed choices
 the penalty costs -2.2 titles each (-5.7 to +0.9). Verdict unchanged: not adopted.
+
+## Scorecard: first pick and averaged (`review.once_per_draft`, Nov 2026)
+
+The scorecard counts each recommended player once per draft (the model can recommend one player to many teams, but
+only one could have drafted him). Two ways, now both reported, each player once per draft and round band:
+
+- **First pick** (`how="first"`): at the first pick where the model recommended him, what a team following the model
+  would have got. The conservative level vs teams; the Past drafts headline.
+- **Averaged** (`how="mean"`): over every pick where he was the recommendation. Each comparison is real (each of
+  those teams passed on him), but it flatters the model's level (later picks in a run face weaker team picks at a lower
+  cost). Stable for comparing versions and rules, where the first pick is fragile (a change that moves a player's
+  first recommendation re-anchors him: Watson vs Garrett at #1 +13, vs Lattimore at #11 +32). Used by
+  comp_correct / no_board, holdout_review, rescore_check, defer_test, qb_reach; comp_correct prints the first-pick
+  titles alongside.
+
+Production (2014-2022), model minus team, titles: round 1 first pick +0.76 / averaged +1.89 (+0.47 to +3.43), rounds
+2-4 +0.04 / +0.31 (-0.03 to +0.73), rounds 5-7 -0.07 / -0.07.
+
+Earlier decisions on the averaged count (scripts/rescore_check.py, new yardsticks), titles R1 / R2-4 / R5-7:
+
+| Decision | Versions |
+|---|---|
+| Fall shading (not adopted) | 0.85: +1.77 / +0.18 / -0.05; 1.0: +1.80 / +0.22 / -0.08; 1.2: +2.15 / +0.08 / -0.09 |
+| Cap cost (0.10) | 0.19: +1.77 / +0.18 / -0.05; 0.10: +1.88 / +0.19 / -0.04; 0: +2.02 / +0.20 / -0.03 |
+| WR x0.75 (not adopted) | 1.0: +1.88 / +0.19 / -0.04; 0.75: +0.93 / +0.26 / -0.03 |
+| Comparison-career (adopted) | off: +1.88 / +0.19 / -0.04; ll: +1.56 / +0.63 / -0.03 (starts R2-4 -0.71 -> -0.45) |
+| Board-less / monotone (drop + min) | keep: +1.56 / +0.63 / -0.03; drop: +2.01 / +0.36 / -0.05; iso: +2.09 / +0.58 / -0.07; min: +2.08 / +0.53 / -0.04 (R5-7 starts -0.15 / -0.21 / -0.30 / -0.06) |
+
+No verdict reverses. One softens: the comparison-career correction's choices go from "slightly better in rounds 1 and
+2-4" to mixed (round 1 worse, rounds 2-4 better), a tie; its adoption rested on the engine's held-out calibration
+(top-10 non-QBs 0.70 -> 0.93 of actual), which stands. The training-data repair is slightly behind on this count too
+(round 1 +2.08 -> +1.89, rounds 2-4 +0.53 -> +0.31, within noise; "Carr bookkeeping" explained part of the first-pick
+drop, not all of it); kept as a data fix.

@@ -529,6 +529,33 @@ def udfa_pre2016_labels() -> pd.DataFrame:
     return out
 
 
+def band_of(rnd) -> np.ndarray:
+    """Scorecard round bands: R1, R2-4, R5-7."""
+    r = np.asarray(rnd)
+    return np.select([r == 1, r <= 4], ["R1", "R2-4"], "R5-7")
+
+
+def once_per_draft(d: pd.DataFrame, how: str = "mean", by_band: bool = True) -> pd.DataFrame:
+    """The scorecard's unit: picks where the model's recommendation differs from the team's pick, each recommended
+    player once per draft (and round band): the model can recommend one available player to many teams, but only
+    one could have drafted him.
+      how="first": at his first such pick: what a team following the model would have got (the conservative
+                   level vs teams; the Past drafts headline). Fragile for comparing versions or rules: one that
+                   moves him to a later pick changes his score without changing the choice (Watson vs Garrett at
+                   #1 +13, vs Lattimore at #11 +32).
+      how="mean":  averaged over the picks where he was the recommendation (stable for comparisons; flatters the
+                   level vs teams, since later picks in a run face weaker team picks at a lower cost).
+    Numeric columns per how; the rest from his first pick."""
+    dis = d[d.player != d.rec_player].sort_values(["year", "pick"]).copy()
+    dis["band"] = band_of(dis["round"])
+    keys = ["year", "rec_player"] + (["band"] if by_band else [])
+    if how == "first":
+        return dis.drop_duplicates(keys).reset_index(drop=True)
+    num = [c for c in dis.select_dtypes("number").columns if c not in keys]
+    other = [c for c in dis.columns if c not in num and c not in keys]
+    return dis.groupby(keys, as_index=False, sort=False).agg({**{c: "mean" for c in num}, **{c: "first" for c in other}})
+
+
 AV_PER_SNAP_SEASON = 8.25  # drafted players 2014-2021: career AV ~ 8.25 x career snap-share sum (R2 0.82)
 
 
