@@ -898,3 +898,20 @@ at the player's final college in the 5 seasons before the draft. 220 of 3,327 pi
 Teams lean slightly toward players their coaches know, and those picks turn out about like any other pick at
 that slot: no sign that the inside knowledge is worth much, nor that familiarity misleads. Recent links in rounds
 1-3 are the one hint (28 players). 2023-24 connected picks can be added once they have 4 seasons.
+
+**Passes by connected teams** (`scripts/connected_pass_test.py`): does it mean something when a team whose
+coaches know a player picks someone else while he's available? Drafted players 2016-22, value vs slot, controlling
+for how many other staffs knew him.
+
+| Measure | Value per unit | Placebo (same number of random unconnected teams) |
+|---|---|---|
+| Connected teams that picked before him and passed | x0.95 per pass (p 0.03) | x0.93 (p 0.00): same, so mechanical |
+| Same, weighted by the chance a team picking there takes him given he's available (availability model around his consensus rank), controlling for the same sum over all picks | x2.9 per expected pick (95% 0.67-12.8) | x2.3 (0.45-11.8) |
+| Connected teams that passed during his fall below board rank | x0.98 (p 0.65) | |
+| Undrafted board players 2018-22, per connected staff | x0.94 vs consensus (p 0.38) | |
+
+The unweighted "signal" is an artifact: with the number of connected teams fixed, more passes just means a later
+pick, where the slot model is a bit high, and random teams show it equally. Weighted properly, informative passes
+are rare: summed over the connected teams, a player has on average 0.05 expected chances to be taken (of 0.63
+across all teams), so there is almost nothing to learn from, and the estimate is pure noise. A need-weighted
+version (the team's chance to take his position) would sharpen the weights but can't create more passes.
