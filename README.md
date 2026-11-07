@@ -878,3 +878,23 @@ above vs below the position median): no pattern consistent with stereotyped eval
 descriptions at C / LB / S and "athletic" ones at WR / CB / RB land within x0.92-1.17 of expectation (all p > 0.18).
 "Raw" language goes with lower value at WR / CB / RB (x0.75 vs slot, p 0.02), matching the earlier bust signal.
 QB "cerebral" x1.97 vs consensus (p 0.05) rests on 52 QBs. Nothing adopted.
+
+## Coaching-staff connections (`src/coaching.py`, `scripts/coaching_test.py`, Nov 2026)
+
+Staffs from Wikipedia's "{year} {team} season" pages 2012-2024 (8,475 coach rows; 1,233 coaches with pages,
+1,192 careers parsed from their infoboxes: 84% of staff rows, 95% of head coaches / coordinators; raw wikitext
+cached under data/raw/wiki, not in git). A pick is connected when someone on the drafting team's staff coached
+at the player's final college in the 5 seasons before the draft. 220 of 3,327 picks 2012-24 (6.6%).
+
+| Question | Result |
+|---|---|
+| Do teams draft connected players more? | a little: 6.6% of picks vs 5.7% if connections didn't matter (x1.15; round 2 x1.35) |
+| Do they reach for them? | barely: taken x1.06 earlier than board rank vs x1.02 for other picks |
+| Value vs draft slot, 2016-22 (128 connected picks) | x1.06 (95% 0.87-1.25); same with only players whose school had a link to some NFL staff |
+| Coach there in the player's last 2 seasons (53) | x1.18 (0.85-1.49); rounds 1-3 x1.25 (p 0.16), rounds 4-7 x0.83 |
+| Via head coach / coordinator (21) | x1.03 |
+| Value vs consensus, board players 2018-22 | x0.92 (0.73-1.17) |
+
+Teams lean slightly toward players their coaches know, and those picks turn out about like any other pick at
+that slot: no sign that the inside knowledge is worth much, nor that familiarity misleads. Recent links in rounds
+1-3 are the one hint (28 players). 2023-24 connected picks can be added once they have 4 seasons.
