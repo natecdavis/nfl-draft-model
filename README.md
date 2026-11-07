@@ -847,3 +847,34 @@ No verdict reverses. One softens: the comparison-career correction's choices go 
 (top-10 non-QBs 0.70 -> 0.93 of actual), which stands. The training-data repair is slightly behind on this count too
 (round 1 +2.08 -> +1.89, rounds 2-4 +0.53 -> +0.31, within noise; "Carr bookkeeping" explained part of the first-pick
 drop, not all of it); kept as a data fix.
+
+## Multi-sport athletes, MLB draftees, coded scouting language (Nov 2026)
+
+`src/multisport.py`, `scripts/multisport_test.py`, `scripts/stereotype_words.py`. Expectations out of sample
+(each class predicted by models of earlier classes): drafted players vs draft slot, board players vs consensus;
+outcome = 4-season rookie-deal value.
+
+**MLB-drafted** (every MLB draft 2005-2023 from statsapi.mlb.com, saved under data/raw/mlb_draft, not in git;
+matched by name + MLB draft within 7 years before the NFL class + same birth date, or age when no birth date):
+only 11 board / 7 drafted players 2016-22 (Mahomes, Kyler Murray, A.J. Brown, Hurst, Driskel, ...), almost all
+late-round courtesy picks out of high school. Board players x2.2 value vs consensus (95% 0.74-6.6), driven by
+Mahomes / Murray / Brown. Too few to use.
+
+**Other sports in the guides' BACKGROUND text** (2019-22, 1,553 matched; flags: basketball 32%, track 24%,
+baseball 10%, wrestling 3%; controls for bio length):
+
+| Flag | Drafted vs slot | Board vs consensus | Notes |
+|---|---|---|---|
+| Track | x0.84 (p 0.01) | x0.83 (p 0.01) | all from 2019-20 (x0.64-0.85); 2021-22 x0.94-0.98; same with 40 time + recruiting controls |
+| Baseball | x1.23 (p 0.07) | x1.18 (p 0.13) | 3 of 4 years above 1 |
+| Basketball | x0.93 | x0.89 | no gain at TE / WR / EDGE (x0.88) |
+| Wrestling (OL / DL / EDGE / LB) | x1.19 (p 0.27) | x0.92 | 32 players |
+| Any other sport | x0.89 | x0.86 | |
+
+About 30 comparisons were run, so p 0.01 that holds in only two of four drafts isn't reliable. Not used in the model.
+
+**Coded language by position** ("cerebral / instinctive", "gritty / motor", "athletic / explosive", "raw / project";
+above vs below the position median): no pattern consistent with stereotyped evaluation. "Smart / gritty"
+descriptions at C / LB / S and "athletic" ones at WR / CB / RB land within x0.92-1.17 of expectation (all p > 0.18).
+"Raw" language goes with lower value at WR / CB / RB (x0.75 vs slot, p 0.02), matching the earlier bust signal.
+QB "cerebral" x1.97 vs consensus (p 0.05) rests on 52 QBs. Nothing adopted.
