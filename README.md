@@ -765,3 +765,26 @@ qb_reach) and the simulator's player pool. Effect on the past-drafts scorecard, 
 Rebuilt: past drafts review (2014-2022 identical to the leave-one-draft-out run; Past drafts scorecard now round 1
 +0.76, rounds 2-4 +0.01, rounds 5-7 -0.10 titles), simulator tables and artifact, pick-value chart, real trades, 2027
 team report (every number within +-0.1), 2021 replay. Pick values within +-0.04.
+
+## Earlier decisions on the new yardsticks (`scripts/rescore_check.py`, Nov 2026)
+
+The saved leave-one-draft-out reviews behind each decision, rescored without rerunning any engine: realized titles
+for 2014-2015 undrafted players (at each file's own cost / WR settings, detected by reproducing its stored values) and
+starts / AV / pay from review.Careers. Model minus team, each recommendation once; titles, then starts:
+
+| Decision | Version | R1 old -> new | R2-4 old -> new | R5-7 old -> new | R5-7 starts old -> new |
+|---|---|---|---|---|---|
+| Fall shading | 0.85 / 1.0 / 1.2 | +0.92 / +1.15 / +1.43, same | -0.11 -> -0.08 / -0.07 -> -0.04 / -0.22 -> -0.22 | -0.11 -> -0.09 / -0.13 -> -0.12 / -0.13 -> -0.11 | -0.79 -> -0.47 / -0.16 -> +0.11 / -0.43 -> -0.13 |
+| Cap cost | 0.19 / 0.10 / 0 | +0.92 / +0.92 / +0.88, same | -0.11 -> -0.08 / -0.11 -> -0.08 / -0.09 -> -0.06 | -0.11 -> -0.09 / -0.08 -> -0.06 / -0.05 -> -0.04 | -0.79 -> -0.47 / -0.74 -> -0.41 / -0.64 -> -0.32 |
+| WR x0.75 | 1.0 / 0.75 | +0.92 / +0.26, same | -0.11 -> -0.08 / +0.16 -> +0.18 | -0.08 -> -0.06 / -0.06 -> -0.04 | -0.74 -> -0.41 / -0.69 -> -0.35 |
+| Comparison-career | off / ll | +0.92 / +1.07, same | -0.11 -> -0.08 / +0.42 -> +0.45 | -0.08 -> -0.06 / -0.11 -> -0.10 | -0.74 -> -0.41 / -0.68 -> -0.34 |
+| Board-less / monotone | keep / drop / iso / min | +1.07 / +1.11 / +1.35 / +1.07, same | +0.42 -> +0.45 / -0.06 -> -0.03 / +0.23 -> +0.25 / +0.11 -> +0.14 | -0.11 -> -0.10 / -0.12 -> -0.12 / -0.10 -> -0.10 / -0.07 -> -0.06 | -0.68 -> -0.34 / -0.81 -> -0.48 / -0.52 -> -0.29 / -0.40 -> -0.07 |
+
+Every version moves about the same (titles +0.00 to +0.03; rounds 5-7 starts +0.3, AV +3, pay +0.4), so no comparison
+changes order and no verdict flips. QB reach penalty (rescored candidates): lam = 0 still chosen in 8 of 9 drafts.
+
+Board deference (per-pick scoring, every pick each team made): rounds 1-4 unchanged in order (model ahead of or tied
+with the board); rounds 5-7 the board's best now scores +0.19 vs the model's +0.13 per pick, but that is La'el Collins
+"taken" at 100 different 2015 picks (the per-pick test lets one undrafted player be chosen many times). Without those
+picks: model +0.06, board -0.01, as before (+0.04 / -0.04). Verdict unchanged; for this test, scoring each player once
+per draft would be the better yardstick.
