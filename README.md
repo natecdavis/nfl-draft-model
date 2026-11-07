@@ -1008,3 +1008,19 @@ with arm length or weight controlled, and survives correction for the ~20 tests 
 general bias toward height: the board and teams seem to overrate undersized, bendy pass rushers. Caveats: 137
 board players; part may be what the value measure rewards (tall ends play more snaps, including run downs), not
 pass-rush quality. Candidate model feature: EDGE height. Recheck with 2023-24.
+
+**EDGE height in the model** (`scripts/pm_edge_height.py`, test classes 2018-22, consensus_pre with REG parameters):
+(a) edge height as a feature, (b) prediction x exp(b x height z), b fit only on earlier classes' out-of-sample errors
+(x1.07 in 2019, then x1.18-1.30 per SD, consistent with the residual test).
+
+| | consensus_pre | + EDGE height feature | placebo (heights shuffled) | rolling adjustment |
+|---|---|---|---|---|
+| EDGE board players (137): rank correlation | 0.706 | 0.707 | 0.697 | 0.714 |
+| EDGE: Poisson deviance (lower = better) | 0.0499 | 0.0499 | 0.0509 | 0.0512 |
+| All board: rank correlation | 0.628 | 0.626 | 0.625 | 0.629 |
+| All board: top-32 / top-100 value captured | 0.751 / 0.813 | 0.756 / 0.811 | 0.751 / 0.814 | 0.748 / 0.814 |
+
+The trees barely use the feature (about 30 board edge rushers a class against a 150-player minimum leaf). The
+adjustment ranks edge rushers slightly better (+0.008, better in 3 of 4 adjusted classes) but fits their value levels
+slightly worse, and board-wide numbers move within noise. Real in the residuals, too small to change rankings
+reliably: not adopted. Worth keeping as a tiebreaker note on edge rushers.
