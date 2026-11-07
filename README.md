@@ -963,3 +963,19 @@ expected picks' worth of passes by teams that met him. Caveat: when a player has
 drafted him 7% of the time (vs ~3% by chance), so some meetings may have been reported after the draft.
 Same pattern as coaching connections (x1.06): picks made with inside contact run 5-10% better than the slot, never
 reliably. Not adopted.
+
+**Pooled direct contact** (`scripts/contact_test.py`, specified before looking): drafting team had a staff link to
+his college OR a reported meeting with him. Drafted 2016-22 with some possible contact (1,636; 523 by a contact
+team; visits dominate: 423 meeting, 128 coaching, 28 both):
+
+| | Value vs slot |
+|---|---|
+| Contact drafter vs not (primary) | x1.10 (0.98-1.23; Poisson p 0.06); beat slot 45% vs 39% (p 0.09) |
+| Picks 1-100 / 101+ | x1.14 (p 0.03) / x1.03 |
+| Without 2020-21 | x1.08 (p 0.13) |
+| By class 2016-22 | x1.20, 1.17, 1.17, 0.94, 1.00, 1.29, 0.93 |
+
+Pooling adds little, since coaching links are few. The direction holds but is borderline: about 10% more value when
+the drafting team had direct contact, concentrated in the top 100 picks, about 1.0 in three of seven classes. Even
+if real, it's only known once the player's team is known, so it could adjust post-draft player outlooks, not a
+pre-draft board. Recheck when 2023-24 have 4 seasons.
