@@ -107,7 +107,7 @@ def main_wide(classes=(2018, 2019, 2020, 2021, 2022)):
     R = R.merge(uni[["player_id", "cls", "log_rank", "on_board"]], on=["player_id", "cls"], how="left")
     R["actual"] = R[[f"y{s}" for s in pm.SEASONS]].sum(axis=1)
     R["exp_slot"] = R[[f"slot_p{s}" for s in pm.SEASONS]].sum(axis=1)
-    R["exp_cons"] = R[[f"consensus_pre_p{s}" for s in pm.SEASONS]].sum(axis=1)
+    R["exp_cons"] = R[[f"consensus_pre_p{s}" for s in pm.SEASONS]].sum(axis=1, min_count=len(pm.SEASONS))  # NaN if not predicted
     sons = {(y, _norm(n)) for y, ns in PLAYED.items() if y in classes for n in ns}
     R["son"] = [(c, _norm(n)) in sons for c, n in zip(R.cls, R.player_name)]
     missing = sons - {(c, _norm(n)) for c, n in zip(R.cls, R.player_name)}

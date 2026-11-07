@@ -857,8 +857,9 @@ outcome = 4-season rookie-deal value.
 **MLB-drafted** (every MLB draft 2005-2023 from statsapi.mlb.com, saved under data/raw/mlb_draft, not in git;
 matched by name + MLB draft within 7 years before the NFL class + same birth date, or age when no birth date):
 only 11 board / 7 drafted players 2016-22 (Mahomes, Kyler Murray, A.J. Brown, Hurst, Driskel, ...), almost all
-late-round courtesy picks out of high school. Board players x2.2 value vs consensus (95% 0.74-6.6), driven by
-Mahomes / Murray / Brown. Too few to use.
+late-round courtesy picks out of high school. Only 7 board players 2018-22 can be compared with consensus (Murray and
+A.J. Brown beat it easily). Too few to use. (An earlier version reported x2.2 vs consensus; it wrongly counted 2016-17
+board players, whom the consensus model can't predict, with an expectation of 0. Fixed in `expectations()`.)
 
 **Other sports in the guides' BACKGROUND text** (2019-22, 1,553 matched; flags: basketball 32%, track 24%,
 baseball 10%, wrestling 3%; controls for bio length):
@@ -893,7 +894,7 @@ at the player's final college in the 5 seasons before the draft. 220 of 3,327 pi
 | Value vs draft slot, 2016-22 (128 connected picks) | x1.06 (95% 0.87-1.25); same with only players whose school had a link to some NFL staff |
 | Coach there in the player's last 2 seasons (53) | x1.18 (0.85-1.49); rounds 1-3 x1.25 (p 0.16), rounds 4-7 x0.83 |
 | Via head coach / coordinator (21) | x1.03 |
-| Value vs consensus, board players 2018-22 | x0.92 (0.73-1.17) |
+| Value vs consensus, board players 2018-22 (92 connected) | x1.05 (0.86-1.24); beat consensus 48% vs 40% (p 0.09) |
 
 Teams lean slightly toward players their coaches know, and those picks turn out about like any other pick at
 that slot: no sign that the inside knowledge is worth much, nor that familiarity misleads. Recent links in rounds
@@ -915,3 +916,31 @@ pick, where the slot model is a bit high, and random teams show it equally. Weig
 are rare: summed over the connected teams, a player has on average 0.05 expected chances to be taken (of 0.63
 across all teams), so there is almost nothing to learn from, and the estimate is pure noise. A need-weighted
 version (the team's chance to take his position) would sharpen the weights but can't create more passes.
+
+## Body growth since high school, position changes (`scripts/growth_test.py`, Nov 2026)
+
+Recruit height / weight / position from the College Football Data API (high-school recruits 2006-22, cached
+under data/raw/cfbd_recruits, not in git), joined on the CFBD athlete id. Combine height / weight joined on PFR id.
+Drafted players gained a median 15-23 lb from their recruiting listing, depending on position. Height listings
+are no help: recruits average 0.3 in taller than they measure at the combine.
+
+Per standard deviation (SD) of weight gained, at the same combine weight, years since recruiting and class:
+
+| | Drafted vs slot, 2016-22 | Board vs consensus, 2018-22 |
+|---|---|---|
+| All positions | x1.06 (0.99-1.12, p 0.10; 955) | x1.06 (0.99-1.13, p 0.08; 714) |
+| OL / DL / EDGE / TE | x1.01 | x1.02 |
+| Other positions | x1.08 (p 0.05) | x1.07 (p 0.15) |
+| Top quarter of gain at the position | x1.14 (p 0.08) | x1.13 (p 0.35) |
+| Height gained | x0.99 | x1.01 |
+| Recruited as "athlete" (ATH) | x1.03 (86) | x1.08 (60) |
+| Recruited at another position group | x0.94 (119) | x0.92 (106) |
+
+Without class fixed effects the consensus result looked strong (x1.15, p < 0.01). Most of that came from 2021-22:
+those classes gained less (no 2021 combine), and the out-of-sample models miss by class. Teams already take
+high-gain players slightly earlier than the board (x1.03 per SD, p 0.03). Weight gain is a weak, consistent lead,
+mostly at skill positions; not enough to adopt. Recheck when 2023-24 have 4 seasons.
+
+Bug found and fixed along the way: `expectations()` summed per-season predictions with NaN treated as 0, so
+2016-17 board players got a consensus expectation of 0. The MLB and coaching consensus rows above are corrected.
+The scouting-text, connected-pass and NFL-father tests only use 2018+ classes and were unaffected.
