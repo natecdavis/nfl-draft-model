@@ -12,8 +12,11 @@ deal). Rules for which player to take:
   window k   model's top among the k best-ranked available on the board (its QB call kept if its overall top is a QB)
 
 Scored as delivered minus the team's actual pick (titles), plus seasons started and AV of the chosen
-player, by round. m and k are chosen leave-one-draft-out (best on the other 8 drafts) so the tuned rules
-aren't scored on the drafts they were tuned on.
+player, by round, as every other scorecard: only picks where the rule's choice differs from the team's
+player, each chosen player once per draft (his first such pick). (Until Nov 2026 every pick counted, so
+one player could be "taken" at many picks: the board rule took La'el Collins at 100 picks in 2015;
+per-pick numbers are still printed.) m and k are chosen leave-one-draft-out (best on the other 8
+drafts, same once-per-draft score) so the tuned rules aren't scored on the drafts they were tuned on.
 
 Run:  python scripts/defer_test.py
 """
@@ -105,6 +108,11 @@ def main():
     print(f"{len(keys)} picks with the team's player found in the pool "
           f"(model top = review rec: {np.mean([groups[k]['name'].iat[0] == R.get((k[0], k[2])) for k in keys]):.0%})")
 
+    def once(d):
+        """Picks where the choice differs from the team's player, each chosen player once per draft."""
+        d = d[d["name"].to_numpy() != d.team_player.to_numpy()]
+        return d.reset_index(drop=True).sort_values(["year", "pick"]).drop_duplicates(["year", "name"])
+
     def picks(rule, x=None):
         rows = [groups[k].loc[choose(groups[k], rule, x)] for k in keys]
         d = pd.DataFrame(rows, index=pd.MultiIndex.from_tuples(keys, names=["year", "team", "pick"]))
@@ -119,7 +127,7 @@ def main():
         runs = {x: picks(rule, x) for x in grid}
         out, chosen = [], {}
         for y in YEARS:
-            score = {x: d[(d.index.get_level_values("year") != y) & phase(d.rnd)].d_real.mean() for x, d in runs.items()}
+            score = {x: once(d[(d.index.get_level_values("year") != y) & phase(d.rnd)]).d_real.mean() for x, d in runs.items()}
             b = max(score, key=score.get)
             chosen[y] = b
             d = runs[b]
@@ -140,17 +148,19 @@ def main():
         res = dict(base)
         res["margin (tuned)"], cm, mr = tuned("margin", MARGINS, ph)
         res["window (tuned)"], cw, wr = tuned("window", WINDOWS, ph)
-        print(f"\n=== {bl}: chosen minus team's pick, per pick ===  (tuned margin by year {cm}; window {cw})")
+        print(f"\n=== {bl}: chosen minus team's pick where they differ, each chosen player once per draft ===  (tuned margin by year {cm}; window {cw})")
         for name, d in res.items():
             x = d[ph(d.rnd)]
+            o = once(x)
             same = (x["name"].to_numpy() == base["model"].loc[x.index, "name"].to_numpy()).mean()
-            print(f"  {name:15s} titles {boot(x.d_real)} | starts {x.d_gs.mean():+.2f} | AV {x.d_av.mean():+.1f} "
-                  f"| same as model {same:.0%} | QB {(x.grp == 'QB').mean():.0%} | WR {(x.grp == 'WR').mean():.0%}")
-            rows.append({"band": bl, "rule": name, "titles": x.d_real.mean(), "starts": x.d_gs.mean(), "av": x.d_av.mean(),
-                         "n": len(x)})
-        print("  every setting, all 9 drafts (titles | starts):")
+            print(f"  {name:15s} titles {boot(o.d_real)} n={len(o)} | starts {o.d_gs.mean():+.2f} | AV {o.d_av.mean():+.1f} "
+                  f"| per pick {x.d_real.mean():+.2f} | same as model {same:.0%} | QB {(o.grp == 'QB').mean():.0%} "
+                  f"| WR {(o.grp == 'WR').mean():.0%}")
+            rows.append({"band": bl, "rule": name, "titles": o.d_real.mean(), "starts": o.d_gs.mean(), "av": o.d_av.mean(),
+                         "n": len(o), "titles_per_pick": x.d_real.mean()})
+        print("  every setting, all 9 drafts, each player once (titles | starts):")
         for lab, rr in [("margin", mr), ("window", wr)]:
-            print("   " + lab + ": " + ", ".join(f"{x}: {d[ph(d.rnd)].d_real.mean():+.2f} | {d[ph(d.rnd)].d_gs.mean():+.2f}"
+            print("   " + lab + ": " + ", ".join(f"{x}: {once(d[ph(d.rnd)]).d_real.mean():+.2f} | {once(d[ph(d.rnd)]).d_gs.mean():+.2f}"
                                                for x, d in rr.items()))
     pd.DataFrame(rows).to_parquet(OUT / "holdout" / "defer_test.parquet")
 

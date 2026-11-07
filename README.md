@@ -788,3 +788,20 @@ with the board); rounds 5-7 the board's best now scores +0.19 vs the model's +0.
 "taken" at 100 different 2015 picks (the per-pick test lets one undrafted player be chosen many times). Without those
 picks: model +0.06, board -0.01, as before (+0.04 / -0.04). Verdict unchanged; for this test, scoring each player once
 per draft would be the better yardstick.
+
+**Board deference rescored once per draft** (`scripts/defer_test.py`, Nov 2026). The test scored every pick each
+team made, so one player could be "taken" at many picks (the board rule took La'el Collins at 100 picks in 2015,
+once his career was scored). Now as every other scorecard: picks where the rule's choice differs from the team's,
+each chosen player once per draft (first such pick); tuning uses the same score. Candidates rebuilt with the current
+engine and yardsticks (model top = review recommendation at 98% of picks). Titles vs the team's pick:
+
+| | Model | Board | Margin (tuned) | Window (tuned) |
+|---|---|---|---|---|
+| Round 1 | +0.85 (-0.60 to +2.29) | -1.05 | +0.77 | +0.85 |
+| Rounds 2-4 | +0.02 (-0.33 to +0.44) | -0.81 (-1.79 to -0.16) | +0.01 | +0.08 |
+| Rounds 5-7 | -0.05 (-0.21 to +0.10) | +0.13 (-0.10 to +0.43, n 28) | -0.14 | -0.10 |
+
+Round 1 and rounds 2-4 as before (the board's best loses clearly in rounds 2-4 now). Rounds 5-7: the board's best
+edges ahead within noise (28 distinct players; Collins alone adds ~0.08) but the board-leaning rules tuned out of
+sample do worse than the model. Verdict unchanged: not adopted; rounds 2-7 stay "no tested edge". (Per-pick
+numbers are still printed; old candidates kept as holdout/defer_candidates_nov5.parquet.)
