@@ -944,3 +944,22 @@ mostly at skill positions; not enough to adopt. Recheck when 2023-24 have 4 seas
 Bug found and fixed along the way: `expectations()` summed per-season predictions with NaN treated as 0, so
 2016-17 board players got a consensus expectation of 0. The MLB and coaching consensus rows above are corrected.
 The scouting-text, connected-pass and NFL-father tests only use 2018+ classes and were unaffected.
+
+## Pre-draft team visits (`scripts/visits_test.py`, Nov 2026)
+
+Visits from kentweyrauch.com's draft-visits dashboard as scraped by cfdarko (~/cfdarko/data/raw/draft_visits.parquet,
+2015-26; top-30 private visits, combine and pro-day meetings, workouts; 2020-21 thin). 86% of rows matched on name +
+class. cfdarko already showed visit counts add nothing beyond board rank and pick (experiments/00w, 00zh). Two new
+questions, drafted players 2016-22, value vs draft slot:
+
+| Question | Result |
+|---|---|
+| Drafted by a team that met him vs one that didn't (1,295 players with a reported meeting; 423 by a team that met him) | x1.09 (0.97-1.23, p 0.14); top-30 host x1.09 (p 0.21); picks 1-100 x1.13 (1.01-1.29, p 0.05); 101+ x0.99; without 2020-21 x1.07 |
+| Passes by teams that met him, weighted by the chance a team picking there takes him | x0.75 per expected pick (0.45-1.24); top-30 hosts x0.61 (0.30-1.24); placebo with random teams x1.20 |
+
+Both point the way inside information would (teams that met a player do a little better taking him; their passes
+hint at worse outcomes, unlike the placebo), but neither is significant, and a typical player has only 0.10
+expected picks' worth of passes by teams that met him. Caveat: when a player has one reported meeting, that team
+drafted him 7% of the time (vs ~3% by chance), so some meetings may have been reported after the draft.
+Same pattern as coaching connections (x1.06): picks made with inside contact run 5-10% better than the slot, never
+reliably. Not adopted.
