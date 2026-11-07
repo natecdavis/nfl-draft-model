@@ -1024,3 +1024,28 @@ The trees barely use the feature (about 30 board edge rushers a class against a 
 adjustment ranks edge rushers slightly better (+0.008, better in 3 of 4 adjusted classes) but fits their value levels
 slightly worse, and board-wide numbers move within noise. Real in the residuals, too small to change rankings
 reliably: not adopted. Worth keeping as a tiebreaker note on edge rushers.
+
+## Race: audit with name- and place-based probabilities (`scripts/race_audit.py`, Nov 2026)
+
+Race is in none of our data and is not a model input. Each board / drafted player gets a probability of each race
+from public aggregates (Census 2010 surnames, Tzioumis 2018 first names, Census county population by race via the
+recruiting hometown), the BIFSG method used in fair-lending audits. Only group-level results are reported; the
+derived file stays in data/ (not in git). Inputs found: surname 93%, first name 64%, home county 59%.
+
+The proxy ranks positions sensibly (mean P(Black): K 0.05, C 0.09, QB 0.17 ... CB 0.37) but is badly compressed:
+its general-population prior puts CBs at 0.37, far below their real share. So it separates players weakly, and the
+slopes below (player certainly Black vs certainly not) are not interpretable as sizes; only direction and
+significance mean anything.
+
+| Group | Pricing: taken vs board, 2014-24 | Value vs slot, 2016-22 | Value vs consensus, 2018-22 |
+|---|---|---|---|
+| All positions | x0.96 (p 0.11) | x0.90 (p 0.24) | x0.83 (p 0.09) |
+| QB (125 / 81 / 70) | x0.86 (p 0.38) | x1.76 (1.00-3.07, p 0.05) | x1.59 (p 0.34) |
+| C / LB / S | x0.99 | x1.08 | x0.86 |
+| WR / CB / RB | x0.93 (p 0.06) | x0.81 | x0.82 |
+| All others | x0.98 | x0.80 (p 0.05) | x0.82 |
+
+No reliable evidence of racial mispricing. The QB row points the way a bias against Black QBs would (taken a bit
+later than the board, then beating the slot), but rests on 81 QBs, is one of 15 tests, and doesn't hold against
+consensus. With a proxy this weak a null isn't evidence of no bias. A real test needs self-identified or
+researcher-coded race, e.g. from a published study's replication data.
