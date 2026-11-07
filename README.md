@@ -979,3 +979,32 @@ Pooling adds little, since coaching links are few. The direction holds but is bo
 the drafting team had direct contact, concentrated in the top 100 picks, about 1.0 in three of seven classes. Even
 if real, it's only known once the player's team is known, so it could adjust post-draft player outlooks, not a
 pre-draft board. Recheck when 2023-24 have 4 seasons.
+
+## Height and size cutoffs: mispricing tests (`scripts/size_bias_test.py`, Nov 2026)
+
+A bias toward a trait would show up twice: the trait moves draft position relative to the board, and players with
+it then miss their slot. Raw height / arm / hand from cfdarko's combine_metrics (arm and hand from 2011).
+
+**Pricing** (drafted board players 2014-24): height within position barely moves picks relative to the board
+(x1.00 per standard deviation (SD); taller DBs go slightly later, x0.95, p 0.03). Short QBs (under 6'1", 11),
+QB hands under 9 in (4), OT arms under 33 in (16) and CBs under 5'11" (51) go about where the board has them.
+Teams and the board agree on size.
+
+**Value:**
+
+| | Drafted vs slot 2016-22 | Board vs consensus 2018-22 |
+|---|---|---|
+| Height per SD, all positions | x1.00 | x1.01 |
+| EDGE | x1.13 (p 0.06); x1.18 (p 0.01) with arm or weight held fixed | **x1.26 (1.10-1.44, p 0.001)**; 2018-19 x1.31, 2020-22 x1.22 |
+| WR / QB | x1.15 (p 0.06) / x0.78 (p 0.08) | x1.00 / x0.91 |
+| Short QB, QB hand < 9 in | 4 players: too few | too few |
+| OT arm < 33 in (10 / 7) | x1.31 (p 0.13) | x1.18 |
+| CB under 5'11" (27 / 25) | x0.89 | x1.08 |
+
+The cutoffs can't be tested: too few drafted QBs fall below them, and OT / CB show nothing reliable. One result
+stands out: **tall edge rushers are undervalued, short ones overvalued.** Value vs consensus rises steadily with
+height (6'3" and under x0.75, 6'4" x0.86, 6'5" x1.04, 6'6"+ x1.23). It holds in both halves of the classes and
+with arm length or weight controlled, and survives correction for the ~20 tests run here. It runs opposite to a
+general bias toward height: the board and teams seem to overrate undersized, bendy pass rushers. Caveats: 137
+board players; part may be what the value measure rewards (tall ends play more snaps, including run downs), not
+pass-rush quality. Candidate model feature: EDGE height. Recheck with 2023-24.
