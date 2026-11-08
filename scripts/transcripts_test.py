@@ -74,7 +74,8 @@ def cdi(words):
 
 def features(a):
     a = a.copy()
-    a["a"] = a.a.fillna("").str.lower()
+    # transcriber notes such as "(Inaudible.)", "(Laughter.)", "(Indiscernible)" are not the player's words
+    a["a"] = a.a.fillna("").str.replace(r"\([^)]*\)", " ", regex=True).str.lower()
     g = a.groupby(["player_id", "cls"])
     t = g.a.apply(" ".join)
     words = t.str.findall(r"[a-z']+")
@@ -102,6 +103,19 @@ def cont(d, e, x, label):
     print(f"    {label:30s} n={len(d):4d}  per 1 sd: value x{np.exp(m.params.z):.2f} (95% {lo:.2f}-{hi:.2f}, p {m.pvalues.z:.2f})")
 
 
+def reach(d, x, label):
+    """Pricing half of a bias test: is the feature tied to going earlier (> 1) or later than the board rank?"""
+    b = d[d.drafted.astype(bool) & d.hasan_rank.notna() & d.pick.notna()].dropna(subset=[x]).copy()
+    if len(b) < 30:
+        return
+    b["z"] = (b[x] - b[x].mean()) / b[x].std()
+    y = np.log((b.hasan_rank + 10) / (b.pick + 10))
+    fe = pd.get_dummies(b.grp, prefix="g", drop_first=True, dtype=float)
+    X = sm.add_constant(pd.concat([b[["z"]], np.log(b.n_words).rename("log_words"), fe], axis=1).astype(float))
+    m = sm.OLS(y, X).fit(cov_type="HC1")
+    print(f"    {label:30s} n={len(b):4d}  per 1 sd: taken x{np.exp(m.params.z):.2f} earlier than board (p {m.pvalues.z:.2f})")
+
+
 def main():
     a = pd.read_parquet(OUT / "asap_answers.parquet")
     a["player_id"] = a.player_id.astype(str)
@@ -119,6 +133,9 @@ def main():
           f"median words {int(f.n_words.median())}, interviews {f.n_interviews.median():.0f}")
     print(d.groupby("grp")[FEATS + SECONDARY].mean().round(2).to_string())
     print("\nfeature correlations:\n" + d[FEATS + SECONDARY].corr().round(2).to_string())
+    print("\nPRICING: drafted board players (bias = taken earlier AND then below slot, or the reverse)")
+    for x in FEATS + SECONDARY:
+        reach(d, x, x)
     for e, s, nm in [("exp_slot", dr, "VS DRAFT SLOT"), ("exp_cons", bd, "VS CONSENSUS")]:
         print(f"\n{nm}")
         for x in FEATS:

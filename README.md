@@ -1049,3 +1049,30 @@ No reliable evidence of racial mispricing. The QB row points the way a bias agai
 later than the board, then beating the slot), but rests on 81 QBs, is one of 15 tests, and doesn't hold against
 consensus. With a proxy this weak a null isn't evidence of no bias. A real test needs self-identified or
 researcher-coded race, e.g. from a published study's replication data.
+
+## Press-conference language (`src/transcripts.py`, `scripts/asap_collect.py`, `scripts/transcripts_test.py`, Nov 2026)
+
+ASAP Sports transcripts of college bowl / title-game / kickoff press conferences 2011-2022 (3,675 interview links,
+287 events; conference media days transcribe coaches only; no combine). 843 interviews matched to board / drafted
+players by name + class window: 22,373 answers from 518 players (median 1,247 words, 1 interview). Raw pages cached
+under data/raw/asap (not in git). Transcriber notes ("(Inaudible.)", "(Laughter.)") stripped.
+
+Features fixed before looking; per standard deviation (SD), controlling for amount of text and class:
+
+| Feature | Pricing (taken vs board) | Drafted vs slot 2016-22 (260) | Board vs consensus 2018-22 (210) |
+|---|---|---|---|
+| Words per answer | x1.02 | x0.90 (p 0.05) | x0.94 |
+| Technical football vocabulary | x1.01 | x0.91 (p 0.11) | x0.90 (p 0.10) |
+| "We" share of I / we | x1.03 | x0.96 | x0.98 |
+| Cliches | x1.00 | x0.98 | x0.97 |
+| **Mean word length** | x0.99 | **x0.85 (0.77-0.93, p < 0.001)** | **x0.83 (0.75-0.92, p < 0.001)** |
+| Secondary: categorical-dynamic index | x1.06 (p 0.02) | x0.88 (p 0.03) | x0.89 (p 0.09) |
+| Secondary: hedges / fillers | x1.03 | x1.00 | x1.02 |
+
+Mean word length survives correction for the 10 primary tests and every check: position, age, event type and
+years before the draft, >= 600 words, excluding QBs, dropping each class in turn (x0.82-0.85), excluding proper
+nouns (x0.84 / x0.81), and controlling for the race-proxy probability (correlation -0.07; x0.85 / x0.83). Players
+who use longer words (more formal register: "testament", "grateful", "necessarily", "character") turn out worse
+than both their slot and their board rank, while going about where the board has them. Neither the board nor teams
+price it. Opposite to the essay literature (Pennebaker's analytic style predicts higher GPA). QBs: everything
+larger (26 players). Unreplicated and unexplained; replication on 2023-25 classes (partial outcomes) pending.
