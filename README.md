@@ -1418,3 +1418,42 @@ team-seasons 2014-25, quality from the same season ("now", leaks) or the player'
 
 Decision: keep the current rule. The leak-free version moves the overall level only ~10% and offers no
 stable position reshuffle; no choice test.
+
+## Betting-line absence test (`scripts/absence_test.py [carry]`, `scripts/absence_curve.py`, Nov 2026)
+
+What is a starter worth over the player who replaces him, by position, in points? Regular-season games
+2013-25 (2,992 with closing spreads). Regular starter = played >= 75% of the team's previous up-to-4 games
+at >= 60% of snaps; absent = no offensive/defensive snaps. "carry" keeps counting a starter absent until
+he returns (otherwise the replacement becomes the regular after ~4 games and long absences are lost;
+20,781 absent starter-games). Model: spread = home edge + team-season rating difference + sum over
+positions of b x (absent starters home - away). Team-season ratings absorb strength, so b is the market's
+starter-minus-backup estimate. Note: the backup is the team's actual backup, usually at least as good as a
+freely available player.
+
+| Per absent starter, pts/game (carry) | Market (spread) | Actual margin | Current rule, contract prices | Current rule, rookie currency (pay curve) | Quality over replacement (0.48) |
+|---|---|---|---|---|---|
+| QB | 2.21 (1.95 to 2.48) | 1.58 | 2.27 | 2.53 | 1.89 |
+| RB | 0.33 (-0.05 to 0.71) | -0.11 | 0.38 | 0.67 | 0.18 |
+| WR | 0.80 (0.64 to 0.95) | 0.58 | 0.58 | 0.84 | 1.02 |
+| TE | 0.65 (0.38 to 0.92) | 0.64 | 0.41 | 0.62 | 0.44 |
+| OL | 0.47 (0.34 to 0.60) | 0.60 | 0.44 | 0.50 | 0.57 |
+| DL | 0.57 (0.34 to 0.79) | 0.29 | 0.64 | 0.89 | 0.76 |
+| LB | 0.34 (0.17 to 0.50) | 0.80 | 0.41 | 0.46 | 0.26 |
+| CB | 0.36 (0.21 to 0.51) | 0.28 | 0.40 | 0.44 | 0.23 |
+| S | 0.32 (0.13 to 0.52) | -0.42 | 0.33 | 0.49 | 0.28 |
+
+(Rule columns: what each rule credits the absent starter per game, rate 0.34 QB / 0.19 others; contract
+prices = bridge.preseason_prices; pay curve uses his prior-season PFF quality and recent snap share.)
+
+- The market prices absences close to the actual results (margin minus spread ~0 for every position
+  except safeties, +0.75), so it's a usable yardstick. Without carry the numbers are similar
+  (QB 2.11, non-QB 0.38-0.66).
+- The current rule with a flat 0.5% replacement, in contract prices, matches the market at almost every
+  position (QB 2.27 vs 2.21; non-QB within 0.1 except WR / TE, which the market values more).
+- In the rookie currency the same rule over-credits RB (x2.0), DL (x1.6), S (x1.5), LB (x1.35), CB (x1.2),
+  QB (x1.15); WR, TE, OL about right. Quality over replacement under-credits RB, LB, CB (x0.5-0.75) and
+  over-credits WR (x1.3): the market rejects its reshuffle.
+- Within positions every rule spreads credit more than the market (calibration slope 0.66-0.73 on the
+  spread; pay-scaled: non-QB 0.15 + 0.08 per 1% of price, QB 0.90 + 0.15 per 1%, vs the rule's ~0.17 / 0.31
+  per 1%). Expensive starters are worth less over their backup than the rule credits, cheap ones more;
+  part of this is noise in price and quality as measures of the player (which flattens slopes).
