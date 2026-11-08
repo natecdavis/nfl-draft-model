@@ -1216,3 +1216,33 @@ Taking out team-chosen playing time lowers w by 0.05-0.1, as predicted, but no d
 zero, and 0.85 sits inside every interval on both labels. The weight is poorly pinned down on value labels in
 general (intervals ~0.5 wide); earlier tests showed recommendations and scorecards barely move between 0.85 and 1.0.
 **Kept at 0.85.**
+
+### Bracket check: pick values and real trades on both labels (`scripts/label_bracket.py`)
+
+Stored label = upper bound for high picks (every snap counts); grade-only = lower bound (discards team-chosen
+playing time, real role information and the top of the snap distribution). Full pick-value grid and all 394
+pick-only trades 2013-25 rescored on each; the stored rerun reproduces the live pick values exactly (0 difference).
+Decision rule fixed before running: leave labels alone if no trade verdict flips (opposite signs, both > 2 se)
+and values relative to pick 32 move < ~10%.
+
+Typical non-QB pick, titles added (% of one Super Bowl), contender with a veteran QB (other situations alike):
+
+| Pick | 1 | 5 | 10 | 20 | 32 | 64 | 96 | 160 |
+|---|---|---|---|---|---|---|---|---|
+| Stored | 2.80 | 2.85 | 3.59 | 2.92 | 2.48 | 1.87 | 1.26 | 0.78 |
+| Grade-only | 1.37 | 1.44 | 2.33 | 2.07 | 1.74 | 1.54 | 0.98 | 0.71 |
+| Relative to pick 32 | -30% | -28% | -8% | +1% | 0 | +17% | +11% | +29% |
+
+QB picks (relative to pick 32): picks 1-20 -27% to -37%, pick 96 -65% to -70%. Absolute values fall more than
+4-year label value (top-10 label -26%) because the rookie contract cost is fixed: net value falls faster than gross.
+
+Real trades: correlation 0.986; trade-ups gain titles 10% of the time on both labels; 22 sign changes of 788
+team-sides, 3 firm flips, all trade-ups for mid-round QBs that gained under the stored label and lose or break even
+under grade-only: NYJ 2015 (Bryce Petty, #103: +0.97 -> -0.01), Oakland 2016 (Connor Cook, #100: +1.24 -> -0.01),
+Carolina 2022 (Matt Corral, #94: +0.57 -> -0.37).
+
+**The rule trips on both counts**, so the labels can't be left alone without a narrower estimate. But the bracket
+is wide for a reason beyond sunk cost: the grade-only label prices every full-time player at the average share of
+his grade, which hits exactly the top picks and starting QBs. The sunk-cost test put the pick-attributable part at
+<= ~15% of the playing-time gradient. Next: the pick-attributable correction (rookie share modeled on quality,
+prior snaps and pick; seasons priced at a mid-round pick's share), which should land between the two bounds.
