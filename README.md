@@ -1237,12 +1237,45 @@ QB picks (relative to pick 32): picks 1-20 -27% to -37%, pick 96 -65% to -70%. A
 4-year label value (top-10 label -26%) because the rookie contract cost is fixed: net value falls faster than gross.
 
 Real trades: correlation 0.986; trade-ups gain titles 10% of the time on both labels; 22 sign changes of 788
-team-sides, 3 firm flips, all trade-ups for mid-round QBs that gained under the stored label and lose or break even
-under grade-only: NYJ 2015 (Bryce Petty, #103: +0.97 -> -0.01), Oakland 2016 (Connor Cook, #100: +1.24 -> -0.01),
-Carolina 2022 (Matt Corral, #94: +0.57 -> -0.37).
+team-sides, 3 firm flips (both > 2 se): Carolina 2022 trade-up for Matt Corral (#94: +0.57 -> -0.37), New England
+2019 trade-down (-> +0.11 to -0.12; pick 167 later used on a QB) and Detroit 2025 trade-up (-0.18 -> +0.12).
+(Corrected: an earlier version of this note named the NYJ 2015 Bryce Petty and Oakland 2016 Connor Cook trade-ups
+as flips; they go from clear gains to ~0, inside 2 se, so they are sign changes, not firm flips.)
 
 **The rule trips on both counts**, so the labels can't be left alone without a narrower estimate. But the bracket
 is wide for a reason beyond sunk cost: the grade-only label prices every full-time player at the average share of
 his grade, which hits exactly the top picks and starting QBs. The sunk-cost test put the pick-attributable part at
 <= ~15% of the playing-time gradient. Next: the pick-attributable correction (rookie share modeled on quality,
 prior snaps and pick; seasons priced at a mid-round pick's share), which should land between the two bounds.
+
+### Pick-attributable correction (`scripts/pickadj_label.py`, bracket in `scripts/label_bracket.py`)
+
+Same harness (reproduces the stored label exactly with nothing changed). Rookie-deal seasons of drafted players:
+share' = share + b (log(110) - log(pick + 10)), i.e. priced at the share a pick-100 player of the same quality gets;
+each player keeps his own residual. Fit by OLS on share ~ log(pick+10) (+ QB slope) + quality, quality^2, prior
+share, prior quality, career year, group, season.
+
+- **Spec fixed in advance ("pre", rejected):** all seasons with snaps. b = -0.117, but quality entered U-shaped
+  (cfdarko's quality is a percentile of a grade shrunk toward average by snaps, so low-snap players sit near
+  average), so pick absorbed ability. Kept for the record (`labels_pickadj_pre.parquet`), not used.
+- **Measured-quality seasons (share >= 0.2, + prior quality):** b = -0.075 (QB -0.051). Split by year:
+  **rookie season -0.126, years 2-4 -0.049** (the sunk-cost test found -0.035 to -0.042). In a rookie season there
+  is no NFL evidence yet, so draft position is the team's scouting information and can't be told apart from sunk cost.
+- **Narrow (years 2-4 only):** b = -0.049 (QB -0.027); shifts a #1 pick's share in years 2-4 by -0.11, #32 by
+  -0.05, #250 by +0.04. This is the part the evidence supports; it is still an upper bound (b also carries what
+  teams know beyond PFF grades).
+
+Value relative to pick 32 vs the stored label (contender with a veteran QB; other situations within a few points):
+
+| Label | #1 | #5 | #10 | #20 | #64 | #96 | #160 | QB #1 | QB #10 | Trade flips |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Narrow (years 2-4) | -15% | -13% | -7% | -4% | +7% | +8% | +14% | -19% | -7% | 0 (corr 0.997) |
+| Pick-adjusted, all years | -42% | -37% | -21% | -3% | +17% | +23% | +34% | -59% | -39% | 0 (corr 0.937) |
+| Grade-only | -30% | -28% | -8% | +1% | +17% | +11% | +29% | -29% | -30% | 3 (corr 0.986) |
+
+Trade-ups gain titles 10% of the time under all four labels. No trade verdict flips under either pick correction.
+Reading: the supported (narrow) correction trims top-5 picks by ~15% relative to the late first round and lifts
+picks 64-160 by 7-18%; the rookie-season premium is the open question, and counting it all as bias roughly triples
+the trim. Not adopted yet (stored label still the default); adopting narrow would mean pointing
+`prospect_model.LABEL_FILE` at `data/derived/labels_pickadj_narrow.parquet` and rebuilding the pick-value chart,
+trade calculator and simulator tables.

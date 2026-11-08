@@ -22,7 +22,9 @@ import pick_value as pv
 import prospect_model as pm
 import trade
 
-LABELS = {"stored": pm.LABEL_FILE, "grade": pm.OUT / "labels_gradeonly_t20.parquet"}
+LABELS = {"stored": pm.LABEL_FILE, "narrow": pm.OUT / "labels_pickadj_narrow.parquet",
+          "pickadj": pm.OUT / "labels_pickadj.parquet", "grade": pm.OUT / "labels_gradeonly_t20.parquet"}
+NAMES = {"stored": "stored", "narrow": "narrow (yrs 2-4)", "pickadj": "pick-adj (all yrs)", "grade": "grade-only"}
 SHOW = [1, 5, 10, 20, 32, 64, 96, 160]
 
 
@@ -60,38 +62,39 @@ def run(name):
 
 
 def compare():
-    G = {n: pd.read_parquet(pm.OUT / f"bracket_{n}_pick_value.parquet") for n in LABELS}
+    have = [n for n in LABELS if (pm.OUT / f"bracket_{n}_pick_value.parquet").exists()]
+    G = {n: pd.read_parquet(pm.OUT / f"bracket_{n}_pick_value.parquet") for n in have}
     live = pd.read_parquet(pm.OUT / "pick_value_titles.parquet")
     chk = G["stored"].merge(live, on=["situation", "grp", "pick"], suffixes=("", "_live"))
     print(f"stored-label rerun vs live pick_value_titles: max abs diff "
           f"{(chk.titles_added - chk.titles_added_live).abs().max() * 100:.4f} (% of a title)\n")
     for grp in ["nonqb", "QB"]:
-        print(f"{'Typical non-QB' if grp == 'nonqb' else 'QB'} pick, titles added (% of one Super Bowl), "
-              f"stored / grade-only, and value relative to pick 32")
+        print(f"{'Typical non-QB' if grp == 'nonqb' else 'QB'} pick, titles added (% of one Super Bowl); "
+              f"'rel' rows = change in value relative to pick 32, vs stored")
         for sname in pv.SITUATIONS:
             s = {n: G[n][(G[n].grp == grp) & (G[n].situation == sname)].set_index("pick").titles_added * 100
-                 for n in LABELS}
+                 for n in have}
             if s["stored"].empty:
                 continue
-            rel = {n: s[n] / s[n][32] for n in LABELS}
+            rel = {n: s[n] / s[n][32] for n in have}
             print(f"  {sname}")
-            print("    pick            " + "".join(f"{p:>8d}" for p in SHOW))
-            print("    stored          " + "".join(f"{s['stored'][p]:8.2f}" for p in SHOW))
-            print("    grade-only      " + "".join(f"{s['grade'][p]:8.2f}" for p in SHOW))
-            print("    rel-32 change   " + "".join(f"{rel['grade'][p] / rel['stored'][p] - 1:+8.0%}" for p in SHOW))
-    T = {n: pd.read_parquet(pm.OUT / f"bracket_{n}_trades.parquet") for n in LABELS}
-    m = T["stored"].merge(T["grade"], on=["trade_id", "season", "team", "role"], suffixes=("_s", "_g"))
-    sign = np.sign(m.change_s) != np.sign(m.change_g)
-    firm = (m.change_s.abs() > 2 * m.se_s) & (m.change_g.abs() > 2 * m.se_g)
-    print(f"\nREAL TRADES 2013-25: {m.trade_id.nunique()} trades, {len(m)} team-sides")
-    print(f"  any sign change: {int(sign.sum())}; flips (both > 2 se from zero): {int((sign & firm).sum())}")
-    print(f"  mean change, trade-up side: stored {m[m.role == 'up'].change_s.mean():+.2f}, grade-only "
-          f"{m[m.role == 'up'].change_g.mean():+.2f} (% of a title); correlation {m.change_s.corr(m.change_g):.3f}")
-    print(f"  share of trade-ups that gain titles: stored {(m[m.role == 'up'].change_s > 0).mean():.0%}, "
-          f"grade-only {(m[m.role == 'up'].change_g > 0).mean():.0%}")
-    if sign.any():
-        print(m[sign][["trade_id", "season", "team", "role", "change_s", "se_s", "change_g", "se_g"]]
-              .round(2).to_string(index=False))
+            print("    pick                    " + "".join(f"{p:>8d}" for p in SHOW))
+            for n in have:
+                print(f"    {NAMES[n]:22s}" + "".join(f"{s[n][p]:8.2f}" for p in SHOW))
+            for n in have[1:]:
+                print(f"    rel {NAMES[n]:18s}" + "".join(f"{rel[n][p] / rel['stored'][p] - 1:+8.0%}" for p in SHOW))
+    T = {n: pd.read_parquet(pm.OUT / f"bracket_{n}_trades.parquet") for n in have}
+    for n in have[1:]:
+        m = T["stored"].merge(T[n], on=["trade_id", "season", "team", "role"], suffixes=("_s", "_g"))
+        sign = np.sign(m.change_s) != np.sign(m.change_g)
+        firm = (m.change_s.abs() > 2 * m.se_s) & (m.change_g.abs() > 2 * m.se_g)
+        up = m.role == "up"
+        print(f"\nREAL TRADES 2013-25, {NAMES[n]} vs stored: {m.trade_id.nunique()} trades, {len(m)} team-sides; "
+              f"sign changes {int(sign.sum())}, firm flips {int((sign & firm).sum())}; corr {m.change_s.corr(m.change_g):.3f}; "
+              f"trade-ups gaining {(m[up].change_s > 0).mean():.0%} -> {(m[up].change_g > 0).mean():.0%}")
+        if (sign & firm).any():
+            print(m[sign & firm][["trade_id", "season", "team", "role", "change_s", "se_s", "change_g", "se_g"]]
+                  .round(2).to_string(index=False))
 
 
 if __name__ == "__main__":
