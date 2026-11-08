@@ -31,6 +31,8 @@ import numpy as np
 import pandas as pd
 
 CF = Path.home() / "cfdarko"
+# outcome label file; scripts/grade_only_check.py swaps in data/derived/labels_gradeonly_t*.parquet
+LABEL_FILE = CF / "data/processed/rookie_value_labels.parquet"
 OUT = Path("data/derived")
 SEASONS = [1, 2, 3, 4]
 LAST_SEASON_PLAYED = 2025
@@ -87,7 +89,7 @@ def load() -> pd.DataFrame:
     B = pd.read_parquet(CF / "data/processed/bridge_players.parquet",
                         columns=["player_id", "draft_year", "overall_pick", "is_udfa", "pfr_id"]).dropna(subset=["player_id"])
     B = B.drop_duplicates("player_id")
-    L = pd.read_parquet(CF / "data/processed/rookie_value_labels.parquet")
+    L = pd.read_parquet(LABEL_FILE)
     L = L.dropna(subset=["player_id"]).drop_duplicates("player_id")
     df = X.merge(B, on="player_id", how="left")
     df["drafted"] = df.overall_pick.notna() & ~df.is_udfa.fillna(False).astype(bool)
@@ -150,7 +152,7 @@ def _repair_links(df: pd.DataFrame) -> pd.DataFrame:
     """See LINK_FIX. Works on the raw columns (cls, drafted, overall_pick, hasan_rank, value_y*, group, grp)."""
     from public_board import _norm
     from review import udfa_pre2016_labels
-    Lall = pd.read_parquet(CF / "data/processed/rookie_value_labels.parquet")
+    Lall = pd.read_parquet(LABEL_FILE)
     vcols = [f"value_y{t}" for t in SEASONS + [5]]
     by_pfr = Lall.dropna(subset=["pfr_id"]).drop_duplicates("pfr_id").set_index("pfr_id")
     U = Lall[Lall.is_udfa.fillna(False).astype(bool)].assign(key=lambda d: d.player_name.map(_norm))

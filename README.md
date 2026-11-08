@@ -1165,3 +1165,37 @@ separate the two. **Upper bound on label inflation:** roughly 15% of the pick-to
 (40% among regulars) isn't explained by grade. Year 1 can only be checked at the boundaries, which show nothing.
 Labels not changed. Caveat for the "teams' slot beats the board" results: some of slot's edge could be teams giving
 their own high picks snaps. A grade-only (snap-free) label would test this directly.
+
+## Grade-only label: how much of draft slot's edge is playing time? (`scripts/grade_only_label.py`, `scripts/grade_only_check.py`, Nov 2026)
+
+Follow-up to the sunk-cost test. The grade-only label runs cfdarko's own label builder
+(`rookie_value.build_label`, read only, output in data/derived) with one change: in years 1-4, any season with
+snap share >= 0.2 is priced at the share that veterans (year 5 on) of the same PFF quality play in his position
+(isotonic fit), not the share his team gave him. Pay curves, quality, games, costs and the pre-2013 depth-chart
+model are otherwise identical. Check: with the threshold set so nothing is replaced, the builder reproduces the
+stored label exactly (0 difference on all 6,795 players). 8,639 rookie seasons replaced; correlation with the
+stored 4-year value 0.82-0.89 by season. Biggest drops: top-3 QBs who started on poor grades (Bortles, Darnold,
+Trubisky); biggest gains: good mid-round players held below what their grades earn (Godwin, Andrews, Renfrow).
+`prospect_model.LABEL_FILE` switches labels (default unchanged). Caveat: pricing at E[share | quality] pulls
+everyone toward the middle; a good DL who earns 85% of snaps is priced at the 64% veterans of his grade play.
+
+Primary (fixed in advance): board players drafted 2018-22, value vs out-of-sample consensus expectation (refit on
+each label) against reach = log((rank + 10) / (pick + 10)):
+
+| Label | b (reach) | Taken 2x earlier than board -> value vs consensus | Rises b | Falls b | Slot vs consensus Spearman |
+|---|---|---|---|---|---|
+| Stored | +0.74 (se 0.09) | x1.67 | +0.73 | +0.75 | 0.620 vs 0.580 (+0.040) |
+| Grade-only, share >= 0.2 | +0.63 (se 0.09) | x1.54 | +0.59 | +0.67 | 0.584 vs 0.552 (+0.032) |
+| Grade-only, share >= 0.35 | +0.67 (se 0.09) | x1.59 | +0.65 | +0.70 | 0.596 vs 0.561 (+0.035) |
+
+Paired bootstrap, grade-only minus stored: -0.11 (95% -0.19 to -0.04) at 0.2; -0.07 (-0.13 to 0.00) at 0.35.
+**About 85-90% of the teams' edge over the board survives** without team-chosen playing time; 10-15% of it was
+teams playing the players they chose. The drop is larger for rises (players teams took early, -20%) than for falls
+(-10%), as expected if teams give snaps to their own reaches. Top-pick premium (mean 4-year value, picks 1-10 vs
+33-64): 2.27 -> 2.14 (part of that is the compression above).
+
+Reading: team information in draft slot is real and the main earlier conclusions stand (fall shading, board
+deference, "public features don't beat slot"). The stored label overstates slot's edge over the board by roughly a
+tenth and the top-pick premium by ~5%. Stored label kept as the default: the grade-only one discards real
+playing-time information (durability, role) along with the sunk-cost part. Candidate follow-up: recheck the fall
+weight (0.85) on the grade-only label.
