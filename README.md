@@ -1129,3 +1129,39 @@ player value. Not adopted. Untested from the search: local/home-region drafting 
 local players, no performance cost; needs a random-team placebo) and Keefer's (2015, 2017) sunk-cost effect, where
 higher picks get more playing time at equal ability. That one would bias outcome labels toward high picks rather
 than show a draft mistake.
+
+## Sunk-cost playing time (`scripts/sunk_cost_test.py`, Nov 2026)
+
+Keefer (2015 *J Labor Res*; 2017 *J Sports Econ*) finds that teams start first-round picks more than their play
+warrants, because they paid more for them. That matters here because the outcome labels are priced on snap share
+as well as PFF grade, so extra snaps given to high picks would count as draft-slot "value". Data: all 4,190 drafted
+non-specialists 2006-22, years 1-4, PFF NFL season files (99% linked). Snap share = snaps / a typical team's full
+season on that side of the ball.
+
+**A. Round-boundary jumps** (local linear in pick, |r| <= 16, position + class fixed effects + drafting team's
+prior win %). Draft order puts the best teams at the end of each round and the worst at the start of the next, so
+the test is the 1/2 jump minus the average 2/3 and 3/4 jumps:
+
+| Outcome (years 1-4) | 1/2 jump | 2/3 | 3/4 | 1/2 minus others |
+|---|---|---|---|---|
+| Snap share, 2006-22 | -0.07 | +0.08 | -0.12 | -0.05 (z -0.9) |
+| Snap share, 2006-10 (no wage scale) | +0.13 | +0.17 | -0.11 | +0.11 (z +1.1); grade jump +4.5 too |
+| Snap share, 2011-22 | -0.15 | +0.05 | -0.12 | -0.12 (z -1.6) |
+| PFF grade, 2006-22 | -0.1 | +2.1 | -0.4 | -0.9 (z -0.4) |
+| Label value y1-4 (cap share), 2012-22 | -0.031 | +0.006 | -0.022 | -0.023 (z -0.9) |
+
+Same at |r| <= 10 and 24. **No first-round sunk-cost jump**, and since 2011 the sign is the wrong way.
+
+**B. Feedback in years 2-4** (same snap share and grade the season before; clustered by player). Per log-unit of
+pick (pick 10 vs 100 = 1.7 units), a higher pick predicts more snaps next season (0.067 share) and also a better
+next-season grade (1.8 points), so the pick carries real information. Controlling for same-season grade (200+ snaps
+both years): pick still predicts 0.035 share (se 0.004), against a total gradient of 0.085 among these regulars and
+0.23 among all players. The first-round dummy on top of that is -0.014 (2011-22: -0.03): no contract effect.
+
+Reading: there is no discontinuity of the kind Keefer describes after the 2011 rookie wage scale. What's left is a
+smooth premium: at the same PFF grade, higher picks play somewhat more. That could be teams knowing more than PFF
+grades show (the same information draft slot carries everywhere else here) or reputation. These data can't
+separate the two. **Upper bound on label inflation:** roughly 15% of the pick-to-playing-time gradient in years 2-4
+(40% among regulars) isn't explained by grade. Year 1 can only be checked at the boundaries, which show nothing.
+Labels not changed. Caveat for the "teams' slot beats the board" results: some of slot's edge could be teams giving
+their own high picks snaps. A grade-only (snap-free) label would test this directly.
