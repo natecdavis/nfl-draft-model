@@ -1091,3 +1091,41 @@ discovery mean and sd, value over seasons played so far: drafted vs slot x0.95 (
 x1.03, 2025 x1.03. In the discovery data the effect is already x0.86 after two seasons (x0.92 after one), so the
 short window doesn't explain the miss for 2024. **Not replicated.** The interval still includes the discovery
 estimate, but the finding should be treated as likely overstated, perhaps a chance result; recheck as 2024-25 mature.
+
+## Draft biases from the literature (`scripts/lit_bias_test.py`, `scripts/lit_bias_replication.py`, Nov 2026)
+
+A literature search turned up six documented or claimed biases not yet tested here. Each was tested like the size
+tests: pricing (drafted board players 2014-24; > 1 = teams take them earlier than the board) and value out of
+sample (drafted 2016-22 vs slot, board 2018-22 vs consensus; < 1 = overvalued). One primary measure each, fixed
+before running; Bonferroni bar p < 0.004.
+
+| Bias (source) | Measure | Pricing vs board | Value vs slot | Value vs consensus |
+|---|---|---|---|---|
+| Program prestige (Kitchens 2015, *Econ Inquiry*) | final-season team SP+, per SD | x0.95 (p<0.01) | x1.01 | x0.96 |
+| Small school (Hendricks, DeBrock & Koenker 2003, *JOLE*) | non-Power-5 | x1.07 (p<0.01) | x0.97 | x1.13 (p 0.12) |
+| | FCS / lower | x1.13 (p<0.01) | x1.01 | x1.02 |
+| Recruiting pedigree (anchoring) | 247 composite, per SD in position | x0.94 (p<0.01) | x0.98 | **x0.91 (p 0.01)** |
+| | five-star | x0.89 (p<0.01) | x1.05 | x1.02 |
+| Final-season jump (PFF one-year-wonder studies) | last PFF grade minus best earlier, per SD | x1.01 | x0.97 | x1.00 |
+| | 80+ final season after < 70 (54 players) | x1.03 | x0.78 (p 0.04) | x0.80 (p 0.13) |
+| Showcase exposure | Senior Bowl roster | x1.01 | x0.94 | x1.13 (p 0.06) |
+| Relative age (Heneghan & Herron 2019; Beyer et al. 2016) | born Sep-Dec vs May-Aug, age controlled | x0.95 (p 0.01) | x1.01 | n/a (birth dates only for NFL players) |
+
+Nothing passes the multiple-testing bar on value. Leads checked further:
+- **Recruiting pedigree vs consensus: not real.** All of it comes from 2018-20 (x0.83); 2021-22 x1.02; fresh
+  replication on 2023-25 (fixed in advance, seasons played so far) x1.06 (one-sided p 0.88), vs slot x1.18.
+- **One-year wonder: not replicated** (2023-25 x1.02, 28 players). The continuous measure was null from the start.
+- **Non-Power-5 vs consensus: not replicated** (x1.00).
+- **Senior Bowl vs consensus: consistent but not proven.** Replication x1.16 (one-sided p 0.03); with age at draft
+  controlled (Senior Bowl players are older, and older players pay off sooner) x1.13 in discovery (p 0.13) and x1.11
+  in replication (p 0.12). Against draft slot it's ~x1.0 in both: teams already price it. So it is at most a small
+  board miss that teams correct, like the other information that lives in draft slot.
+
+The pricing column is the solid result: relative to the media board, teams take small-school players earlier and
+players from strong programs or with high recruiting ratings later. That is the opposite of the prestige bias in
+Kitchens (2015). Since value vs slot is flat for all of these, teams appear to price them about right, and the
+board leans slightly toward pedigree. That matters for predicting where players go (availability), not for
+player value. Not adopted. Untested from the search: local/home-region drafting (Tufts thesis: some teams overdraft
+local players, no performance cost; needs a random-team placebo) and Keefer's (2015, 2017) sunk-cost effect, where
+higher picks get more playing time at equal ability. That one would bias outcome labels toward high picks rather
+than show a draft mistake.
