@@ -1343,3 +1343,45 @@ opponent-adjusted offensive / defensive points per game from schedules.
 - Caveats: grades are partly shared (receiver grades track QB, r 0.68; coverage grades reflect
   the rush), which muddies main effects more than interactions; main effects aren't per dollar.
   The model's additive treatment of positions (bridge, pick values) stands.
+
+## Replacement level by position (`scripts/replacement_level.py`, Nov 2026)
+
+`pick_effect` credits a pick with snap share x (price - 0.5% of cap) and charges rookie pay - 0.5%: one
+minimum-salary replacement level for every position. Since outcomes_v2, though, a season's value is
+cfdarko's veteran pay curve price_g(share, quality) (/1.10), and that curve pays mostly for playing time.
+A full-time player (90% of snaps) at the very bottom of his position's PFF quality (q = 0) is priced at
+DL 6.4, EDGE 6.3, QB 5.4, RB 4.6, WR 3.7, TE 3.7, DB 3.0, LB 2.3, OL 1.8% of cap, vs the 0.45% the model
+subtracts.
+
+Freely available players (contract in force <= 1.25x the veteran minimum, or an undrafted rookie deal;
+4,103 seasons 2013-25, 3-9% of each group's snaps) priced the same way earn 2.4-6.0% of cap per full
+season of snaps. Their median quality when they play 30%+ (q 0.23-0.74) is selected upward (the ones who
+play are the ones who turned out good), so fixed low reference qualities are used below.
+
+**Team check (416 team-seasons 2013-25).** Split curve-priced roster value into a playing-time part
+(each player's snaps priced at reference quality q_ref) and a quality part (the rest), season-demeaned,
+against opponent-adjusted net rating:
+
+| q_ref | Playing-time part, pts per 1% of cap | Quality part | Gross value |
+|---|---|---|---|
+| 0.1 | -0.05 (-0.15 to +0.05) | +0.48 (+0.41 to +0.54) | +0.31 |
+| 0.3 | -0.07 (-0.16 to +0.03) | +0.48 (+0.42 to +0.54) | |
+| 0.5 | -0.01 (-0.08 to +0.07) | +0.49 (+0.43 to +0.55) | |
+
+The playing-time part buys nothing: crediting a pick for the curve price of his snaps, net of only 0.5%,
+counts value a replacement in the same snaps would also have produced. The right comparison is quality
+over a replacement at the same snaps.
+
+**What it would do** (drafted players 2014-22, 4-season team-strength points: current rule vs quality
+over q = 0.1 x 0.48): all picks x0.70-0.74 (R1 2.95 -> 2.07, R2-3 1.22 -> 0.87, R4-7 0.47 -> 0.35), and a
+big position reshuffle: OL x1.28, WR x1.13, QB x0.67, DL x0.65, LB x0.57, TE x0.59, EDGE x0.54, DB x0.49,
+RB x0.32. Round-1 RBs and LBs fall to ~0.1-0.2 points.
+
+Not adopted. Caveats before any choice test:
+- The reshuffle follows how steeply each position's pay curve rises with PFF grade (steep at OL / WR,
+  nearly flat at DB / LB / RB). Where PFF grades measure quality poorly, the quality part understates.
+- Team check is same-season (grades partly reflect team results, inflating the quality slope) and pools
+  positions under one slope.
+- The 0.48 rate is in a different currency from the bridge's 0.19 (contract prices); the cost side
+  (rookie pay at 0.10 per 1%) is unchanged.
+Next: per-unit team check with prior-season quality; then the whole-draft choice test.
