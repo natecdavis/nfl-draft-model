@@ -1199,3 +1199,20 @@ deference, "public features don't beat slot"). The stored label overstates slot'
 tenth and the top-pick premium by ~5%. Stored label kept as the default: the grade-only one discards real
 playing-time information (durability, role) along with the sunk-cost part. Candidate follow-up: recheck the fall
 weight (0.85) on the grade-only label.
+
+### Fall weight on the grade-only label (`scripts/fall_weight_gradeonly.py`)
+
+The fall weight w (how far a falling player's log rank is shaded toward the log of his actual pick; 0.85 in the app,
+review and simulator) re-estimated on 4-year value: board players 2014-22 who fell, Poisson value ~ a log(pick+10) +
+b log(rank+10) + position + class, w = a / (a + b), same players under each label, paired bootstrap (500).
+
+| Fallers | n | Stored | Grade-only 0.2 | Grade-only 0.35 | Grade-only 0.2 minus stored |
+|---|---|---|---|---|---|
+| All (undrafted = pick 300) | 1,529 | 0.73 (0.46-1.08) | 0.66 (0.34-1.03) | 0.66 (0.36-1.03) | -0.07 (-0.20 to +0.06) |
+| Drafted | 864 | 0.86 (0.51-1.29) | 0.82 (0.45-1.30) | 0.81 (0.45-1.28) | -0.05 (-0.25 to +0.16) |
+| Picked in rounds 1-3 | 353 | 0.95 (0.40-1.68) | 0.84 (0.11-1.60) | 0.83 (0.14-1.60) | -0.11 (-0.50 to +0.36) |
+
+Taking out team-chosen playing time lowers w by 0.05-0.1, as predicted, but no difference is distinguishable from
+zero, and 0.85 sits inside every interval on both labels. The weight is poorly pinned down on value labels in
+general (intervals ~0.5 wide); earlier tests showed recommendations and scorecards barely move between 0.85 and 1.0.
+**Kept at 0.85.**
