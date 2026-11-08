@@ -1385,3 +1385,36 @@ Not adopted. Caveats before any choice test:
 - The 0.48 rate is in a different currency from the bridge's 0.19 (contract prices); the cost side
   (rookie pay at 0.10 per 1%) is unchanged.
 Next: per-unit team check with prior-season quality; then the whole-draft choice test.
+
+### Per-unit check (`scripts/replacement_units.py`; `points` argument for the drafted-player table)
+
+Same split per pricing group, offense units vs offensive rating and defense vs defensive rating,
+team-seasons 2014-25, quality from the same season ("now", leaks) or the player's prior season ("prior";
+85% of snaps have one, else group-neutral). Pts/game per 1% of cap:
+
+| Unit | Playing time, now | Quality, now | Playing time, prior | Quality, prior |
+|---|---|---|---|---|
+| QB | -0.01 | +0.50 | +0.48 | +0.18 |
+| RB | +0.03 | +1.08 | +0.30 | +0.57 |
+| WR | -0.22 | +0.44 | -0.09 | +0.18 |
+| TE | -0.52 | +0.92 | -0.07 | +0.74 |
+| OL | -0.08 | +0.19 | +0.13 | +0.17 |
+| DL | -0.05 | +0.20 | -0.03 | +0.24 |
+| EDGE | +0.09 | +0.20 | +0.17 | +0.24 |
+| LB | -0.39 | +0.89 | -0.12 | +0.41 |
+| DB | -0.13 | +1.12 | +0.27 | +0.60 |
+
+- Same season, playing time buys ~0 everywhere, but quality slopes differ by unit (equal slopes rejected,
+  p < 0.001): a curve-dollar of DB / RB / LB / TE quality buys ~1 pt, of OL / DL / EDGE ~0.2. The pay curves'
+  quality pricing doesn't convert to points at one rate, so the pooled reshuffle (OL / WR up, RB / DB down)
+  isn't supported; for DB and RB it's likely the wrong direction.
+- With leak-free prior quality, playing time does buy points (offense pooled +0.31, QB +0.48, DB +0.27):
+  who plays carries information about current quality. Pricing over a replacement at the same snaps
+  overcorrects.
+- Points per drafted player (round 1 / 2-3 / 4-7): current 2.95 / 1.22 / 0.47; pooled 2.04 / 0.85 / 0.34;
+  unit slopes now 1.06 / 0.27 / 0.14; unit slopes prior 2.60 / 1.11 / 0.48. Position ratios swing wildly
+  across versions (LB and TE negative, WR x0.11-x1.13, DB x0.47-x1.99): unit slopes are too noisy to price
+  positions, consistent with the bridge (no gain beyond QB vs non-QB out of sample).
+
+Decision: keep the current rule. The leak-free version moves the overall level only ~10% and offers no
+stable position reshuffle; no choice test.
