@@ -1305,3 +1305,41 @@ Same fit with undrafted players added (1,015 seasons, 600 players). At equal qua
 line extended to pick 300 (95% -0.017 to +0.014) and -0.008 vs the last pick of the draft (-0.023 to +0.007): they
 sit on the line, but the line only falls 0.006 between picks 262 and 300. Rule fixed in advance (extend only if they
 play clearly less than the last picks): not met. Left unchanged.
+
+## Position synergies and build order (`scripts/synergy_test.py`, Nov 2026)
+
+Folk beliefs ("build the trenches first", "get the QB weapons", "pass rush and coverage feed each
+other", "a line is only as good as its weakest player") imply interactions between units. Unit
+quality = PFF grade, snap-weighted, z-scored within season (QB passing; OL; WR/TE routes; RB; ED/DI
+pass rush; front run defense; CB/S coverage), 2006-2025, 640 team-seasons. Outcomes =
+opponent-adjusted offensive / defensive points per game from schedules.
+
+| Offense (pts/game per SD) | Main effect | Interaction | 95% |
+|---|---|---|---|
+| QB | +2.03 | QB x OL | +0.19 (-0.08 to +0.47); team FE +0.04 |
+| WR/TE | +1.27 | QB x receivers | +0.02 (-0.19 to +0.22) |
+| OL | +0.89 | OL x RB | -0.07 (-0.27 to +0.13) |
+| RB | +0.48 | OL x receivers | +0.12 (-0.16 to +0.41) |
+| **Defense** | | | |
+| Coverage | +1.85 | rush x coverage | -0.05 (-0.27 to +0.18) |
+| Run defense | +0.70 | run D x coverage | -0.08 (-0.26 to +0.10) |
+| Pass rush | +0.54 | | |
+
+- Units add up. Interactions raise R2 by <=0.004 and predict 2018-25 slightly worse than the
+  additive model (offense RMSE 2.33 vs 2.31). No curvature in OL, pass rush or coverage; QB slightly
+  convex (+0.19, -0.03 to +0.40).
+- Only hint: the OL slope rises with QB quality (bottom / middle / top QB tercile +0.72 / +0.81 /
+  +1.12), but it disappears within teams (team FE). Can't rule out a moderate QB-OL complement.
+- Weakest link: OL mean is what matters; with the mean in the model, worst starter -0.06 and best
+  starter -0.21 (both n.s.). Neither weak-link nor strong-link.
+- Rookies (drafts 2014-2022, 4-year value on the narrow label, controls log pick + log consensus by
+  position): value doesn't depend on the complementary unit he joins (last season's grade, per SD):
+  WR/TE with QB +0.34 (-0.42 to +1.10) and OL -0.34; RB with OL +0.15; OL with QB +0.29; ED/IDL with
+  coverage -0.38; CB/S with pass rush +0.23; QB with OL +1.37 (-2.8 to +5.5, uninformative). Means
+  ~4-7, so effects beyond ~+/-12% per SD are ruled out for non-QBs.
+- Build order (rounds 1-2, 3-draft windows, 160 team-windows): trench share of early-pick capital vs
+  net rating 2 seasons later, controlling for start rating and capital: 25% -> 75% trench = +0.5
+  pts/game (-2.3 to +3.4). No evidence either way.
+- Caveats: grades are partly shared (receiver grades track QB, r 0.68; coverage grades reflect
+  the rush), which muddies main effects more than interactions; main effects aren't per dollar.
+  The model's additive treatment of positions (bridge, pick values) stands.
