@@ -1,6 +1,6 @@
 """Collect ASAP Sports football transcripts for board / drafted players (see src/transcripts.py).
 
-Writes data/derived/asap_index.parquet (every football interview link 2011-2022) and
+Writes data/derived/asap_index.parquet (every football interview link 2011-2024) and
 data/derived/asap_answers.parquet (one row per answer by a matched player).
 """
 import sys
@@ -13,7 +13,7 @@ import transcripts as tr
 from outlook import OUT
 from public_board import _norm
 
-YEARS = range(2011, 2023)
+YEARS = range(2011, 2025)  # 2023-24 added for the fresh replication (classes 2023-25)
 
 
 def main():

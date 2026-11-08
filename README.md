@@ -1075,4 +1075,19 @@ nouns (x0.84 / x0.81), and controlling for the race-proxy probability (correlati
 who use longer words (more formal register: "testament", "grateful", "necessarily", "character") turn out worse
 than both their slot and their board rank, while going about where the board has them. Neither the board nor teams
 price it. Opposite to the essay literature (Pennebaker's analytic style predicts higher GPA). QBs: everything
-larger (26 players). Unreplicated and unexplained; replication on 2023-25 classes (partial outcomes) pending.
+larger (26 players). Unexplained; see the replication below.
+
+Is it the board rewarding polish that doesn't matter on the field (`scripts/polish_test.py`)? The pricing column
+only compares teams with the board, so it can't tell. Two direct checks: (1) against a stats-only model of board
+rank (LightGBM on measurables, production, recruiting, age; cross-fitted on 3,474 board players, corr 0.71), word
+length doesn't buy a better rank (x0.99 of stats-expected, 95% 0.92-1.07, 446 players); (2) against a stats-only
+outcome model (no rank or pick), long-word players still fall short (x0.84, p 0.01; vs consensus x0.83). So the
+board isn't overrating polished players; long words flag something the stats miss too.
+
+Fresh replication, classes 2023-25 (`scripts/transcripts_replication.py`, fixed before outcomes were seen; 2023-24
+calendar years added to the crawl: 4,467 links, 1,034 matched interviews). Word length alone, standardized with the
+discovery mean and sd, value over seasons played so far: drafted vs slot x0.95 (95% 0.84-1.07, one-sided p 0.20,
+165 players); board vs consensus x0.97 (0.86-1.09, p 0.32, 193). By class vs slot: 2023 (3 seasons) x0.87, 2024
+x1.03, 2025 x1.03. In the discovery data the effect is already x0.86 after two seasons (x0.92 after one), so the
+short window doesn't explain the miss for 2024. **Not replicated.** The interval still includes the discovery
+estimate, but the finding should be treated as likely overstated, perhaps a chance result; recheck as 2024-25 mature.
