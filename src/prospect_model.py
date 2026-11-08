@@ -31,8 +31,16 @@ import numpy as np
 import pandas as pd
 
 CF = Path.home() / "cfdarko"
-# outcome label file; scripts/grade_only_check.py swaps in data/derived/labels_gradeonly_t*.parquet
-LABEL_FILE = CF / "data/processed/rookie_value_labels.parquet"
+# Outcome label (Nov 2026): "narrow" = cfdarko's v4 label with the pick-attributable part of years 2-4 playing
+# time removed (each drafted player's year 2-4 snap share moved to what a pick-100 player of the same PFF quality
+# gets; built by scripts/pickadj_label.py narrow into data/derived, which isn't in git: run that script to
+# rebuild it). "stored" = cfdarko's label as is. Tests: scripts/sunk_cost_test.py, grade_only_check.py,
+# label_bracket.py (README "Sunk-cost playing time" and after). Environment variable LABEL overrides it.
+LABEL = os.environ.get("LABEL", "narrow")
+LABEL_FILE = {"stored": CF / "data/processed/rookie_value_labels.parquet",
+              "narrow": Path("data/derived/labels_pickadj_narrow.parquet")}[LABEL]
+if not LABEL_FILE.exists():
+    raise FileNotFoundError(f"{LABEL_FILE} missing: run `python scripts/pickadj_label.py narrow` (or set LABEL=stored)")
 OUT = Path("data/derived")
 SEASONS = [1, 2, 3, 4]
 LAST_SEASON_PLAYED = 2025

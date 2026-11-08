@@ -607,7 +607,8 @@ class RealizedV2:
         from pathlib import Path as _P
         # units: see outcomes_v2.unit_factor; pos_pay: outcomes_v2.pay_factor (None = its default)
         self.ctx, self.n, self.units, self.pos_pay = ctx, n, units, pos_pay
-        L = pd.read_parquet(_P.home() / "cfdarko/data/processed/rookie_value_labels.parquet")
+        import prospect_model as pm
+        L = pd.read_parquet(pm.LABEL_FILE)  # same label as the engine (prospect_model.LABEL)
         self.L = L.dropna(subset=["pfr_id"]).drop_duplicates("pfr_id").set_index("pfr_id")
         extra = udfa_pre2016_labels()  # 2014-2015 undrafted players, missing from cfdarko's labels
         self.L = pd.concat([self.L, extra[~extra.index.isin(self.L.index)]])

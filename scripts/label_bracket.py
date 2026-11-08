@@ -22,7 +22,7 @@ import pick_value as pv
 import prospect_model as pm
 import trade
 
-LABELS = {"stored": pm.LABEL_FILE, "narrow": pm.OUT / "labels_pickadj_narrow.parquet",
+LABELS = {"stored": pm.CF / "data/processed/rookie_value_labels.parquet", "narrow": pm.OUT / "labels_pickadj_narrow.parquet",
           "pickadj": pm.OUT / "labels_pickadj.parquet", "grade": pm.OUT / "labels_gradeonly_t20.parquet"}
 NAMES = {"stored": "stored", "narrow": "narrow (yrs 2-4)", "pickadj": "pick-adj (all yrs)", "grade": "grade-only"}
 SHOW = [1, 5, 10, 20, 32, 64, 96, 160]
@@ -65,8 +65,8 @@ def compare():
     have = [n for n in LABELS if (pm.OUT / f"bracket_{n}_pick_value.parquet").exists()]
     G = {n: pd.read_parquet(pm.OUT / f"bracket_{n}_pick_value.parquet") for n in have}
     live = pd.read_parquet(pm.OUT / "pick_value_titles.parquet")
-    chk = G["stored"].merge(live, on=["situation", "grp", "pick"], suffixes=("", "_live"))
-    print(f"stored-label rerun vs live pick_value_titles: max abs diff "
+    chk = G[pm.LABEL].merge(live, on=["situation", "grp", "pick"], suffixes=("", "_live"))
+    print(f"{pm.LABEL}-label rerun vs live pick_value_titles: max abs diff "
           f"{(chk.titles_added - chk.titles_added_live).abs().max() * 100:.4f} (% of a title)\n")
     for grp in ["nonqb", "QB"]:
         print(f"{'Typical non-QB' if grp == 'nonqb' else 'QB'} pick, titles added (% of one Super Bowl); "

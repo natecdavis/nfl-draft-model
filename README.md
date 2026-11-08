@@ -1276,6 +1276,32 @@ Value relative to pick 32 vs the stored label (contender with a veteran QB; othe
 Trade-ups gain titles 10% of the time under all four labels. No trade verdict flips under either pick correction.
 Reading: the supported (narrow) correction trims top-5 picks by ~15% relative to the late first round and lifts
 picks 64-160 by 7-18%; the rookie-season premium is the open question, and counting it all as bias roughly triples
-the trim. Not adopted yet (stored label still the default); adopting narrow would mean pointing
-`prospect_model.LABEL_FILE` at `data/derived/labels_pickadj_narrow.parquet` and rebuilding the pick-value chart,
-trade calculator and simulator tables.
+the trim. **Adopted Nov 2026** (next section).
+
+### Narrow label adopted (`prospect_model.LABEL`, Nov 2026)
+
+Default outcome label is now "narrow" (`data/derived/labels_pickadj_narrow.parquet`; data/ isn't in git, so rebuild
+it with `python scripts/pickadj_label.py narrow`). `LABEL=stored` restores cfdarko's label. The engine, the realized
+values of past picks (`review.RealizedV2`) and the position-moves table read the same file; simulator tables carry
+the label in their cache key (`_lbnarrow`). Results in the sections above were computed on the stored label
+unless they say otherwise; rerun with `LABEL=stored` to reproduce them.
+
+Rebuilt: pick values and chart, real trades, 2027 team report, past drafts 2014-26 (picks, trades, trade decisions),
+336 simulator tables, simulator page. App tests pass.
+- **Pick values** match the narrow bracket (non-QB #1 2.80 -> 2.15, #32 2.48 -> 2.25, #160 0.78 -> 0.81 % of a title,
+  contender with a veteran QB; QB #1 11.9 -> 9.6, middle of the pack).
+- **Real trades:** correlation 0.997 with before, no firm flips; trade-ups gain titles 10% of the time.
+- **2027 teams:** value of each team's firsts 1.27 -> 1.06 on average; trading down stays positive for every
+  team and gains a little for most (top picks are worth less).
+- **Past-drafts scorecard** (2014-22, model minus team, each recommendation at its first pick): round 1 +0.76 ->
+  +1.02 per recommendation, rounds 2-4 +0.05 -> +0.42, rounds 5-7 -0.11 -> -0.15. Recommendations unchanged at
+  94% / 91% / 77% of picks (rounds 1 / 2-4 / 5-7). On unchanged recommendations the new yardstick moves rounds 2-4
+  only +0.09 -> +0.11; most of the round 2-4 jump is one new recommendation: 2020 New England #37 takes Jalen Hurts
+  instead of Kyle Dugger (+28.7). That's one QB hit, not evidence of a round 2-4 edge; guidance unchanged
+  ("no tested edge after round 1").
+
+**Undrafted players** (`scripts/udfa_slope_test.py`): should the year 2-4 shift extend past the draft (pick 300)?
+Same fit with undrafted players added (1,015 seasons, 600 players). At equal quality they play -0.001 share vs the
+line extended to pick 300 (95% -0.017 to +0.014) and -0.008 vs the last pick of the draft (-0.023 to +0.007): they
+sit on the line, but the line only falls 0.006 between picks 262 and 300. Rule fixed in advance (extend only if they
+play clearly less than the last picks): not met. Left unchanged.

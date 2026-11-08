@@ -55,6 +55,7 @@ def _key(sit, year=None) -> str:
     nb = "_nbdrop" if NO_BOARD_CLASSES == "drop" else ""  # board-less classes left out (outcomes_v2)
     nb += "_mono" + MONOTONE if MONOTONE != "off" else ""  # monotone value in rank (outcomes_v2)
     nb += "_lf" if pm.LINK_FIX == "on" else ""  # training-data link repair (prospect_model)
+    nb += "" if pm.LABEL == "stored" else f"_lb{pm.LABEL}"  # outcome label (prospect_model.LABEL)
     return f"start{sit['start']:g}_qb{sit['qb_from']}_shift{sh}_fw{FALL_WEIGHT:g}_v2_{UNITS}{ho}{cc}{nb}"
 
 

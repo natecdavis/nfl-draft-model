@@ -27,7 +27,7 @@ sys.path.insert(0, "scripts")
 import prospect_model as pm
 from multisport_test import SLOT_CLASSES, expectations
 
-LABELS = {"stored": pm.LABEL_FILE, "grade-only t20": pm.OUT / "labels_gradeonly_t20.parquet",
+LABELS = {"stored": pm.CF / "data/processed/rookie_value_labels.parquet", "grade-only t20": pm.OUT / "labels_gradeonly_t20.parquet",
           "grade-only t35": pm.OUT / "labels_gradeonly_t35.parquet"}
 BANDS = [0, 10, 32, 64, 100, 160, 262]
 
@@ -66,7 +66,7 @@ def main():
         uni, R = run(path)
         unis[nm] = uni
         res[nm] = R[(R.on_board == 1) & R.drafted.astype(bool) & R.exp_cons.notna() & R.hasan_rank.notna()]
-    pm.LABEL_FILE = LABELS["stored"]
+    pm.LABEL_FILE = LABELS["stored"]  # these tests were run with the stored label as the default
 
     print("PRIMARY: team information beyond the board (board players drafted 2018-22)")
     keys = None

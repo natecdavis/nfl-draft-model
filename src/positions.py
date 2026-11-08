@@ -32,7 +32,8 @@ def moves() -> pd.DataFrame:
     if MOVES.exists():
         return pd.read_parquet(MOVES)
     from review import board, draft_night
-    L = pd.read_parquet(Path.home() / "cfdarko/data/processed/rookie_value_labels.parquet").dropna(subset=["pfr_id"])
+    import prospect_model as pm
+    L = pd.read_parquet(pm.LABEL_FILE).dropna(subset=["pfr_id"])  # NFL pricing group only; same in every label
     L = L.drop_duplicates("pfr_id").set_index("pfr_id")
     dp = pd.read_parquet(RAW / "draft_picks.parquet")
     pid = {(y, p): i for y, p, i in zip(dp.season, dp.pick, dp.pfr_player_id)}

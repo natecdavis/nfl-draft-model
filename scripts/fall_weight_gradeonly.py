@@ -19,7 +19,7 @@ import statsmodels.api as sm
 sys.path.insert(0, "src")
 import prospect_model as pm
 
-LABELS = {"stored": pm.LABEL_FILE, "grade-only t20": pm.OUT / "labels_gradeonly_t20.parquet",
+LABELS = {"stored": pm.CF / "data/processed/rookie_value_labels.parquet", "grade-only t20": pm.OUT / "labels_gradeonly_t20.parquet",
           "grade-only t35": pm.OUT / "labels_gradeonly_t35.parquet"}
 N_BOOT = 500
 
