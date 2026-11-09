@@ -1613,3 +1613,32 @@ season (grades over the games he did play), or their mean:
   more than the rule credits.
 Conclusion: the low within-position slope is mostly noise in the quality and price measures, not
 over-spread pay curves. No change.
+
+## Season-level talent model: "DARKO for PFF" (`scripts/darko_pff.py`, Nov 2026)
+
+Goal: a talent estimate that carries over from season to season better than one season's shrunk PFF grade
+(the label's q), with context removed. Per group, a state-space model on the PFF season grade (centered by
+group-season): talent follows an AR(1) path with an aging drift; the season grade = talent + beta x teammates'
+**pre-season** talent (Kalman prior; QB <- OL, receivers; RB <- OL, QB; WR/TE <- QB, OL, other receivers;
+OL <- QB; defense <- pass rushers, coverage) + gamma x schedule (opponents' pre-season talent) + noise
+(a + b x 500/snaps). Maximum likelihood on 2006-17 seasons; test on 2018-25, snaps >= 300. Output:
+`data/derived/darko_pff.parquet` (all-season fit; pre/post-season talent and SD, context term).
+
+Next-season grade, out-of-sample R^2 (all groups pooled):
+
+| | Label's q (last season, shrunk) | Filter, no context | Context-adjusted talent | + new team's context |
+|---|---|---|---|---|
+| Movers (1,655) | 0.082 | 0.139 | 0.138 | 0.141 |
+| Stayers (5,300) | 0.245 | 0.303 | 0.304 | 0.308 |
+
+- The filter (multi-season history, snap-based reliability, aging, mean reversion rho 0.79 RB to 0.97 QB)
+  beats the label's q in every group, movers and stayers; also predicts movers' next-season snaps a
+  little better (e.g. DL 0.112 -> 0.137, WR 0.145 -> 0.160).
+- Context is real but small when measured from teammates' pre-season talent (grade points per SD):
+  WR <- QB +1.2, other receivers -1.1 (target competition); TE <- QB +0.9; RB <- QB +0.8; QB <- OL +0.6,
+  receivers +0.5; LB/DB <- coverage +0.8; EDGE <- pass rush +0.5; schedule -0.1 to -0.6. The earlier
+  team-changer regression on teammates' same-season grades gave 2-4x larger effects (QB <- receivers +4.5):
+  mostly shared team-season shocks / credit sharing, not transferable context.
+- Adding context barely moves prediction (movers +0.002); WR movers get worse (0.264 -> 0.221).
+Conclusion: the gain is the history filter, not context adjustment. Candidate to replace q in the
+label (not adopted yet; the entrant prior must not use draft slot).
