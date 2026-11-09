@@ -1642,3 +1642,23 @@ Next-season grade, out-of-sample R^2 (all groups pooled):
 - Adding context barely moves prediction (movers +0.002); WR movers get worse (0.264 -> 0.221).
 Conclusion: the gain is the history filter, not context adjustment. Candidate to replace q in the
 label (not adopted yet; the entrant prior must not use draft slot).
+
+### Talent-model quality in the label (`scripts/darko_label.py`, `scripts/darko_label_check.py`)
+
+Narrow label rebuilt with q = within-(group x season) percentile of the smoothed talent (rookie-deal seasons
+look ahead only to the end of year 4; entrant prior is one group-wide mean, no draft slot; seasons with snaps
+but no PFF row keep the old neutral q). Chains now follow a player across DL/EDGE/LB/DB and WR/TE (438 position
+flips had restarted his history); movers-test results unchanged. Pick correction re-estimated: -0.047 per
+log(pick+10) (was -0.049). New q correlates 0.735 with the old; the label's 4-year value 0.985 (rank 0.989).
+
+Drafted classes 2011-21, label value vs yardsticks (percentiles within group x class; bootstrap CI):
+
+| Yardstick | Stored | Narrow | Talent-model label | Difference vs narrow |
+|---|---|---|---|---|
+| Second-contract pay (2,736) | 0.787 | 0.788 | 0.791 | +0.003 (-0.001 to +0.007) |
+| Consensus board rank (1,641) | 0.516 | 0.494 | 0.485 | -0.009 (-0.016 to -0.001) |
+
+- The label is mostly playing time; a better quality measure barely moves it. The biggest changes are
+  heavily used, poorly graded QBs (Darnold 0.25 -> 0.12, Bortles 0.37 -> 0.25, Brissett, Trubisky).
+- Value falls 5-9% outside the top 10 picks, so top-10 picks gain slightly relative to the rest.
+Not adopted: ties the outside yardsticks. Available as `LABEL=darko`.

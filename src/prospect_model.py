@@ -42,7 +42,9 @@ LABEL_FILE = {"stored": CF / "data/processed/rookie_value_labels.parquet",
               # test: narrow label minus market-fit position replacement levels (scripts/repl_label.py)
               "repl": Path("data/derived/labels_pickadj_narrow_repl.parquet"),
               "repl_eb": Path("data/derived/labels_pickadj_narrow_repl_eb.parquet"),
-              "repl_pooled": Path("data/derived/labels_pickadj_narrow_repl_pooled.parquet")}[LABEL]
+              "repl_pooled": Path("data/derived/labels_pickadj_narrow_repl_pooled.parquet"),
+              # test: narrow label with season-talent-model quality (scripts/darko_pff.py, darko_label.py)
+              "darko": Path("data/derived/labels_pickadj_narrow_darko.parquet")}[LABEL]
 if not LABEL_FILE.exists():
     raise FileNotFoundError(f"{LABEL_FILE} missing: run `python scripts/pickadj_label.py narrow` (or set LABEL=stored)")
 OUT = Path("data/derived")

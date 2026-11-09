@@ -9,7 +9,8 @@ ctx = snap-weighted PRE-SEASON talent (Kalman prior) of the player's teammates i
 (own contribution excluded, centered by season): QB <- OL, receivers; RB <- OL, QB; WR/TE <- QB, OL,
 other receivers; OL <- QB; DL/EDGE/LB/DB <- pass rushers, coverage. opp = schedule-average pre-season
 talent of opponents' other side of the ball. Using priors, not same-season grades, keeps the context
-causal (no shared-shock co-movement, no feedback). Chains are (player, group); a group change restarts.
+causal (no shared-shock co-movement, no feedback). Chains are (player, grade family: QB, RB, receivers, OL,
+defense), so DL/EDGE/LB/DB and WR/TE moves keep their history; each season uses its own group's parameters.
 
 Fit: Gaussian one-step-ahead likelihood, parameters by group, coordinate passes (ctx recomputed from
 the latest priors between passes). Burn-in 2006, likelihood on 2007-2017, test on 2018-2025.
@@ -21,7 +22,10 @@ Movers test (test seasons, snaps >= 300, chain seen before, team != team at last
   talent  : full model's prior talent alone (no context term)
 Also stayers, and next-season log snaps from the talent alone (team's judgment, not PFF).
 
-Usage: python scripts/darko_pff.py            # validate + write data/derived/darko_pff.parquet (all-season fit)
+Output (all-season fits, without and with context): filtered talent and a Rauch-Tung-Striebel smoothed talent
+(talent_smooth: all seasons; talent_win: rookie-deal seasons look ahead only to the end of year 4).
+
+Usage: python scripts/darko_pff.py            # validate + write data/derived/darko_pff.parquet (~7 min)
 """
 from pathlib import Path
 
@@ -78,7 +82,7 @@ def load():
     s["age"] = (s.season + 0.7 - bd.dt.year - bd.dt.dayofyear / 365).fillna(26.0).clip(20, 42)
     s = s.sort_values(["season", "g", "player_id"]).reset_index(drop=True)
     # chain bookkeeping: previous obs of the same (player, group)
-    s["chain"] = s.groupby(["player_id", "g"]).ngroup()
+    s["chain"] = s.groupby(["player_id", s.g.map(FAM)]).ngroup()
     grp = s.groupby("chain")
     s["prev_season"] = grp.season.shift()
     s["prev_tm"] = grp.tm.shift()
@@ -108,40 +112,87 @@ def init(g):
     return np.r_[2.0, np.log(3.0), np.log(10.0), np.log(20.0), -3.0, np.log(6.0), 0.0, 0.0, np.zeros(NB[g]), 0.0]
 
 
-# ---------------------------------------------------------------- filter (one group, ctx fixed)
-def filt(th, G, X, opp, use_ctx=True):
-    """G: one group's obs (season-sorted, 0..n-1 positions), X: n x k ctx, opp: n.
-    Returns prior mean/var, obs noise R, context term, posterior mean/var, loglik contributions."""
-    p = unpack(th, G.g.iat[0])
-    n = len(G)
-    chain = G.chain.to_numpy(); season = G.season.to_numpy(); age = G.age.to_numpy()
-    z = G.z.to_numpy(); snaps = np.maximum(G.snaps.to_numpy(), 10)
+# ---------------------------------------------------------------- filter (all groups)
+FAM = {"QB": "QB", "RB": "RB", "WR": "REC", "TE": "REC", "OL": "OL", "DL": "DEF", "EDGE": "DEF", "LB": "DEF", "DB": "DEF"}
+
+
+def row_params(thetas, s):
+    """Per-row parameter arrays from each row's group (transition into a season uses that season's group)."""
+    gi = s.g.map({g: i for i, g in enumerate(GROUPS)}).to_numpy()
+    P = np.array([[unpack(thetas[g], g)[k] for k in ["rho", "tau", "a", "b", "mu0", "s0", "c1", "c2"]]
+                  for g in GROUPS])
+    return {k: P[gi, j] for j, k in enumerate(["rho", "tau", "a", "b", "mu0", "s0", "c1", "c2"])}
+
+
+def ctx_term(thetas, s, C, use_ctx):
+    ct = np.zeros(len(s))
+    if use_ctx:
+        for g in GROUPS:
+            m = s.g.to_numpy() == g
+            p = unpack(thetas[g], g)
+            ct[m] = C.loc[m, CTX[g]].to_numpy() @ p["beta"] + p["gamma"] * C.loc[m, "opp"].to_numpy()
+    return ct
+
+
+def filt(thetas, s, C, use_ctx=True):
+    """Kalman filter over all rows (season-sorted); chains are (player, grade family), so DL/EDGE/LB/DB moves
+    keep their history. Returns per-row prior mean/var, obs noise R, context term, posterior, loglik."""
+    p = row_params(thetas, s)
+    n = len(s)
+    chain = s.chain.to_numpy(); season = s.season.to_numpy(); age = s.age.to_numpy()
+    z = s.z.to_numpy(); snaps = np.maximum(s.snaps.to_numpy(), 10)
     nc = chain.max() + 1
     m = np.full(nc, np.nan); P = np.full(nc, np.nan); last = np.full(nc, -1)
     mp, Pp, mo, Po, ll = (np.empty(n) for _ in range(5))
     R = p["a"] + p["b"] * 500 / snaps
-    cterm = (X @ p["beta"] + p["gamma"] * opp) if use_ctx else np.zeros(n)
+    cterm = ctx_term(thetas, s, C, use_ctx)
     bounds = np.r_[0, np.flatnonzero(np.diff(season)) + 1, n]
-    r2 = p["rho"] ** 2
     for lo, hi in zip(bounds[:-1], bounds[1:]):
-        c = chain[lo:hi]; y = season[lo]
+        c = chain[lo:hi]; y = season[lo]; sl = slice(lo, hi)
+        rho, tau = p["rho"][sl], p["tau"][sl]
         seen = last[c] >= 0
         k = np.where(seen, y - last[c], 0)
-        rk = p["rho"] ** k
-        drift = k * (p["c1"] + p["c2"] * (age[lo:hi] - 0.5 * k - 26))
-        mpr = np.where(seen, rk * m[c] + drift, p["mu0"])
-        Ppr = np.where(seen, rk ** 2 * P[c] + p["tau"] ** 2 * (1 - rk ** 2) / (1 - r2), p["s0"] ** 2)
-        S = Ppr + R[lo:hi]
-        v = z[lo:hi] - mpr - cterm[lo:hi]
+        rk = rho ** k
+        drift = k * (p["c1"][sl] + p["c2"][sl] * (age[sl] - 0.5 * k - 26))
+        mpr = np.where(seen, rk * m[c] + drift, p["mu0"][sl])
+        Ppr = np.where(seen, rk ** 2 * P[c] + tau ** 2 * (1 - rk ** 2) / (1 - rho ** 2), p["s0"][sl] ** 2)
+        S = Ppr + R[sl]
+        v = z[sl] - mpr - cterm[sl]
         Kg = Ppr / S
-        mp[lo:hi], Pp[lo:hi] = mpr, Ppr
-        mo[lo:hi] = mpr + Kg * v; Po[lo:hi] = (1 - Kg) * Ppr
-        ll[lo:hi] = -0.5 * (np.log(2 * np.pi * S) + v ** 2 / S)
-        m[c], P[c], last[c] = mo[lo:hi], Po[lo:hi], y
+        mp[sl], Pp[sl] = mpr, Ppr
+        mo[sl] = mpr + Kg * v; Po[sl] = (1 - Kg) * Ppr
+        ll[sl] = -0.5 * (np.log(2 * np.pi * S) + v ** 2 / S)
+        m[c], P[c], last[c] = mo[sl], Po[sl], y
     return dict(mp=mp, Pp=Pp, R=R, cterm=cterm, mo=mo, Po=Po, ll=ll)
 
 
-# ---------------------------------------------------------------- context from priors
+def fit(s, sp, train_end, use_ctx=True, passes=3, log=True):
+    """Coordinate passes: each group's parameters by maximum likelihood on its own train rows, holding the
+    other groups' parameters (and the context, from the latest priors) fixed."""
+    thetas = {g: init(g) for g in GROUPS}
+    C = context(s, np.zeros(len(s)), sp)
+    yr = s.season.to_numpy(); grp = s.g.to_numpy()
+    for it in range(passes):
+        tot = 0.0
+        for g in GROUPS:
+            tr = (grp == g) & (yr > FIRST) & (yr <= train_end)
+            nb = NB[g] + 1
+
+            def nll(th):
+                t = dict(thetas); t[g] = th if use_ctx else np.r_[th, np.zeros(nb)]
+                return -filt(t, s, C, use_ctx)["ll"][tr].sum()
+            th0 = thetas[g] if use_ctx else thetas[g][:8]
+            r = minimize(nll, th0, method="L-BFGS-B")
+            thetas[g] = r.x if use_ctx else np.r_[r.x, np.zeros(nb)]
+            tot += r.fun
+        if log:
+            print(f"  pass {it + 1} ({'ctx' if use_ctx else 'no ctx'}): train -loglik {tot:,.0f}", flush=True)
+        if use_ctx:
+            C = context(s, filt(thetas, s, C, use_ctx)["mp"], sp)
+    f = filt(thetas, s, C, use_ctx)
+    return thetas, pd.DataFrame({k: f[k] for k in ["mp", "Pp", "R", "cterm", "mo", "Po", "ll"]}, index=s.index), C
+
+
 def context(s, prior, sp):
     """prior: array of pre-season talent per row of s. Returns ctx unit columns and opp per row."""
     w = s.snaps.to_numpy(); m = prior
@@ -174,51 +225,6 @@ def context(s, prior, sp):
 
 
 # ---------------------------------------------------------------- fitting
-def fit(s, sp, train_end, use_ctx=True, passes=3, log=True):
-    thetas = {g: init(g) for g in GROUPS}
-    prior = np.zeros(len(s))
-    C = context(s, prior, sp)
-    for it in range(passes if use_ctx else 1):
-        tot = 0.0
-        for g in GROUPS:
-            idx = np.flatnonzero(s.g.to_numpy() == g)
-            G = s.iloc[idx]
-            X = C[CTX[g]].to_numpy()[idx]; op = C["opp"].to_numpy()[idx]
-            tr = (G.season.to_numpy() > FIRST) & (G.season.to_numpy() <= train_end)
-
-            def nll(th):
-                f = filt(th, G, X, op, use_ctx)
-                return -f["ll"][tr].sum()
-            th0 = thetas[g].copy()
-            if not use_ctx:
-                th0[8:] = 0.0
-            if use_ctx:
-                r = minimize(nll, th0, method="L-BFGS-B")
-            else:  # optimize only the non-context parameters
-                r = minimize(lambda t8: nll(np.r_[t8, np.zeros(NB[g] + 1)]), th0[:8], method="L-BFGS-B")
-                r.x = np.r_[r.x, np.zeros(NB[g] + 1)]
-            thetas[g] = r.x
-            prior[idx] = filt(r.x, G, X, op, use_ctx)["mp"]
-            tot += r.fun
-        if log:
-            print(f"  pass {it + 1} ({'ctx' if use_ctx else 'no ctx'}): train -loglik {tot:,.0f}", flush=True)
-        if use_ctx:
-            C = context(s, prior, sp)
-    # final run with the last ctx
-    res = {}
-    for g in GROUPS:
-        idx = np.flatnonzero(s.g.to_numpy() == g)
-        G = s.iloc[idx]
-        f = filt(thetas[g], G, C[CTX[g]].to_numpy()[idx], C["opp"].to_numpy()[idx], use_ctx)
-        res[g] = (idx, f)
-    cols = {k: np.full(len(s), np.nan) for k in ["mp", "Pp", "R", "cterm", "mo", "Po", "ll"]}
-    for g, (idx, f) in res.items():
-        for k in cols:
-            cols[k][idx] = f[k]
-    return thetas, pd.DataFrame(cols, index=s.index), C
-
-
-# ---------------------------------------------------------------- evaluation
 def r2(y, p):
     return 1 - np.sum((y - p) ** 2) / np.sum((y - y.mean()) ** 2)
 
@@ -300,13 +306,61 @@ def main():
     print(R.round(3).to_string(index=False))
     print("\n== movers: next-season log snaps (team's judgment), calibrated with prior log snaps ==")
     print(S.round(3).to_string(index=False))
-    # final all-season fit -> output table
-    print("\nall-season fit for output table ...")
-    th_all, fa, _ = fit(s, sp, LAST, use_ctx=True, log=False)
+    write_output(s, sp)
+
+
+def entry_year(s):
+    """First NFL season: players.parquet rookie_season/draft_year by PFF id, else first PFF season seen
+    (NaN if first seen in the burn-in year FIRST: may have entered earlier)."""
+    pl = pd.read_parquet(ROOT / "data/raw/players.parquet")[["pff_id", "rookie_season", "draft_year"]]
+    pl = pl.dropna(subset=["pff_id"]).assign(pff_id=lambda d: d.pff_id.astype(int)).drop_duplicates("pff_id")
+    e = pl.set_index("pff_id").rookie_season.fillna(pl.set_index("pff_id").draft_year)
+    first = s.groupby("player_id").season.transform("min")
+    out = s.player_id.map(e).astype(float)
+    return out.fillna(first.where(first > FIRST).astype(float))
+
+
+def smooth(s, f, thetas, win_end):
+    """Rauch-Tung-Striebel smoother per chain. win_end (per row): for seasons <= win_end, look ahead only
+    to seasons <= win_end (rookie-deal window); later seasons use every later season."""
+    rho = row_params(thetas, s)["rho"]
+    chain, season = s.chain.to_numpy(), s.season.to_numpy()
+    nxt = pd.Series(np.arange(len(s))).groupby(chain).shift(-1).to_numpy()  # rows are season-sorted
+    has = ~np.isnan(nxt)
+    n_ = np.where(has, nxt, 0).astype(int)
+    cut = (season <= win_end) & (season[n_] > win_end)  # NaN window -> False -> no cut
+    use = has & ~cut
+    mo, Po, mp, Pp = (f[k].to_numpy() for k in ["mo", "Po", "mp", "Pp"])
+    m_s, P_s = mo.copy(), Po.copy()
+    for y in sorted(np.unique(season))[::-1]:
+        j = np.flatnonzero((season == y) & use)
+        if len(j) == 0:
+            continue
+        n = n_[j]
+        J = Po[j] * rho[n] ** (season[n] - y) / Pp[n]  # transition into n uses n's group parameters
+        m_s[j] = mo[j] + J * (m_s[n] - mp[n])
+        P_s[j] = Po[j] + J ** 2 * (P_s[n] - Pp[n])
+    return m_s, P_s
+
+
+def write_output(s, sp):
+    """All-season fits (no context = label default; context variant alongside), filtered and smoothed."""
+    print("\nall-season fits for output table ...")
     o = s[["player_id", "player", "season", "g", "tm", "age", "snaps", "grade", "z", "mover"]].copy()
-    o["talent_pre"], o["talent_pre_sd"] = fa.mp, np.sqrt(fa.Pp)
-    o["talent_post"], o["talent_post_sd"] = fa.mo, np.sqrt(fa.Po)
-    o["context_term"] = fa.cterm
+    o["entry"] = entry_year(s)
+    win_end = (o.entry + 3).to_numpy(float)
+    for tag, use_ctx in [("", False), ("_ctx", True)]:
+        th, f, _ = fit(s, sp, LAST, use_ctx=use_ctx, log=False)
+        o["talent_pre" + tag], o["talent_pre_sd" + tag] = f.mp, np.sqrt(f.Pp)
+        o["talent_post" + tag], o["talent_post_sd" + tag] = f.mo, np.sqrt(f.Po)
+        ms, Ps = smooth(s, f, th, np.full(len(s), np.nan))
+        o["talent_smooth" + tag], o["talent_smooth_sd" + tag] = ms, np.sqrt(Ps)
+        mw, Pw = smooth(s, f, th, win_end)
+        o["talent_win" + tag], o["talent_win_sd" + tag] = mw, np.sqrt(Pw)
+        if use_ctx:
+            o["context_term"] = f.cterm
+    print(f"  entry year known for {o.entry.notna().mean():.1%} of rows; corr(window, full smooth) "
+          f"{o.talent_win.corr(o.talent_smooth):.3f}; corr(window, ctx window) {o.talent_win.corr(o.talent_win_ctx):.3f}")
     o.to_parquet(OUT, index=False)
     print(f"wrote {OUT.relative_to(ROOT)} ({len(o):,} rows)")
 
