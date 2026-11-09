@@ -1512,3 +1512,35 @@ pricing group), vs what the current rule credits him in the rookie currency:
 - Replacements look alike everywhere (gain-weighted prior share 0.29-0.36, quality q ~0.5, 15-25% new),
   so the edge result isn't from unusually good backups.
 The x0.42 flat factor over-penalizes good edge rushers; a position-specific replacement level fits better.
+
+### Position replacement levels fit to the market, and choice test (`scripts/replacement_market.py`, `scripts/repl_label.py`, `CHOICE_VARIANT=repl scripts/market_choice.py`)
+
+Fit: each absent starter's worth over replacement = current credit (rookie currency, prior-season quality)
+- rate x r_g x snap share; spread + credit difference on team-season ratings and share-weighted absences.
+Extra replacement level r_g, % of cap per full season of snaps (spread; 95%):
+
+| QB | RB | WR | TE | OL | IDL | EDGE | LB | DB |
+|---|---|---|---|---|---|---|---|---|
+| 2.45 (1.7 to 3.2) | 3.19 (0.5 to 5.9) | 2.08 (1.0 to 3.2) | 0.02 (-1.9 to 1.9) | 0.63 (-0.2 to 1.5) | 2.23 (-0.6 to 5.0) | 5.21 (3.8 to 6.7) | 0.48 (-0.9 to 1.9) | 1.10 (0.3 to 1.9) |
+
+(Actual margins give similar or larger levels, noisier. Fit consistently through the regression, the
+per-position gaps differ a little from the simple means used for the x factors above: e.g. WR credit
+exceeds the market by 0.24, not 0.04. Freeing the slope on the credit gives 0.31 (0.16 to 0.46): within
+positions the curve spreads credit far more than the market does, which no replacement level fixes.)
+
+Label `repl` (prospect_model.LABEL; value_t minus r_g x share_t x games fraction, floored at 0; pre-2013
+seasons use the share implied by value) cuts 4-season value of drafted players 2014-22: EDGE x0.25, RB x0.30,
+IDL x0.55, WR x0.65, DB x0.70, QB x0.79, OL x0.83, LB x0.84, TE x1.00.
+
+| R - B, per team-draft (288) | |
+|---|---|
+| Titles, repl scoring | +0.62 (+0.41 to +0.82) |
+| Titles, current scoring | -0.10 (-0.39 to +0.17) |
+| PFR AV | +1.4 (-2.0 to +4.8); rounds 2-4 +3.7, rounds 5-7 -2.5 |
+| Seasons started | +1.31 (+0.82 to +1.78) |
+| 2nd-contract pay | -1.17 (-1.86 to -0.51) |
+| Same choice | 32% |
+
+Same verdict as the flat factors: ties today's model on its titles, more starts, less pay. EDGE vanishes
+again, and TEs (the one position with r ~ 0, CI +-1.9) jump to 26% of rounds 2-4 and 36% of rounds 5-7
+picks: the choices chase whichever position's noisy estimate is lowest. Not adopted.

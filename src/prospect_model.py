@@ -38,7 +38,9 @@ CF = Path.home() / "cfdarko"
 # label_bracket.py (README "Sunk-cost playing time" and after). Environment variable LABEL overrides it.
 LABEL = os.environ.get("LABEL", "narrow")
 LABEL_FILE = {"stored": CF / "data/processed/rookie_value_labels.parquet",
-              "narrow": Path("data/derived/labels_pickadj_narrow.parquet")}[LABEL]
+              "narrow": Path("data/derived/labels_pickadj_narrow.parquet"),
+              # test: narrow label minus market-fit position replacement levels (scripts/repl_label.py)
+              "repl": Path("data/derived/labels_pickadj_narrow_repl.parquet")}[LABEL]
 if not LABEL_FILE.exists():
     raise FileNotFoundError(f"{LABEL_FILE} missing: run `python scripts/pickadj_label.py narrow` (or set LABEL=stored)")
 OUT = Path("data/derived")

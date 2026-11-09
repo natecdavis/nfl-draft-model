@@ -20,9 +20,13 @@ STEP = sys.argv[1] if len(sys.argv) > 1 else "report"
 MODE = sys.argv[2] if STEP == "build" else "base"
 os.environ["OUTCOME_UNITS"] = "single"
 os.environ["POS_PAY"] = "market" if MODE == "market" else "off"
+if MODE == "repl":
+    os.environ["LABEL"] = "repl"
 SHRINK = os.environ.get("MARKET_SHRINK", "")
 MKT_DIR = "market_tables" + (f"_s{SHRINK}" if SHRINK else "")
-os.environ["NEED_TABLE_DIR"] = MKT_DIR if MODE == "market" else "units_tables_narrow"
+VARIANT = os.environ.get("CHOICE_VARIANT", "market")  # which alternative the choose/report steps compare
+ALT_DIR = MKT_DIR if VARIANT == "market" else "repl_tables"
+os.environ["NEED_TABLE_DIR"] = {"market": MKT_DIR, "repl": "repl_tables"}.get(MODE, "units_tables_narrow")
 os.environ["NEED_LEVELS"] = "current"
 sys.path.insert(0, "src")
 sys.path.insert(0, "scripts")
@@ -40,7 +44,7 @@ VERSIONS = {"B": ("greedy", "single_narrow", "prob"), "M": ("greedy", "single_ma
 def _init():
     pc.VERSIONS = VERSIONS
     pc.TABLE_DIR["single_narrow"] = OUT / "units_tables_narrow"
-    pc.TABLE_DIR["single_market"] = OUT / MKT_DIR
+    pc.TABLE_DIR["single_market"] = OUT / ALT_DIR
 
 
 def sits():
@@ -66,16 +70,20 @@ def choose(workers):
     import outcomes_v2
     outcomes_v2.POS_PAY = "off"
     P = pc.score(P)  # t_single / t_family without factors, AV, starts, 2nd-contract pay
-    outcomes_v2.POS_PAY = "market"
     from review import RealizedV2
+    import prospect_model as pm
+    if VARIANT == "repl":
+        pm.LABEL_FILE = OUT / "labels_pickadj_narrow_repl.parquet"
+    else:
+        outcomes_v2.POS_PAY = "market"
     from simulator import situation
     from trade import Context
     St = pd.read_parquet(OUT / "review_states.parquet")
     sit = {(r.year, r.team): situation(r) for _, r in St.iterrows()}
-    R = RealizedV2(Context(), units="single", pos_pay=True)
+    R = RealizedV2(Context(), units="single", pos_pay=VARIANT == "market")
     P["t_market"] = [R.titles(sit[(y, tm)], g, y, at, k, nm) for y, tm, g, at, k, nm in
                      zip(P.year, P.team, P.grp, P.drafted_at, P.pick, P.player)]
-    P.to_parquet(OUT / f"market_choice{'_s' + SHRINK if SHRINK else ''}.parquet")
+    P.to_parquet(OUT / f"{VARIANT}_choice{'_s' + SHRINK if SHRINK else ''}.parquet")
     report(P)
 
 
@@ -83,7 +91,7 @@ def report(P):
     U = pd.read_parquet(OUT / "units_choice.parquet")
     rnd = dict(zip(zip(U.year, U.pick), U["round"]))
     P["round"] = [rnd.get((y, k)) for y, k in zip(P.year, P.pick)]
-    M = [("t_market", "titles, market factors"), ("t_single", "titles, current"), ("av", "PFR AV"),
+    M = [("t_market", f"titles, {VARIANT} scoring"), ("t_single", "titles, current"), ("av", "PFR AV"),
          ("gs", "seasons started"), ("pay", "2nd-contract pay, % cap")]
     for m, _ in M:
         P[m] = P[m].fillna(0.0)
@@ -120,4 +128,4 @@ if __name__ == "__main__":
     elif STEP == "choose":
         choose(w)
     else:
-        report(pd.read_parquet(OUT / f"market_choice{'_s' + SHRINK if SHRINK else ''}.parquet"))
+        report(pd.read_parquet(OUT / f"{VARIANT}_choice{'_s' + SHRINK if SHRINK else ''}.parquet"))
