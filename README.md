@@ -1700,3 +1700,36 @@ players with >= 100 plays both seasons):
   role (target depth) more than skill.
 Conclusion: no play-level gain over PFF; PFF is the better per-player signal. Untested: RAPM with a PFF
 prior (would mostly reproduce PFF), multi-season RAPM.
+
+## Running backs: pass game (`scripts/rb_passgame_test.py`, Nov 2026)
+
+Starting point: an RB's on-field effect on pass plays follows him to a new team (RAPM, movers 0.25 vs stayers
+0.27; 89 movers), on run plays it doesn't (-0.00 / 0.07), and the market prices a missing starting RB at only
+0.33 pts (actual margin -0.11). Two questions, tests pre-specified in the script.
+
+**Do pass-catching backs help on net, or do their targets displace better WR targets?** (2016-25)
+- EPA per target: RB 0.03, TE 0.21, WR 0.23. RB targets are worth far less (partly checkdowns when
+  nothing else is open, so the alternative isn't always a WR target).
+- RB pass-play RAPM on same-season PFF traits (per SD, EPA x100, 690 RB-seasons): target rate -0.19 (t -6.0),
+  receiving grade +0.15 (t +5.4), pass-block grade +0.03, pass-block rate -0.09 (t -3.5). Next season (what
+  persists): target rate -0.12 (t -2.8), receiving grade +0.07 (t +1.6). Top-quartile target-rate RBs average
+  -0.06 vs bottom quartile +0.16. Volume hurts, receiving skill helps: the displacement claim holds for
+  target share at the same skill, but a good receiving back is still a plus. Sizes are tiny (about -0.002
+  EPA per pass play per SD, under 0.1 pts/game; ridge shrinkage understates them).
+
+**Do college pass-game traits pick RBs who beat slot / consensus?** (label: narrow)
+
+| Per SD (RBs) | Pricing vs board | Value vs slot 2016-22 | Value vs consensus 2018-22 |
+|---|---|---|---|
+| College receiving share (receptions / touches) | x1.03 (p 0.09) | x0.97 (p 0.67) | x1.04 (p 0.56) |
+| PFF college receiving grade (best) | x1.00 | x1.15 (1.04-1.27, p 0.01) | x1.11 (p 0.14) |
+| PFF college pass-block grade (best) | x1.03 | x1.01 (p 0.94) | x1.33 (1.06-1.66, p 0.01) |
+
+- Nothing passes the pre-set bar (p < 0.008 for 3 traits x 2 yardsticks); ~150 RBs per test.
+- Transfer (92 drafted RBs, NFL years 1-4): college receiving share predicts NFL target rate (0.44) and
+  receiving grade (0.33), not pass-play RAPM (-0.05). College pass-block grade predicts nothing in the NFL
+  (NFL pass-block grade -0.09), so its x1.33 vs consensus isn't pass blocking: likely noise.
+- The label credits snaps at veteran pay, so receiving-grade RBs' x1.15 may be third-down playing time
+  rather than wins.
+Conclusion: RB value in the pass game is real but small; volume (targets) is the wrong thing to want.
+Lead to recheck when 2023-24 mature: PFF college receiving grade vs slot. No model change.
