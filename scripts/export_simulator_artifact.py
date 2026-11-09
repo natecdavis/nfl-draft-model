@@ -25,7 +25,8 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from review import OFF_BOARD_RANK, K_GRID, T_GRID  # noqa: E402
-from simulator import FALL_WEIGHT, TABLE_DIR, _key, pool, situation  # noqa: E402
+from simulator import FALL_WEIGHT, TABLE_DIR, _key, _spec, get_table, pool, situation  # noqa: E402
+from specialists import POS_TO_GROUP, SPEC_GROUPS  # noqa: E402
 from outlook import GROUPS, OUT, RAW  # noqa: E402
 from positions import weights  # noqa: E402
 
@@ -33,13 +34,14 @@ TEMPLATE = Path(__file__).resolve().parent / "simulator_artifact.html"
 DEST = OUT / "artifact" / "draft_simulator.html"
 SCALE = 100_000  # tables stored as int16 = value (fraction of a title) x SCALE
 REAL_SCALE = 1000  # realized titles stored as int16 = % of a title x REAL_SCALE; missing = -32768
-REAL_CACHE = OUT / "sim_realized_v3.npz"  # v2: recent drafts scored "so far"; v3: real positions
+REAL_CACHE = OUT / "sim_realized_v4.npz"  # v2: recent drafts scored "so far"; v3: real positions; v4: K/P
 
 
 def realized_arrays(S, R, verbose=False) -> dict:
     """{"year_team": (picks, pool players) realized titles in % of one}, every draft with at least
     one season played; drafts after 2022 are scored on the seasons played so far."""
-    stamp = max((OUT / f).stat().st_mtime for f in ["review_states.parquet", "review_picks.parquet"])
+    stamp = max((OUT / f).stat().st_mtime for f in ["review_states.parquet", "review_picks.parquet",
+                                                     "specialist_entrants.parquet", "specialist_engine.json"])
     if REAL_CACHE.exists() and REAL_CACHE.stat().st_mtime > stamp:
         z = np.load(REAL_CACHE)
         return {k: z[k] for k in z.files}
@@ -68,6 +70,7 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
     from review import Careers
     car = Careers()  # starts / AV, undrafted players included
     dp = pd.read_parquet(RAW / "draft_picks.parquet")  # latest AV season
+    dpos = {y: dict(zip(g.pick, g.position)) for y, g in dp.groupby("season")}
     num = lambda x, nd=3: None if pd.isna(x) else round(float(x), nd)
 
     real = realized_arrays(S, R, verbose)
@@ -78,12 +81,20 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
         k = _key(sit, r.year)
         if k not in keys:
             z = np.load(TABLE_DIR / f"{k}.npz")
-            arr = np.stack([z[g] for g in GROUPS])  # (groups, 3 levels, T, K)
+            sp = _spec(sit, r.year)  # kickers / punters (src/specialists.py)
+            arr = np.stack([z[g] for g in GROUPS] + [sp[g] for g in SPEC_GROUPS])  # (groups, 3 levels, T, K)
             q = np.round(arr * SCALE)
             assert np.abs(q).max() < 32767
             keys[k] = len(blobs)
             blobs.append(q.astype("<i2").tobytes())
-        mine = R[(R.year == r.year) & (R.team == r.team)].sort_values("pick")
+        mine = R[(R.year == r.year) & (R.team == r.team)].sort_values("pick").copy()
+        # the team's own kickers / punters: their group and draft-night value (the review leaves them out)
+        spos = mine.pick.map(dpos.get(int(r.year), {})).astype(str).str.upper().map(POS_TO_GROUP)
+        if spos.notna().any():
+            tab = get_table(sit, year=int(r.year))
+            for i in spos.index[spos.notna()]:
+                mine.at[i, "grp"] = spos[i]
+                mine.at[i, "value_actual"] = tab.lookup(spos[i], 0, mine.at[i, "pick"], mine.at[i, "pick"]) * 100
         teams.setdefault(str(int(r.year)), {})[r.team] = {
             "qb": r.qb, "status": r.status, "strength": num(r.strength_prior, 1),
             "qb_from": None if pd.isna(r.qb_from) else int(r.qb_from), "p_need": num(r.p_need, 2),
@@ -102,10 +113,11 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
             T = teams[y][tm]
             T["real"], T["seasons"] = roff, played.get(y, 4)
             rblobs.append(q.tobytes()); roff += q.size
-            if int(y) > 2022:  # the review doesn't score these: the team's own pick, from the same array
-                P = pool_cache.setdefault(y, pool(int(y)))
-                at = P.drafted_at.to_numpy()
-                for j, pk in enumerate(T["picks"]):
+            # the review doesn't score drafts after 2022 or specialists: the team's own pick, from the same array
+            P = pool_cache.setdefault(y, pool(int(y)))
+            at = P.drafted_at.to_numpy()
+            for j, pk in enumerate(T["picks"]):
+                if int(y) > 2022 or (pk[8] is None and pk[5] in SPEC_GROUPS):
                     i = np.flatnonzero(at == pk[0])
                     pk[8] = num(a[j, i[0]]) if len(i) else None
     pools, blends = {}, {}
@@ -121,7 +133,7 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
                                if not (len(ws) == 1)}
         if verbose:
             print(f"{y}: {len(P)} players", flush=True)
-    meta = {"groups": GROUPS, "T": T_GRID.tolist(), "K": K_GRID.tolist(), "fw": FALL_WEIGHT, "off": OFF_BOARD_RANK,
+    meta = {"groups": GROUPS + SPEC_GROUPS, "T": T_GRID.tolist(), "K": K_GRID.tolist(), "fw": FALL_WEIGHT, "off": OFF_BOARD_RANK,
             "scale": SCALE, "real_scale": REAL_SCALE, "blends": blends, "n_tables": len(blobs), "latest_av_season": int(dp.season.max())}
     data = json.dumps({"meta": meta, "teams": teams, "pools": pools}, separators=(",", ":"), ensure_ascii=False)
     b64 = lambda b: base64.b64encode(gzip.compress(b, 9)).decode()

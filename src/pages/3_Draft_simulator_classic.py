@@ -13,7 +13,7 @@ from simulator import GROUPS, OUT, get_table, options, pool, situation, value_of
 
 st.set_page_config(page_title="Draft simulator (classic)", layout="wide")
 TOP_N = 15
-LABEL = {"T": "OT", "G": "OG", "ED": "EDGE", "IDL": "DL", "SPEC": "K/P"}
+LABEL = {"T": "OT", "G": "OG", "ED": "EDGE", "IDL": "DL", "SPEC": "other"}
 pos = lambda g: LABEL.get(g, g)
 
 
@@ -99,9 +99,9 @@ by_pid = P.set_index("pid")
 for i, pid in enumerate(choices):
     r = mine.iloc[i]
     k = int(r.pick)
-    o = options(P, table, k, taken, counts, pn, W)
+    o = options(P, table, k, taken, counts, pn, W, specialists=True)
     me = by_pid.loc[pid]
-    v = value_of(table, me.grp, me["rank"], k, counts, pn, me.label, W)
+    v = value_of(table, me.grp, me["rank"], k, counts, pn, me.label, W, me.drafted_at)
     h = {"Pick": k, "Round": int(r["round"]), "You took": f"{me['name']} ({pos(me.grp)}, {rank_txt(me['rank'])})",
          "Your titles": v, "Model's #1 then": f"{o.iloc[0]['name']} ({pos(o.iloc[0].grp)})" if len(o) else "",
          "Model's #1 titles": o.iloc[0].titles if len(o) else np.nan,
@@ -119,7 +119,7 @@ if len(choices) < len(mine):
     k = int(r.pick)
     via = f" · acquired from {r.original_team} on draft night" if r.traded_on_night else ""
     st.subheader(f"On the clock: pick #{k} (round {int(r['round'])}) · decision {len(choices) + 1} of {len(mine)}{via}")
-    o = options(P, table, k, taken, counts, pn, W)
+    o = options(P, table, k, taken, counts, pn, W, specialists=True)
     team_row = o[o.drafted_at == k]
 
     a, b = st.columns(2)
@@ -128,7 +128,7 @@ if len(choices) < len(mine):
         a.metric(f"{tm} actually took", f"{t_['name']} ({pos(t_.grp)})", f"{t_.titles:+.2f}% of a title · model #{t_.model_rank}",
                  delta_color="off")
     elif r.grp not in GROUPS:
-        a.metric(f"{tm} actually took", f"{r.player} ({pos(r.grp)})", "specialist: not valued", delta_color="off")
+        a.metric(f"{tm} actually took", f"{r.player} ({pos(r.grp)})", "not valued (long snapper or unmapped position)", delta_color="off")
     else:
         a.metric(f"{tm} actually took", f"{r.player} ({pos(r.grp)})", "you already drafted him", delta_color="off")
     if len(o):

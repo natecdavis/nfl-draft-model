@@ -12,7 +12,10 @@ Rules (model: outcome units outcomes_v2.UNITS, fall shading once, QB need as a p
   - Your choices set your needs: each player you take at a position lowers the value of
     the next one there (after one QB, the QB need is filled), as in the review.
   - Candidates: every board player still available, plus drafted players who weren't on the
-    board (valued as ranked just past it). Kickers / punters / snappers aren't valued.
+    board (valued as ranked just past it).
+  - Kickers and punters (src/specialists.py): valued by where they were actually drafted, as the gain of a
+    drafted specialist over an undrafted one; only the first at each position counts. Long snappers aren't
+    valued.
 
 Value tables (one per team situation, ~16s to build) are cached on disk in
 data/derived/sim_tables/. Build them all ahead of time with:
@@ -28,7 +31,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from draftday import DraftEngine  # noqa: E402
 from outlook import GROUPS, OUT  # noqa: E402
 from positions import blended  # noqa: E402
-from review import OFF_BOARD_RANK, Table, board, draft_night  # noqa: E402
+from review import K_GRID, OFF_BOARD_RANK, T_GRID, Table, board, draft_night  # noqa: E402
+from specialists import POS_TO_GROUP, SPEC_GROUPS, get_tables as spec_tables, is_spec, signal  # noqa: E402
 
 TABLE_DIR = OUT / "sim_tables"
 FALL_WEIGHT = 0.85  # same as the review
@@ -74,6 +78,7 @@ def get_table(sit, ctx=None, year=None) -> Table:
         z = np.load(f)
         t = Table.__new__(Table)
         t.eng, t.v = _Talent(FALL_WEIGHT), {g: z[g] for g in z.files}
+        t.v.update(_spec(sit, year, ctx))
         return t
     from review import engine_for
     from trade import Context
@@ -90,7 +95,23 @@ def get_table(sit, ctx=None, year=None) -> Table:
     tmp = f.with_suffix(".tmp.npz")
     np.savez(tmp, **t.v)
     tmp.replace(f)
+    t.v.update(_spec(sit, year, ctx))
     return t
+
+
+_CTX = []
+
+
+def _spec(sit, year, ctx=None) -> dict:
+    """Kicker / punter arrays for this situation (specialists.py; small, cached as spec_<key>.npz)."""
+    def factory():
+        if ctx is not None:
+            return ctx
+        if not _CTX:
+            from trade import Context
+            _CTX.append(Context())
+        return _CTX[0]
+    return spec_tables(TABLE_DIR, _key(sit, year), sit, factory, T_GRID, K_GRID)
 
 
 def pool(year: int) -> pd.DataFrame:
@@ -111,6 +132,9 @@ def pool(year: int) -> pd.DataFrame:
                         "grp_record": off.grp, "label": None, "rank": np.nan,
                         "school": off.pick.map(college), "drafted_at": off.pick.astype(float)})
     p = pd.concat([on, off], ignore_index=True)
+    sp = p.pos.astype(str).str.upper().map(POS_TO_GROUP)  # kickers / punters (long snappers stay SPEC)
+    p.loc[sp.notna(), "grp"] = sp[sp.notna()]
+    p.loc[sp.notna(), "grp_record"] = sp[sp.notna()]
     p["drafted_by"] = p.drafted_at.map(by)
     p = p.sort_values(["rank", "drafted_at"], na_position="last").reset_index(drop=True)
     p.insert(0, "pid", np.arange(len(p)))
@@ -118,13 +142,16 @@ def pool(year: int) -> pd.DataFrame:
 
 
 def options(P: pd.DataFrame, table: Table, pick: int, taken: set, counts: dict, p_need: float = 1.0,
-            W: dict | None = None) -> pd.DataFrame:
+            W: dict | None = None, specialists: bool = False) -> pd.DataFrame:
     """Players available at `pick` with their titles for this team (in % of one title),
     best first. taken = pids you already chose; counts = your players per position group;
     p_need = chance the team's QB need is real (review.p_need); W = positions.weights(year)
-    (board labels valued as a blend over the positions they historically moved to)."""
-    a = P[(P.drafted_at.isna() | (P.drafted_at >= pick)) & ~P.pid.isin(list(taken)) & P.grp.isin(GROUPS)].copy()
-    r = a["rank"].fillna(OFF_BOARD_RANK)
+    (board labels valued as a blend over the positions they historically moved to). specialists: include
+    kickers and punters (the simulator pages; off by default so research scripts keep their results)."""
+    ok = GROUPS + (SPEC_GROUPS if specialists else [])
+    a = P[(P.drafted_at.isna() | (P.drafted_at >= pick)) & ~P.pid.isin(list(taken)) & P.grp.isin(ok)].copy()
+    r = pd.Series([signal(at, rk, OFF_BOARD_RANK) if is_spec(g) else (OFF_BOARD_RANK if pd.isna(rk) else rk)
+                   for g, at, rk in zip(a.grp, a.drafted_at, a["rank"])], index=a.index)
     a["titles"] = [blended(table.lookup, lab, g, min(counts.get(g, 0), 2), rk, pick, p_need, W) * 100
                    for lab, g, rk in zip(a.label, a.grp, r)]
     a = a.sort_values("titles", ascending=False).reset_index(drop=True)
@@ -132,7 +159,9 @@ def options(P: pd.DataFrame, table: Table, pick: int, taken: set, counts: dict, 
     return a
 
 
-def value_of(table, grp, rank, pick, counts, p_need=1.0, label=None, W=None) -> float:
+def value_of(table, grp, rank, pick, counts, p_need=1.0, label=None, W=None, drafted_at=np.nan) -> float:
+    if is_spec(grp):
+        return table.lookup(grp, min(counts.get(grp, 0), 2), signal(drafted_at, rank, OFF_BOARD_RANK), pick) * 100
     if grp not in GROUPS:
         return np.nan
     r = OFF_BOARD_RANK if pd.isna(rank) else rank

@@ -623,6 +623,8 @@ class RealizedV2:
         """scale: multiply his seasons' values (e.g. a depth-chart adjustment); 1 = as he played."""
         from outcomes_v2 import FAMILY, pay_factor, unit_factor
         from pick_value import baseline_paths, pick_effect
+        if grp in ("K", "P") and year <= 2022:  # kickers / punters (src/specialists.py)
+            return self._spec_many(sit, year, pick, [grp], [drafted_at], [name], 4)[0]
         if grp is None or grp == "SPEC" or year > 2022:
             return np.nan
         L, ctx = self.L, self.ctx
@@ -642,6 +644,18 @@ class RealizedV2:
         s2 = dict(sit); s2["qb_from"] = 99 if sit["qb_from"] is None else sit["qb_from"]
         pts = pick_effect((y5 / price[0])[None, :], price, int(pick), grp, s2, ctx.cost, ctx.bar, ctx.rates)
         return (ctx.sb(b + pts).sum(axis=1).mean() - b0) * 100
+
+    def _spec_many(self, sit, year, pick, grps, drafted_at, names, n_played):
+        import specialists as spx
+        from pick_value import baseline_paths
+        if not hasattr(self, "_spec"):
+            self._spec = spx.Realized()
+        key = (sit["start"], sit["qb_from"], tuple(sorted(sit["shift"].items())))
+        if key not in self.base_cache:
+            b = baseline_paths(sit, np.random.default_rng(0), self.n)
+            self.base_cache[key] = (b, self.ctx.sb(b).sum(axis=1).mean())
+        return np.array([spx.realized_titles(self._spec, g, self.base_cache[key], self.ctx, year, pick, at, nm, n_played)
+                         for g, at, nm in zip(grps, drafted_at, names)])
 
     def last_season(self) -> int:
         """Last NFL season with labels (e.g. 2025: the 2023 class has three seasons)."""
@@ -670,7 +684,10 @@ class RealizedV2:
         s2 = dict(sit); s2["qb_from"] = 99 if sit["qb_from"] is None else sit["qb_from"]
         vals = L[[f"value_y{t}" for t in range(1, 5)]].clip(lower=0).fillna(0.0)
         grps = np.asarray(grps, object)
-        for g in set(grps) - {None, "SPEC"}:
+        sp = np.flatnonzero(np.isin(grps, ["K", "P"]))  # kickers / punters (src/specialists.py)
+        if len(sp):
+            out[sp] = self._spec_many(sit, year, pick, grps[sp], [drafted_at[i] for i in sp], [names[i] for i in sp], n_played)
+        for g in set(grps) - {None, "SPEC", "K", "P"}:
             idx = np.flatnonzero(grps == g)
             y = np.zeros((len(idx), 4))
             for r, i in enumerate(idx):

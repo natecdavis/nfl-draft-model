@@ -127,14 +127,15 @@ button.take { padding: 4px 10px; font-size: 13px; }
     <section class="card" id="history"></section>
   </div>
 
-  <p class="note">How it works: at each pick, everyone really taken before it is gone (including this team's own earlier picks, even if you passed on them), and anyone you took is gone at your later picks. Each player you take at a position lowers the value of the next one there; after one QB the QB need is filled, and a flagged QB need counts with its measured chance of being real. Candidates are Arif Hasan's consensus board plus drafted players who weren't on it (valued as ranked just past it, #330). Positions are the consensus board's own labels; a label that often changes position in the NFL (a 5-technique, an edge rusher who becomes an off-ball linebacker, a safety who moves to linebacker) is valued as a blend of those positions and shown like "DL/EDGE". Kickers and punters aren't valued. Draft-night trades aren't simulated. "Delivered" columns count each player's first four seasons; drafts since 2023 count the seasons played so far (through 2025). Undrafted players count from the 2016 class.</p>
+  <p class="note">How it works: at each pick, everyone really taken before it is gone (including this team's own earlier picks, even if you passed on them), and anyone you took is gone at your later picks. Each player you take at a position lowers the value of the next one there; after one QB the QB need is filled, and a flagged QB need counts with its measured chance of being real. Candidates are Arif Hasan's consensus board plus drafted players who weren't on it (valued as ranked just past it, #330). Positions are the consensus board's own labels; a label that often changes position in the NFL (a 5-technique, an edge rusher who becomes an off-ball linebacker, a safety who moves to linebacker) is valued as a blend of those positions and shown like "DL/EDGE". Kickers and punters are valued by where they were actually drafted (the board rarely ranks them): the gain of a drafted specialist over an undrafted one, measured in points 2006-2022, and only the first at each position counts; long snappers aren't valued. Draft-night trades aren't simulated. "Delivered" columns count each player's first four seasons; drafts since 2023 count the seasons played so far (through 2025). Undrafted players count from the 2016 class.</p>
 </div>
 
 <script>
 const DATA_GZ = "__DATA_GZ__";
 const TABLES_GZ = "__TABLES_GZ__";
 const REAL_GZ = "__REAL_GZ__";
-const LABEL = { T: "OT", G: "OG", ED: "EDGE", IDL: "DL", SPEC: "K/P" };
+const LABEL = { T: "OT", G: "OG", ED: "EDGE", IDL: "DL", SPEC: "other" };
+const SPECIALIST = new Set(["K", "P"]);  // valued by the slot where they were drafted (src/specialists.py)
 const pos = g => LABEL[g] || g;
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -184,6 +185,7 @@ function realAt(T, j, idx) {
 // a board player's label can be valued as a blend over the positions it historically moved to
 function blendOf(label) { return (META.blends[year] || {})[label] || null; }
 function value(T, p, level, pick) {
+  if (SPECIALIST.has(p[1])) return lookup(T.table, p[1], level, p[4] ?? p[2], pick, 1);
   const w = blendOf(p[8]), pn = T.p_need ?? 1;
   if (!w) return lookup(T.table, p[1], level, p[2], pick, pn);
   return w.reduce((s, [g, x]) => s + x * lookup(T.table, g, level, p[2], pick, pn), 0);
@@ -240,7 +242,7 @@ function render() {
     const tp = o.find(x => x.at === k);
     const teamTile = tp
       ? `<div class="v">${esc(tp.name)} <span class="pos">${posOf(tp.g, tp.label)}</span></div><div class="d">${fmt(tp.v)} · model #${tp.mr} · consensus ${rankTxt(tp.rank)}</div>`
-      : `<div class="v">${esc(player)} <span class="pos">${pos(grp)}</span></div><div class="d">${(grp in GI) ? "you already drafted him" : "specialist: not valued"}</div>`;
+      : `<div class="v">${esc(player)} <span class="pos">${pos(grp)}</span></div><div class="d">${(grp in GI) ? "you already drafted him" : "not valued (long snapper or unmapped position)"}</div>`;
     const top = o[0];
     const row = x => `<tr class="${x.at === k ? "teampick" : ""}">
         <td class="n">${x.mr}</td>

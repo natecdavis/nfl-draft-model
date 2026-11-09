@@ -32,6 +32,8 @@ RAW = ROOT / "data/raw/nflverse_pbp"
 OUT = ROOT / "data/derived/specialist_seasons.parquet"
 SEASONS = range(2006, 2026)
 CLASSES = (2006, 2022)
+ALL_CLASSES = (2006, 2025)  # entrants saved for the engine's realized values (2023+ = seasons so far)
+ENGINE = ROOT / "data/derived/specialist_engine.json"
 COLS = ["season", "season_type", "week", "game_id", "posteam", "play_type", "field_goal_attempt", "field_goal_result",
         "extra_point_attempt", "extra_point_result", "punt_attempt", "kick_distance", "yardline_100", "epa",
         "kicker_player_id", "punter_player_id", "roof", "wind", "temp"]
@@ -143,13 +145,13 @@ def draft(S):
         s = S[S.pos == pos]
         first = s.groupby("pid").season.min()
         # entrants: drafted (draft_picks) or undrafted with an NFL kick; class = draft year / first NFL season
-        dr = dp[(dp.position == pos) & dp.season.between(*CLASSES)].rename(columns={"season": "cls"})
+        dr = dp[(dp.position == pos) & dp.season.between(*ALL_CLASSES)].rename(columns={"season": "cls"})
         und = pl[(pl.position == pos) & pl.draft_round.isna()][["gsis_id", "display_name", "rookie_season"]]
         # class = rookie season (players list); first season with a kick if missing; veterans who entered before
         # 2006 are excluded (their pre-2006 seasons aren't in the play-by-play)
         und = und.assign(cls=und.rookie_season.fillna(und.gsis_id.map(first))).dropna(subset=["cls"])
         und = und[und.gsis_id.isin(first.index) & (und.gsis_id.map(first) >= und.cls)]
-        und = und[und.cls.between(*CLASSES)]
+        und = und[und.cls.between(*ALL_CLASSES)]
         E = pd.concat([dr.assign(drafted=True, name=dr.pfr_player_name)[["gsis_id", "name", "cls", "round", "pick", "drafted"]],
                        und.assign(drafted=False, name=und.display_name, round=np.nan, pick=np.nan)[["gsis_id", "name", "cls", "round", "pick", "drafted"]]])
         E["cls"] = E.cls.astype(int)
@@ -158,9 +160,14 @@ def draft(S):
         a = y.groupby("pid").agg(por=("por", "sum"), kicks=("n", "sum"), raw=("pts", "sum"),
                                  seasons=("n", lambda x: int((x >= (40 if pos == "K" else 40)).sum())))
         E = E.join(a, on="gsis_id").fillna({"por": 0.0, "kicks": 0, "seasons": 0})
+        yr = y.assign(t=y.season - y.cls + 1).pivot_table(index="pid", columns="t", values="por", aggfunc="sum")
+        for t in range(1, 5):  # per-year points over replacement; 0 = no kick that season, NaN = not played yet
+            E[f"por_y{t}"] = E.gsis_id.map(yr[t] if t in yr else {}).fillna(0.0).where(E.cls + t - 1 <= 2025)
         E["pos"] = pos
         rows.append(E)
     E = pd.concat(rows, ignore_index=True)
+    E.to_parquet(ROOT / "data/derived/specialist_entrants.parquet", index=False)
+    E = E[E.cls.between(*CLASSES)].copy()
     E["band"] = np.select([E.drafted & (E["round"] <= 4), E.drafted & (E["round"] == 5), E.drafted & (E["round"] == 6),
                            E.drafted], ["R2-4", "R5", "R6", "R7"], "undrafted (kicked in NFL)")
     print("Years 1-4, points over replacement (shrunk per-kick value x kicks), full-time seasons (>= 40 kicks):")
@@ -180,12 +187,36 @@ def draft(S):
         print(t.round(2).to_string())
         top = e.sort_values("por", ascending=False).head(10)[["name", "cls", "round", "por", "seasons"]]
         print(f"  top 10 {pos} by years 1-4 value:\n" + top.round(1).to_string(index=False))
-    E.to_parquet(ROOT / "data/derived/specialist_entrants.parquet", index=False)
+    engine_params(E)
     # yardstick: what a typical non-QB pick adds, same unit (team points per game, per season, years 1-4 + option)
     t = pd.read_parquet(ROOT / "data/derived/pick_value_titles.parquet")
     t = t[(t.grp != "QB") & (t.situation == "Middle of the pack")]
     print("\nYardstick, non-QB picks (middle of the pack), avg team points/game added per season over 5 seasons:")
     print(t[t.pick.isin([100, 140, 180, 220, 256])].groupby("pick").pts_per_season.mean().round(3).to_string())
+
+
+def engine_params(E):
+    """What the simulator uses (src/specialists.py): per-season gain (team points per game, years 1-4) of a
+    drafted specialist over an undrafted one, by the slot where he was drafted; and the undrafted mean per season
+    (the baseline for realized values). Kickers: one band (rounds don't differ). Punters: picks <= 176 (rounds
+    1-5) and later."""
+    import json
+    per = lambda x: float(x.mean()) / 4 / 17
+    out = {"slot_edges": [176], "classes": list(CLASSES)}
+    for pos in ["K", "P"]:
+        e = E[E.pos == pos]
+        und = per(e[~e.drafted].por)
+        early = e.drafted & (e.pick <= 176)
+        late = e.drafted & (e.pick > 176)
+        if pos == "K":
+            g = per(e[e.drafted].por) - und
+            gains = [g, g]
+        else:
+            gains = [per(e[early].por) - und, per(e[late].por) - und]
+        out[pos] = {"gain": [round(x, 4) for x in gains], "undrafted_per_season": round(und, 4),
+                    "n": [int(early.sum()), int(late.sum())]}
+    ENGINE.write_text(json.dumps(out, indent=1))
+    print(f"\nengine parameters -> {ENGINE.relative_to(ROOT)}: {out}")
 
 
 if __name__ == "__main__":

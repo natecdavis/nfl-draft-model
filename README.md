@@ -1806,4 +1806,37 @@ measured against a minimum-salary replacement and assumes the pick fills a need.
 - **Caveats:** the undrafted group is selected (only those who reached the NFL). Drafted players get more chances
   (investment). Punt EPA carries some coverage-team noise.
 
-Not yet in the engine.
+### In the simulator (`src/specialists.py`)
+
+Kickers and punters are now options in the draft simulator (artifact page and the classic page). Long snappers
+still aren't valued: there's no measure of snapping.
+- **Signal:** where the specialist was actually drafted. The board almost never ranks them, and this is the
+  market's pre-draft read, not his outcome. Undrafted specialists add nothing, since a team can sign one after
+  the draft.
+- **Value:** the per-season gain over an undrafted specialist (team points per game, years 1-4), minus the rookie
+  contract's cost over an undrafted signing. The cost is zero after about pick #110, where the rookie minimum
+  applies. This runs through each team's situation into titles, like every pick.
+- **Need:** a second kicker or punter in the same draft adds nothing.
+- **Gains used** (`data/derived/specialist_engine.json`, from `scripts/specialist_value.py`):
+  - punters drafted by pick 176: 0.089 per season (18 punters); after 176: 0.043 (15)
+  - kickers: 0.014 (33)
+
+  Splitting punters by pick instead of round moves three punters across the line. That lowers the early gain
+  from the round-based 0.097 to 0.071 in the 5-season unit, within its se of 0.026.
+- **Delivered:** the player's points over replacement minus the undrafted average, per season, at the pick's
+  cost.
+
+The value tables are small per-situation arrays (`sim_tables/spec_<key>.npz`), so the main tables didn't need a
+rebuild. The Past drafts review is unchanged: its recommendations still leave specialists out, as do the research
+scripts (`simulator.options(specialists=False)` by default).
+
+Example: 2018 Seattle, Michael Dickson at #149 is worth +0.31% of a title on draft night and delivered +0.72%.
+He ranks 91st of 188 options at that pick.
+
+Across every real team pick 2014-26 (3,334 picks), a kicker or punter is never the model's top choice. The best
+available specialist's median rank among the options is 248 in round 1, 147 in round 4 and 89 in round 7. Teams
+used 2-3% of their round 5-7 picks on them. By the model, a specialist is always worth less than the best player
+left at another position.
+
+Caveat: after round 1, the model's choices did no better than teams' in past drafts, so the late-round values
+it compares against are themselves untested.
