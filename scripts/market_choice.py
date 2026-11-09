@@ -40,10 +40,16 @@ from need_choice import TDIR, _key, build_table  # noqa: E402
 from outlook import OUT  # noqa: E402
 
 VERSIONS = {"B": ("greedy", "single_narrow", "prob"), "M": ("greedy", "single_market", "prob")}
+# CHOICE_YEARS="2023,2024": classes still on rookie deals, scored on seasons played so far (partial)
+YEARS_ENV = os.environ.get("CHOICE_YEARS")
+if YEARS_ENV:
+    pc.YEARS = [int(y) for y in YEARS_ENV.split(",")]
+TAG = f"_{YEARS_ENV.replace(',', '_')}" if YEARS_ENV else ""
 
 
 def _init():
     pc.VERSIONS = VERSIONS
+    pc.YEARS = pc.YEARS
     pc.TABLE_DIR["single_narrow"] = OUT / "units_tables_narrow"
     pc.TABLE_DIR["single_market"] = OUT / ALT_DIR
 
@@ -71,6 +77,8 @@ def choose(workers):
     import outcomes_v2
     outcomes_v2.POS_PAY = "off"
     P = pc.score(P)  # t_single / t_family without factors, AV, starts, 2nd-contract pay
+    if YEARS_ENV:
+        P["t_single"] = partial_titles(P)
     from review import RealizedV2
     import prospect_model as pm
     if VARIANT.startswith("repl"):
@@ -82,15 +90,29 @@ def choose(workers):
     St = pd.read_parquet(OUT / "review_states.parquet")
     sit = {(r.year, r.team): situation(r) for _, r in St.iterrows()}
     R = RealizedV2(Context(), units="single", pos_pay=VARIANT == "market")
-    P["t_market"] = [R.titles(sit[(y, tm)], g, y, at, k, nm) for y, tm, g, at, k, nm in
-                     zip(P.year, P.team, P.grp, P.drafted_at, P.pick, P.player)]
-    P.to_parquet(OUT / f"{VARIANT}_choice{'_s' + SHRINK if SHRINK else ''}.parquet")
+    P["t_market"] = (partial_titles(P, R) if YEARS_ENV else
+                     [R.titles(sit[(y, tm)], g, y, at, k, nm) for y, tm, g, at, k, nm in
+                      zip(P.year, P.team, P.grp, P.drafted_at, P.pick, P.player)])
+    P.to_parquet(OUT / f"{VARIANT}_choice{'_s' + SHRINK if SHRINK else ''}{TAG}.parquet")
     report(P)
 
 
+def partial_titles(P, R=None):
+    """Realized titles counting only the seasons played so far (RealizedV2.titles_many partial=True)."""
+    from review import RealizedV2
+    from simulator import situation
+    from trade import Context
+    if R is None:
+        R = RealizedV2(Context(), units="single")
+    St = pd.read_parquet(OUT / "review_states.parquet")
+    sit = {(r.year, r.team): situation(r) for _, r in St.iterrows()}
+    return [float(R.titles_many(sit[(y, tm)], y, k, [g], [at], [nm], partial=True)[0])
+            for y, tm, g, at, k, nm in zip(P.year, P.team, P.grp, P.drafted_at, P.pick, P.player)]
+
+
 def report(P):
-    U = pd.read_parquet(OUT / "units_choice.parquet")
-    rnd = dict(zip(zip(U.year, U.pick), U["round"]))
+    U = pd.read_parquet(pc.RAW / "draft_picks.parquet")
+    rnd = dict(zip(zip(U.season, U.pick), U["round"]))
     P["round"] = [rnd.get((y, k)) for y, k in zip(P.year, P.pick)]
     M = [("t_market", f"titles, {VARIANT} scoring"), ("t_single", "titles, current"), ("av", "PFR AV"),
          ("gs", "seasons started"), ("pay", "2nd-contract pay, % cap")]
@@ -105,7 +127,7 @@ def report(P):
 
     G = [("All", lambda r: r > 0), ("R1", lambda r: r == 1), ("R2-4", lambda r: (r >= 2) & (r <= 4)),
          ("R5-7", lambda r: r >= 5)]
-    print("\nM - B per team-draft (288):")
+    print(f"\nM - B per team-draft ({P.groupby(['year', 'team']).ngroups}):")
     for m, lab in M:
         parts = []
         for gl, f in G:
@@ -129,4 +151,4 @@ if __name__ == "__main__":
     elif STEP == "choose":
         choose(w)
     else:
-        report(pd.read_parquet(OUT / f"{VARIANT}_choice{'_s' + SHRINK if SHRINK else ''}.parquet"))
+        report(pd.read_parquet(OUT / f"{VARIANT}_choice{'_s' + SHRINK if SHRINK else ''}{TAG}.parquet"))

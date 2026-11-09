@@ -1569,3 +1569,20 @@ pooled = 1.46 for every non-QB. QB keeps 2.45 in both.
   negative in 2018 and 2020-22; much of the gain is 2014-2018.
 Not adopted yet; the pooled version is a candidate (one parameter, fit from betting lines rather than
 the choice outcomes).
+
+### Fresh classes: pooled replacement level on 2023-24 (`CHOICE_YEARS=2023,2024 CHOICE_VARIANT=repl_pooled scripts/market_choice.py choose`)
+
+Same test on the 2023 class (3 seasons played) and 2024 (2 seasons), scored on seasons played so far
+(`RealizedV2.titles_many(partial=True)`); no second contracts yet. Pooled minus today's model, per
+team-draft (32 each):
+
+| | 2023 | 2024 |
+|---|---|---|
+| Titles, current scoring | +0.04 (-0.39 to +0.47) | -0.09 (-0.17 to +0.01) |
+| Titles, pooled scoring | +0.12 (-0.14 to +0.40) | -0.04 (-0.09 to +0.02) |
+| PFR AV | -1.8 (-4.8 to +1.1) | -1.4 (-3.3 to +0.4) |
+| Seasons started | -0.84 (-1.47 to -0.28) | -0.50 (-0.69 to -0.31) |
+
+The gain doesn't carry over: titles tie, AV leans negative, and starts are lower (rounds 2-4 again move
+from OL to EDGE, who start less). Together with the fade in 2020-22, the 2014-22 advantage looks like it
+came from the early classes. Not adopted; today's replacement rule stays.
