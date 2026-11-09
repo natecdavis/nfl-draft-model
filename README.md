@@ -1766,3 +1766,44 @@ Starting point: an RB's on-field effect on pass plays follows him to a new team 
   rather than wins.
 Conclusion: RB value in the pass game is real but small; volume (targets) is the wrong thing to want.
 Lead to recheck when 2023-24 mature: PFF college receiving grade vs slot. No model change.
+
+## Kickers and punters: value in points, drafted vs undrafted (`scripts/specialist_value.py`, Nov 2026)
+
+Specialists aren't in the label. PFF doesn't grade them, they have no pay curve, and only about 20 have ever
+been on the consensus board. So they get their own measure, in team points, the engine's unit. Data: nflverse
+play-by-play 2006-25, regular season.
+- **Kickers:** field-goal points over expected, 3 x (made - P(make)), with P(make) by distance x era, indoor,
+  wind and cold. Extra points the same way at 1 point, by era (the kick moved back in 2015).
+- **Punters:** punt EPA over expected by yardline x era, indoor and wind. This includes coverage and returns.
+- **Left out:** kickoffs. The touchback rules changed in 2011, 2016, 2018 and 2024, and coverage dominates.
+
+| | Year-to-year corr (team changers) | Talent sd | Replacement (mid-season pickups) |
+|---|---|---|---|
+| K (20k FG, 24k XP) | 0.11 (0.13) | 0.034 pts/kick = 2.2 pts/season | -0.025 pts/kick |
+| P (46k punts) | 0.17 (0.31) | 0.065 pts/kick = 4.5 pts/season | -0.078 pts/kick |
+
+Draft test, classes 2006-22, years 1-4. Value = points over replacement, from each season's per-kick value shrunk
+by its reliability, times kicks. It's shown in the pick-value unit: team points per game per season, averaged
+over 5 seasons. Undrafted entrants = those who kicked or punted in the NFL; veterans who entered before 2006 are
+excluded.
+
+| | n | Drafted | Undrafted | Difference (se) |
+|---|---|---|---|---|
+| K, rounds 2-5 | 14 | 0.048 | 0.034 | +0.015 (0.010) |
+| K, rounds 6-7 | 19 | 0.042 | 0.034 | +0.009 (0.011) |
+| P, rounds 2-5 | 16 | 0.242 | 0.145 | +0.097 (0.026) |
+| P, rounds 6-7 | 17 | 0.159 | 0.145 | +0.014 (0.028) |
+
+For scale, a non-QB pick adds 0.125 at #96, 0.101 at #128, 0.086 at #160 and 0.055 at #256. That value is also
+measured against a minimum-salary replacement and assumes the pick fills a need.
+- **Kickers:** small, barely persistent edge (0.13 pts/game per season for a 1-sd kicker). Drafted kickers do
+  no better than undrafted ones. The best of the period were often undrafted (Tucker, Bailey, Lutz, Dicker) or
+  7th-rounders (Butker).
+- **Punters:** the talent is larger and carries over to a new team. Punters drafted in rounds 2-5 beat
+  undrafted ones by about 0.10 pts/game per season, which is about a #120 non-QB pick's whole value. They are
+  better per punt, not just used more: raw value per punt is +0.01 to +0.05 for drafted vs -0.04 for undrafted.
+  Rounds 6-7 punters are no better than undrafted. Samples are small (16 and 17 players).
+- **Caveats:** the undrafted group is selected (only those who reached the NFL). Drafted players get more chances
+  (investment). Punt EPA carries some coverage-team noise.
+
+Not yet in the engine.
