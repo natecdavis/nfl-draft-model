@@ -1484,3 +1484,31 @@ expected seasons. Baseline B = today's model with tables rebuilt on the narrow l
 - Round 1 is unchanged (QB / WR only in both, a known quirk of the model).
 Not adopted yet: the result rests mostly on one factor (EDGE) and the outside yardsticks split (starts up,
 pay down). Default stays POS_PAY="off".
+
+### Edge rushers: why the market prices their absences low (`scripts/edge_check.py`)
+
+Carry-forward absences; market effect split by the absent starter's prior-season quality (tercile within
+pricing group), vs what the current rule credits him in the rookie currency:
+
+| Pts/game | Low quality: market / credit | Mid | High |
+|---|---|---|---|
+| EDGE | -0.07 / 0.67 | 0.48 / 0.85 | 0.83 / 1.18 |
+| IDL (DL) | 0.36 / 0.65 | 0.51 / 0.89 | 1.05 / 1.16 |
+| DB | 0.05 / 0.36 | 0.25 / 0.46 | 0.71 / 0.60 |
+| OL | 0.30 / 0.31 | 0.58 / 0.42 | 0.72 / 0.78 |
+| WR | 0.48 / 0.50 | 0.66 / 0.82 | 1.27 / 1.24 |
+
+- The market does value good edge rushers (high tercile 0.83, 0.46 to 1.19; by price, >6% of cap 0.71).
+  The gap is at the bottom: a low-quality edge starter is worth ~0 over his backup but credited 0.67.
+  Same pattern, smaller, at IDL and DB. OL and WR match the rule at every quality level.
+- So it isn't a flat position discount; the pay curve's floor (what full-time snaps earn regardless of
+  quality, EDGE 6.3% of cap at q = 0) is too high at EDGE / IDL / DB. Equivalently, those positions need a
+  higher replacement level: matching the terciles implies roughly +4% of cap per full season of snaps at
+  EDGE, +2% at IDL, +1% at DB, ~0 at OL / WR (on top of the 0.5%).
+- Rotation: edge absences whose snaps go to players already in the rotation (prior share >= 0.3) cost
+  0.15 (-0.10 to 0.39); those filled from deeper on the roster 0.58 (0.30 to 0.86). IDL similar (0.37 vs
+  0.73); OL, WR, DB show no such difference. Edge and interior lines rotate, so a missing starter's snaps
+  mostly go to someone already playing.
+- Replacements look alike everywhere (gain-weighted prior share 0.29-0.36, quality q ~0.5, 15-25% new),
+  so the edge result isn't from unusually good backups.
+The x0.42 flat factor over-penalizes good edge rushers; a position-specific replacement level fits better.
