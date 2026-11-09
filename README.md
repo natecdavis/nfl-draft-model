@@ -1586,3 +1586,30 @@ team-draft (32 each):
 The gain doesn't carry over: titles tie, AV leans negative, and starts are lower (rounds 2-4 again move
 from OL to EDGE, who start less). Together with the fade in 2020-22, the 2014-22 advantage looks like it
 came from the early classes. Not adopted; today's replacement rule stays.
+
+## Within-position spread (`scripts/within_spread.py`, `resid`, `qb`; Nov 2026)
+
+The fits above found the market responds to our credit with slope ~0.3 inside positions. Retest with
+position levels absorbed (count of absent starters by group) and quality from the prior season, the same
+season (grades over the games he did play), or their mean:
+
+| Within-position slope on credit | Prior-season q | Same-season q | Mean |
+|---|---|---|---|
+| Spread | 0.35 (0.24 to 0.45) | 0.40 (0.29 to 0.51) | 0.44 (0.33 to 0.55) |
+| Actual margin | 0.61 (0.17 to 1.06) | 1.03 (0.61 to 1.44) | 1.01 (0.55 to 1.46) |
+
+- Quality measures are noisy: year-to-year correlation of q among these starters is 0.1-0.5 (RB 0.11,
+  DB 0.19, QB 0.37, others 0.40-0.49), so slopes on any one season's grade are attenuated.
+- The market isn't under-reacting to what it could know: margin minus spread on prior-season credit
+  +0.26 (-0.19 to +0.72), non-QB -0.01. On same-season credit +0.63 (+0.19 to +1.06), i.e. information the
+  market didn't have yet (plus some leakage: grades are higher in games the team played well).
+- Against actual results with same-season quality, the curve's spread is about right (slope ~1.0).
+  By group (spread, same-season q): WR 0.88, OL 0.72, DL 0.77, DB 0.78, TE 0.76, LB 1.46; EDGE 0.35,
+  RB 0.30 (wide); QB 0.31 (0.15 to 0.47).
+- QB by pre-season price (market / actual margin / rule's credit in contract prices): <3% of cap 1.25 /
+  -0.67 / 0.23; 3-8% 1.74 / 1.87 / 1.00; 8-15% 2.34 / 1.17 / 3.33; >15% 3.96 / 5.07 / 4.85. Elite QBs:
+  the rule matches actual results (and is ~20% above the market); the flat QB slope comes from cheap
+  starters (rookie deals, where price says little about quality) whom the market rates above backups by
+  more than the rule credits.
+Conclusion: the low within-position slope is mostly noise in the quality and price measures, not
+over-spread pay curves. No change.
