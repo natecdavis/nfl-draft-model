@@ -1662,3 +1662,41 @@ Drafted classes 2011-21, label value vs yardsticks (percentiles within group x c
   heavily used, poorly graded QBs (Darnold 0.25 -> 0.12, Bortles 0.37 -> 0.25, Brissett, Trubisky).
 - Value falls 5-9% outside the top 10 picks, so top-10 picks gain slightly relative to the rest.
 Not adopted: ties the outside yardsticks. Available as `LABEL=darko`.
+
+## Play-level context from nflverse play-by-play (`scripts/pbp_metrics.py`, `scripts/pbp_value_test.py`, Nov 2026)
+
+Can play-level data separate a player from his context better than PFF season grades? nflverse play-by-play
+2006-25 and participation (all 22 players on the field) 2016-25, in `data/raw/nflverse_pbp` (not in git).
+Regular-season pass/run plays, win probability 0.05-0.95, outcome EPA; fit season by season with ridge
+(penalties by 5-fold CV over plays, 2016-18):
+- Involved players (2006-25): dropbacks EPA = passer + receiver + defense team; designed runs = rusher +
+  offense team + defense team (passer and receiver adjusted for each other).
+- RAPM (2016-25): EPA = sum of the 11 offensive players' effects + the 11 defenders' effects (about 27k plays a season).
+
+Added to the PFF talent model (filtered talent + snaps; 5-fold CV grouped by player), the play metrics change
+out-of-sample R^2 for next-season PFF grade and next-season snaps by -0.006 to +0.016 in every group (movers
+included); the one +0.016 (QB RAPM, 393 QBs) is within noise.
+
+Why: the play metrics carry over only when the player stays with his team (season-to-season correlation,
+players with >= 100 plays both seasons):
+
+| | PFF grade, movers / stayers | Play metric, movers / stayers |
+|---|---|---|
+| OL (RAPM) | 0.38 / 0.60 | 0.07 / 0.33 |
+| DL (RAPM) | 0.42 / 0.58 | 0.03 / 0.19 |
+| EDGE (RAPM) | 0.45 / 0.52 | 0.07 / 0.20 |
+| LB (RAPM) | 0.30 / 0.39 | -0.01 / 0.22 |
+| DB (RAPM) | 0.15 / 0.26 | 0.03 / 0.18 |
+| QB (passer EPA) | 0.26 / 0.53 | -0.13 / 0.36 |
+| WR (RAPM) | 0.41 / 0.52 | 0.08 / 0.32 |
+| RB (RAPM) | 0.19 / 0.39 | 0.23 / 0.27 |
+
+- EPA-based player effects mostly measure the team: teammates play together nearly every snap, so ridge
+  regression can't pull them apart, and what persists for stayers is the unit and scheme.
+- PFF grades carry over to a new team far better: the context they hold is small next to EPA's. They do
+  also drop for movers (QB 0.53 -> 0.26), which is part context, part selection (teams let go the players
+  they rate lower).
+- Receiver EPA per target sticks for stayers (0.46 at >= 50 targets) but PFF talent doesn't predict it (R^2 0.01):
+  role (target depth) more than skill.
+Conclusion: no play-level gain over PFF; PFF is the better per-player signal. Untested: RAPM with a PFF
+prior (would mostly reproduce PFF), multi-season RAPM.
