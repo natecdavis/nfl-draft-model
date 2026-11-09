@@ -1661,7 +1661,40 @@ Drafted classes 2011-21, label value vs yardsticks (percentiles within group x c
 - The label is mostly playing time; a better quality measure barely moves it. The biggest changes are
   heavily used, poorly graded QBs (Darnold 0.25 -> 0.12, Bortles 0.37 -> 0.25, Brissett, Trubisky).
 - Value falls 5-9% outside the top 10 picks, so top-10 picks gain slightly relative to the rest.
-Not adopted: ties the outside yardsticks. Available as `LABEL=darko`.
+Not adopted at first: ties the outside yardsticks. Available as `LABEL=darko`.
+
+### Talent-model label adopted (`prospect_model.LABEL`, Nov 2026)
+
+Later adopted as the default label anyway: it ties on outside yardsticks, and its quality term is the better
+measure of talent (it beats one season's grade at predicting next season, movers included). The default is
+now "darko" (`data/derived/labels_pickadj_narrow_darko.parquet`). To rebuild it, run `python scripts/darko_pff.py`,
+then `python scripts/darko_label.py`. `LABEL=narrow` restores the previous default. Simulator tables carry
+`_lbdarko` in their cache key. Results in sections above this one used narrow or stored unless they say otherwise.
+
+Rebuilt the same outputs as for the narrow label. App tests pass. Changes are small:
+- **Pick values** in % of a title, for a contender with a veteran QB:
+  - non-QB #1: 2.15 -> 2.36
+  - non-QB #32: 2.25 -> 2.07
+  - non-QB #160: 0.81 -> 0.72
+  - QB #1 (middle of the pack): 9.6 -> 9.9
+
+  Top picks gain a little, as the label check implied. Surplus in cap terms is unchanged: it doesn't read the label.
+- **Real trades:** correlation 0.997 with before; no firm flips (firm calls 740 -> 735).
+- **2027 teams:** the average value of each team's firsts goes 1.06 -> 1.08. The trade-down gain is smaller
+  (mean 0.73 -> 0.64) but stays positive for every team.
+- **Past-drafts scorecard** (2014-22, model minus team, each recommendation at its first pick):
+
+  | Rounds | Before | After |
+  |---|---|---|
+  | 1 | +1.02 | +0.77 |
+  | 2-4 | +0.42 | +0.50 |
+  | 5-7 | -0.16 | +0.02 |
+
+  Recommendations unchanged at 85% / 83% / 74% of picks. Most of the round 1 drop is the yardstick, not the
+  choices: on unchanged recommendations, round 1 goes +1.10 -> +0.79, because the talent model rates the
+  hits of heavily used QBs lower. Guidance unchanged: there is no tested edge after round 1.
+- **Trade decisions:** the model's choice is unchanged in 53% of trade decisions. Most of these are near-ties
+  between keeping the pick and the same trade.
 
 ## Play-level context from nflverse play-by-play (`scripts/pbp_metrics.py`, `scripts/pbp_value_test.py`, Nov 2026)
 

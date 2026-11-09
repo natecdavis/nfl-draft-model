@@ -35,18 +35,22 @@ CF = Path.home() / "cfdarko"
 # time removed (each drafted player's year 2-4 snap share moved to what a pick-100 player of the same PFF quality
 # gets; built by scripts/pickadj_label.py narrow into data/derived, which isn't in git: run that script to
 # rebuild it). "stored" = cfdarko's label as is. Tests: scripts/sunk_cost_test.py, grade_only_check.py,
-# label_bracket.py (README "Sunk-cost playing time" and after). Environment variable LABEL overrides it.
-LABEL = os.environ.get("LABEL", "narrow")
+# label_bracket.py (README "Sunk-cost playing time" and after). "darko" (default since Nov 2026) = narrow with
+# quality from the season talent model (scripts/darko_pff.py then scripts/darko_label.py; README "Season-level
+# talent model"). Environment variable LABEL overrides it (LABEL=narrow restores the previous default).
+LABEL = os.environ.get("LABEL", "darko")
 LABEL_FILE = {"stored": CF / "data/processed/rookie_value_labels.parquet",
               "narrow": Path("data/derived/labels_pickadj_narrow.parquet"),
               # test: narrow label minus market-fit position replacement levels (scripts/repl_label.py)
               "repl": Path("data/derived/labels_pickadj_narrow_repl.parquet"),
               "repl_eb": Path("data/derived/labels_pickadj_narrow_repl_eb.parquet"),
               "repl_pooled": Path("data/derived/labels_pickadj_narrow_repl_pooled.parquet"),
-              # test: narrow label with season-talent-model quality (scripts/darko_pff.py, darko_label.py)
+              # narrow label with season-talent-model quality (scripts/darko_pff.py, darko_label.py)
               "darko": Path("data/derived/labels_pickadj_narrow_darko.parquet")}[LABEL]
 if not LABEL_FILE.exists():
-    raise FileNotFoundError(f"{LABEL_FILE} missing: run `python scripts/pickadj_label.py narrow` (or set LABEL=stored)")
+    raise FileNotFoundError(f"{LABEL_FILE} missing: run `python scripts/pickadj_label.py narrow`"
+                            + (" (for darko: python scripts/darko_pff.py, then python scripts/darko_label.py)"
+                               if LABEL == "darko" else "") + " (or set LABEL=stored)")
 OUT = Path("data/derived")
 SEASONS = [1, 2, 3, 4]
 LAST_SEASON_PLAYED = 2025
