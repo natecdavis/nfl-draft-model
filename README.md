@@ -1544,3 +1544,28 @@ IDL x0.55, WR x0.65, DB x0.70, QB x0.79, OL x0.83, LB x0.84, TE x1.00.
 Same verdict as the flat factors: ties today's model on its titles, more starts, less pay. EDGE vanishes
 again, and TEs (the one position with r ~ 0, CI +-1.9) jump to 26% of rounds 2-4 and 36% of rounds 5-7
 picks: the choices chase whichever position's noisy estimate is lowest. Not adopted.
+
+### Shrunk and pooled replacement levels (`scripts/repl_label.py eb|pooled`, labels `repl_eb` / `repl_pooled`)
+
+Non-QB levels shrunk toward their precision-weighted mean 1.46% (between-position sd 1.35; Q = 37 on 7 df,
+so positions do differ): eb = RB 2.30, WR 1.99, TE 0.50, OL 0.71, IDL 1.82, EDGE 4.35, LB 0.70, DB 1.13;
+pooled = 1.46 for every non-QB. QB keeps 2.45 in both.
+
+| Minus today's model, per team-draft (288) | Shrunk (eb) | Pooled |
+|---|---|---|
+| Titles, own scoring | +0.42 (+0.22 to +0.62) | +0.27 (+0.14 to +0.41) |
+| Titles, current scoring | -0.03 (-0.30 to +0.24) | **+0.31 (+0.13 to +0.50)** |
+| PFR AV | **+3.4 (+0.2 to +6.6)** | +1.6 (-1.1 to +4.3) |
+| Seasons started | **+1.22 (+0.82 to +1.61)** | -0.14 (-0.51 to +0.21) |
+| 2nd-contract pay | -0.97 (-1.63 to -0.32) | **+0.76 (+0.29 to +1.27)** |
+| Same choice | 36% | 49% |
+
+- Shrunk: EDGE still drops out of rounds 2-4 (OL / TE / WR instead); same trade as before (starts and AV
+  up, pay down); ties on current titles.
+- Pooled: the first version to beat today's model on today's own title yardstick, and on pay, without
+  losing on the others. Rounds 2-4 move toward EDGE (30% -> 50%) and away from OL (32% -> 6%): a uniform
+  per-snap charge hits positions with little value per snap (OL, LB) hardest. By year, current-scoring
+  titles are positive in 7 of 9 classes but weaker lately (2020 -0.13, 2021 +0.06, 2022 -0.34), and AV is
+  negative in 2018 and 2020-22; much of the gain is 2014-2018.
+Not adopted yet; the pooled version is a candidate (one parameter, fit from betting lines rather than
+the choice outcomes).

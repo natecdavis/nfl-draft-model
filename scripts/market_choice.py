@@ -20,13 +20,14 @@ STEP = sys.argv[1] if len(sys.argv) > 1 else "report"
 MODE = sys.argv[2] if STEP == "build" else "base"
 os.environ["OUTCOME_UNITS"] = "single"
 os.environ["POS_PAY"] = "market" if MODE == "market" else "off"
-if MODE == "repl":
-    os.environ["LABEL"] = "repl"
+if MODE.startswith("repl"):
+    os.environ["LABEL"] = MODE
 SHRINK = os.environ.get("MARKET_SHRINK", "")
 MKT_DIR = "market_tables" + (f"_s{SHRINK}" if SHRINK else "")
 VARIANT = os.environ.get("CHOICE_VARIANT", "market")  # which alternative the choose/report steps compare
-ALT_DIR = MKT_DIR if VARIANT == "market" else "repl_tables"
-os.environ["NEED_TABLE_DIR"] = {"market": MKT_DIR, "repl": "repl_tables"}.get(MODE, "units_tables_narrow")
+ALT_DIR = MKT_DIR if VARIANT == "market" else f"{VARIANT}_tables"
+os.environ["NEED_TABLE_DIR"] = (MKT_DIR if MODE == "market" else f"{MODE}_tables" if MODE.startswith("repl")
+                                else "units_tables_narrow")
 os.environ["NEED_LEVELS"] = "current"
 sys.path.insert(0, "src")
 sys.path.insert(0, "scripts")
@@ -72,8 +73,8 @@ def choose(workers):
     P = pc.score(P)  # t_single / t_family without factors, AV, starts, 2nd-contract pay
     from review import RealizedV2
     import prospect_model as pm
-    if VARIANT == "repl":
-        pm.LABEL_FILE = OUT / "labels_pickadj_narrow_repl.parquet"
+    if VARIANT.startswith("repl"):
+        pm.LABEL_FILE = OUT / f"labels_pickadj_narrow{VARIANT[4:] and '_repl' + VARIANT[4:] or '_repl'}.parquet"
     else:
         outcomes_v2.POS_PAY = "market"
     from simulator import situation

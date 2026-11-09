@@ -18,8 +18,27 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import replacement_level as rl  # noqa: E402  (cfdarko import set-up)
 
 rv = rl.rv
-R = pd.read_csv(ROOT / "data/derived/replacement_market.csv")
-R = R[R.outcome == "spread_line"].set_index("group").r.clip(lower=0) / 100  # share of cap per full season
+VARIANT = sys.argv[1] if len(sys.argv) > 1 else "raw"  # raw | eb (shrunk) | pooled (one non-QB level)
+_R = pd.read_csv(ROOT / "data/derived/replacement_market.csv")
+_R = _R[_R.outcome == "spread_line"].set_index("group")
+
+
+def levels(variant):
+    """r_g in % of cap. eb: non-QB groups shrunk toward their precision-weighted mean (DerSimonian-Laird
+    between-group variance); pooled: every non-QB group at that mean. QB keeps its own estimate."""
+    r, se = _R.r.copy(), (_R.hi - _R.lo) / 3.92
+    if variant == "raw":
+        return r
+    n = r.index != "QB"
+    w = 1 / se[n] ** 2
+    mu = (w * r[n]).sum() / w.sum()
+    Q = (w * (r[n] - mu) ** 2).sum()
+    tau2 = max(0.0, (Q - (n.sum() - 1)) / (w.sum() - (w ** 2).sum() / w.sum()))
+    r[n] = mu + (tau2 / (tau2 + se[n] ** 2)) * (r[n] - mu) if variant == "eb" else mu
+    return r
+
+
+R = levels(VARIANT).clip(lower=0) / 100  # share of cap per full season
 
 
 def main():
@@ -58,7 +77,7 @@ def main():
     L2["value_y14"] = L2[vy].sum(axis=1, min_count=4)
     L2["surplus_y14"] = L2.value_y14 - L2.cost_y14
     L2["surplus_y15"] = L2.surplus_y14 + L2.value_y5 - L2.cost_y5
-    out = ROOT / "data/derived/labels_pickadj_narrow_repl.parquet"
+    out = ROOT / f"data/derived/labels_pickadj_narrow_repl{'' if VARIANT == 'raw' else '_' + VARIANT}.parquet"
     L2.to_parquet(out)
     print("r_g (% cap / full season):", (R * 100).round(2).to_dict())
     d = L[L.drafted & L.draft_year.between(2014, 2022)]
