@@ -63,5 +63,43 @@ def main():
               f"non-QB {-f.b.iloc[1]:.2f} [{-f.hi.iloc[1]:.2f},{-f.lo.iloc[1]:.2f}]")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and len(sys.argv) == 1:
     main()
+
+
+def factors():
+    """Market factor per draft group = market starter-minus-backup / mean current-rule credit (rookie
+    currency), by cfdarko pricing group, DB split into CB / S by snap position."""
+    C = ru.capture()
+    cur, q, neutral, pos, p2g = C["curves"], C["q"], C["neutral"], C["pos"], C["pfr2gsis"]
+    A = pd.read_parquet(at.OUT / "absence_starters_carry.parquet")
+    A["g"] = A.pfr.map(p2g).map(pos)
+    A["key"] = np.where(A.g == "DB", np.where(A.grp == "S", "S", "CB"), A.g)
+    A = A[A.g.isin(cur) | ~A.absent]
+    keys = ["QB", "RB", "WR", "TE", "OL", "DL", "EDGE", "LB", "CB", "S"]
+    for k in keys:
+        A[f"k_{k}"] = (A.absent & (A.key == k)).astype(float)
+    s = pd.read_parquet(at.RAW / "schedules.parquet")
+    s = s[(s.game_type == "REG") & s.season.between(2013, 2025) & s.spread_line.notna()].copy()
+    for c in ["home_team", "away_team"]:
+        s[c] = s[c].replace(at.RELOC)
+    s = s[s.game_id.isin(set(A.game_id))]
+    M, n, g = at.design(s, A, [f"k_{k}" for k in keys])
+    f = at.fit(g.spread_line.to_numpy(float), M, n, g.home_team.to_numpy())
+    rate = lambda k: 0.34 if k == "QB" else 0.19
+    rows = []
+    for k in keys:
+        X = A[A.absent & (A.key == k)]
+        cr = np.mean([rate(k) * (cur[r.g](min(r.avg_share, 1), q.get((r.gsis, r.season - 1),
+                      neutral.get((r.g, r.season), neutral[(r.g, None)]))) / ru.UNITS * 100 - 0.5 * r.avg_share)
+                      for r in X.assign(gsis=X.pfr.map(p2g)).itertuples()])
+        rows.append({"key": k, "n": len(X), "market": -f.loc[f"k_{k}", "b"], "lo": -f.loc[f"k_{k}", "hi"],
+                     "hi": -f.loc[f"k_{k}", "lo"], "credit": cr})
+    F = pd.DataFrame(rows).set_index("key")
+    F["factor"] = F.market / F.credit
+    print(F.round(2).to_string())
+    return F
+
+
+if __name__ == "__main__" and sys.argv[1:2] == ["factors"]:
+    factors()

@@ -59,10 +59,21 @@ POS_TURNOUT = {"T": 0.90, "G": 1.07, "C": 1.35, "CB": 0.85, "S": 1.17}
 POS_PAY = os.environ.get("POS_PAY", "off")
 
 
+# POS_PAY="market" (test only): scale each position's pay-curve value so the average absent starter's
+# credit matches the betting market's starter-minus-backup estimate (scripts/absence_curve.py factors,
+# README "Betting-line absence test"). Applied to realized and expected seasons alike.
+MARKET_FACTOR = {"QB": 0.89, "RB": 0.51, "WR": 0.95, "TE": 1.06, "T": 0.94, "G": 0.94, "C": 0.94,
+                 "IDL": 0.65, "ED": 0.42, "LB": 1.21, "CB": 0.82, "S": 0.65}
+_SHRINK = float(os.environ.get("MARKET_SHRINK") or 0.0)  # 0.5 = halfway to 1 (test)
+MARKET_FACTOR = {k: v + _SHRINK * (1 - v) for k, v in MARKET_FACTOR.items()}
+
+
 def pay_factor(grp: str, on: bool | None = None) -> float:
     """For realized seasons: the position's pay relative to its family."""
-    use = (POS_PAY in ("on", "pay")) if on is None else on
-    return POS_PAY_FACTOR.get(grp, 1.0) if use else 1.0
+    use = (POS_PAY in ("on", "pay", "market")) if on is None else on
+    if not use:
+        return 1.0
+    return (MARKET_FACTOR if POS_PAY == "market" else POS_PAY_FACTOR).get(grp, 1.0)
 
 
 def expect_factor(grp: str) -> float:

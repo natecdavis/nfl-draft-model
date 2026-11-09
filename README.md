@@ -1457,3 +1457,30 @@ prices = bridge.preseason_prices; pay curve uses his prior-season PFF quality an
   spread; pay-scaled: non-QB 0.15 + 0.08 per 1% of price, QB 0.90 + 0.15 per 1%, vs the rule's ~0.17 / 0.31
   per 1%). Expensive starters are worth less over their backup than the rule credits, cheap ones more;
   part of this is noise in price and quality as measures of the player (which flattens slopes).
+
+### Choice test: market-calibrated position factors (`scripts/market_choice.py`, `outcomes_v2.POS_PAY="market"`)
+
+Factors = market starter-minus-backup / the current rule's mean credit in the rookie currency, by pricing
+group (`scripts/absence_curve.py factors`): QB 0.89, RB 0.51, WR 0.95, TE 1.06, OL 0.94, IDL 0.65,
+EDGE 0.42 (market 0.38, 0.19 to 0.56, vs credit 0.89), LB 1.21, CB 0.82, S 0.65. Applied to realized and
+expected seasons. Baseline B = today's model with tables rebuilt on the narrow label
+(`units_tables_narrow`; the old `units_tables` predate it). Drafts 2014-22, per team-draft (288):
+
+| M - B | Full factors | Halfway to 1 (`MARKET_SHRINK=0.5`) |
+|---|---|---|
+| Titles, market-factor scoring | +0.60 (+0.43 to +0.82) | +0.16 (+0.07 to +0.26) |
+| Titles, current scoring | +0.08 (-0.10 to +0.31) | -0.07 (-0.19 to +0.04) |
+| PFR AV | +2.4 (-0.1 to +4.8) | +1.9 (-0.2 to +3.9) |
+| Seasons started | +1.06 (+0.74 to +1.38) | +1.07 (+0.78 to +1.35) |
+| 2nd-contract pay, % cap | -0.94 (-1.41 to -0.49) | -1.09 (-1.52 to -0.68) |
+| Same choice as B | 46% | 51% |
+
+- Nearly all of the change is rounds 2-4 EDGE (30% of B's picks -> 0-1%) going to OL and TE, plus rounds
+  5-7 safeties going to LB / TE. Even the halfway version drops EDGE: in B, EDGE and OL are near-ties in
+  rounds 2-4, so small factors flip them.
+- M ties B on B's own title yardstick and wins seasons started (and AV, borderline); it loses
+  second-contract pay, which is expected since it moves away from the positions the pay market rewards
+  (the currency the absence test says over-credits EDGE).
+- Round 1 is unchanged (QB / WR only in both, a known quirk of the model).
+Not adopted yet: the result rests mostly on one factor (EDGE) and the outside yardsticks split (starts up,
+pay down). Default stays POS_PAY="off".
