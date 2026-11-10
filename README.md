@@ -1840,3 +1840,57 @@ left at another position.
 
 Caveat: after round 1, the model's choices did no better than teams' in past drafts, so the late-round values
 it compares against are themselves untested.
+
+## WR stacking: is a second / third good WR worth less? (`scripts/wr_stacking.py`, Nov 2026)
+
+Question: the simulator often takes 2-3 WRs with a team's first few picks. The model values each WR on his
+own; its only stacking adjustment is within one draft (2nd rookie at a group: years 1-2 playing time x0.6,
+3rd x0.3). Does a WR lose value when the team already has good or young WRs, and does a new WR take value
+from the incumbents? Every group run the same way for comparison. Values are the pay-curve currency (% of
+cap), player-seasons 2013-25 (cached in data/derived/wr_stacking_ps.parquet).
+
+**A. Incumbents** (played for the team last season, didn't leave before the draft; their summed value this
+season vs a round 1-2 pick at their group, controlling for their value / share / count / best player last
+season, season FE). Placebo = a round 1-2 pick at the group in NEXT year's draft.
+
+| % of cap | WR | OL | EDGE | DL | TE | DB | RB | LB |
+|---|---|---|---|---|---|---|---|---|
+| Round 1-2 pick this year | -0.74 (-1.70 to +0.22) | -1.37 | -1.34 | -0.84 | -0.94 | -0.92 | -0.72 | -0.08 |
+| Placebo: next year | -1.26 (-2.11 to -0.41) | +0.07 | -0.22 | -0.01 | -0.23 | -0.29 | -0.40 | +0.10 |
+
+WR is the one group where the placebo is as large as the real effect: teams draft WRs after their WRs fade,
+and no displacement shows beyond that. At OL / EDGE / DL / TE a high pick does cut incumbents' value
+(~1 % of cap): a model issue, but it lowers those positions, not WR.
+
+**B. The rookie's own value** (round 1-3, years 1-2, group x season, log pick): per other round 1-3 WR
+taken this or last draft -0.54 (-1.14 to +0.06) on a mean of 2.84 (~-19%); per 1% of cap of incumbent WR
+value -0.07 (-0.16 to +0.02), ~-10% per SD. Other groups ~0 except DL "young" -0.39. The model's
+same-draft discount (-40% of years 1-2) is already larger than this; it ignores last year's picks and
+incumbents.
+
+**C. Team points** (offensive rating on WR1 / WR2 / WR3 sorted by value, plus other units): no diminishing
+returns. Prior-season quality: WR1 0.14, WR2 -0.06, WR3 0.17 pts per 1% (all wide); same-season: 0.24 /
+0.21 / 0.59. WR1 - WR3 p 0.90 / 0.06 (the wrong direction for stacking).
+
+**D. Market** (absence test, carry; absent starter x his own price and the summed price of the group's
+starters still playing, both centred). Points lost per absent starter:
+
+| | Avg | Per 1% own price | Per 1% of teammates still playing |
+|---|---|---|---|
+| WR, market | 0.73 | +0.084 (0.039 to 0.130) | -0.048 (-0.077 to -0.019) |
+| WR, actual margin | 0.52 | +0.009 | -0.047 (-0.185 to +0.091) |
+| OL, market | 0.37 | +0.046 | -0.030 (-0.046 to -0.014) |
+| CB, market | 0.35 | +0.117 | -0.017 (n.s.) |
+| DL, market | 0.61 | +0.100 | +0.010 (n.s.) |
+
+The market does see WR substitution: +1 SD of teammates' price (4.5% of cap) cuts a missing WR's worth by
+~0.22 pts/game (~30%); each 1% of teammates' price offsets ~57% of 1% of his own. Results agree on the point
+estimate but can't confirm it. OL shows the same in the market (not in results). This is short-run
+substitution (the others absorb targets for a game), the closest the data get to stacking.
+
+Conclusion: weak evidence of WR stacking costs: rookie-side ~-19% per other young WR (p 0.08), market
+substitution real, team points and incumbents show none. The model's within-draft discount is already at
+least this large in years 1-2; what it lacks is any discount in years 3-4 and for WRs already on the roster.
+Not enough to explain the simulator's WR-heavy drafts on its own. Next if pursued: a choice-test variant
+that discounts a WR by teammates' expected WR value in every year (market ratio ~0.5), scored on the
+whole-draft test.
