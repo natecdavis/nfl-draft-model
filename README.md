@@ -1894,3 +1894,36 @@ least this large in years 1-2; what it lacks is any discount in years 3-4 and fo
 Not enough to explain the simulator's WR-heavy drafts on its own. Next if pursued: a choice-test variant
 that discounts a WR by teammates' expected WR value in every year (market ratio ~0.5), scored on the
 whole-draft test.
+
+### Choice test: teammate discount for WR (and OL) (`scripts/stack_choice.py`)
+
+Variant of the whole-draft test (2014-22, 288 team-drafts, greedy, single units, QB need probability,
+talent-model label; tables in data/derived/stack_tables). A WR's playing time in every season is scaled by
+m = 1 - 0.066 x (X - 10.9), clipped 0.4-1.5, replacing the same-draft rule for WRs; X = summed pre-season
+price (% of cap) of the team's top 2 WRs on draft day (returning players, veterans added before the draft,
+and WRs the model already took, at their slot's expected price); 10.9 = mean X of WRs actually drafted, so
+the average drafted WR keeps m = 1. Slope from the market (test D above). WO adds OL (top 4, 8.1% per 1%,
+mean 18.4). W- / WO- cap m at 1 (penalty only). "Teammate-adjusted" titles rescale each chosen player's real
+seasons by m at this team / m at the team that really drafted him (built on the same assumption, so
+partly circular).
+
+| Version minus B, per team-draft | Titles as played | Titles, teammate-adjusted | AV | Seasons started | 2nd-contract pay | Same choice |
+|---|---|---|---|---|---|---|
+| W | -0.25 (-0.65 to +0.12); R1 -0.32 | -0.02 (-0.41 to +0.35) | +1.0 | +0.07 | +0.09 | 82% |
+| WO | -0.47 (-0.88 to -0.08) | +0.02 | -3.6 (-6.9 to -0.3) | -0.34 | -0.81 | 47% |
+| W- | -0.12 (-0.40 to +0.10) | +0.10 (-0.14 to +0.32) | +1.4 (-0.4 to +3.2) | +0.06 | +0.25 | 87% |
+| WO- | -0.10 | +0.17 (-0.11 to +0.40) | -2.3 | -0.38 (-0.75 to -0.01) | +0.13 | 59% |
+
+WRs among each team's first 3 picks: B 1.75 (2+ in 67% of drafts), W 1.64 (62%), WO 1.52 (56%), W- 1.58
+(58%), WO- 1.61 (60%). Round 1 stays QB / WR (B 35% / 62%; W 34% / 57%).
+
+- The discount barely changes the pattern: even with stacking priced at the market's rate, the model takes
+  ~1.6 WRs with its first 3 picks. The round-1 WR edge is far larger than any teammate effect.
+- No version beats B: titles as played go down (W round 1 -0.32), teammate-adjusted titles tie, outside
+  yardsticks split (W- slightly up on AV / pay, n.s.; adding OL loses AV, starts and pay).
+Not adopted. WR stacking doesn't explain the gap with teams' drafts.
+
+Found on the way: `roster_need.departures_and_adds` keeps only the last team of OTC's multi-team contract
+strings ("BUF/DAL/CLE"), so a player who re-signed and was later traded looks like he left (e.g. Amari Cooper,
+DAL 2020). stack_choice.py uses every listed team; roster_need.py, need_choice.py and wr_stacking.py test A
+still use the old rule (affects which incumbents count, not the conclusions' direction; unchecked).
