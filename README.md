@@ -1959,3 +1959,44 @@ rushers) the gain is a right tail: WRs and edge rushers are about even typically
 make the difference. That is how title value is supposed to work (stars dominate), but 28 WRs with 4-7 deciding
 it is thin, and outside yardsticks don't back the WR-over-EDGE preference. The model's lean is "WR ≥ EDGE in
 round 1", not "WR >> everything"; teams choosing edge rushers there are not clearly wrong. No change.
+
+## Grade noise and flat quality pricing at DB / LB / RB (`scripts/grade_noise_test.py`, Nov 2026)
+
+Lead: PFF grades carry over poorly at RB / DB / LB, and the label's pay curves price quality almost flat there,
+so the model may see elite prospects at those positions as barely better than average ones.
+
+**Part 1. How fast value falls with board rank**, drafted board players 2012-20 (Poisson GLM on log(rank+10);
+x5/50 = expected value at rank 5 / rank 50; label/pay = ratio of elasticities, 90% bootstrap):
+
+| | WR | TE | OL | DL | EDGE | RB | LB | DB |
+|---|---|---|---|---|---|---|---|---|
+| x5/50, label | 3.47 | 2.18 | 2.37 | 2.72 | 2.42 | 2.96 | 1.95 | 2.23 |
+| x5/50, 2nd-contract pay | 3.28 | 2.20 | 2.31 | 2.77 | 2.61 | 3.20 | 2.26 | 2.57 |
+| label / pay | 1.05 (0.98-1.12) | 0.99 | 1.03 | 0.98 | 0.92 (0.75-1.07) | 0.93 (0.86-1.03) | 0.82 (0.72-1.02) | 0.85 (0.76-0.95) |
+| label / starts | 0.98 | 1.10 | 1.05 | 1.21 | 0.90 | 0.79 (0.71-0.88) | 0.77 (0.67-0.90) | 0.93 |
+| label / AV | 1.11 | 0.87 | 1.14 | 1.26 | 1.05 | 0.99 | 0.88 | 0.98 |
+
+The label's rank spread is flatter than pay at DB (-15%), LB (-18%), RB and EDGE (-7 to -8%), and about right or
+steeper at WR. Against AV only LB is flatter. Within-group rank correlation of label with pay is 0.79-0.89
+everywhere (lowest LB 0.79, TE 0.78).
+
+**Part 2. Why: the curve, not single-season noise.** Veteran contracts 2014-25, APY (% of cap) on the player's
+quality percentile in the season before signing. Last season's grade vs the talent model's multi-season talent:
+attenuation 0.78 (RB) to 1.00, so grade noise explains little. But full-time players (>= 750 snaps), quality
+0.1 -> 0.9:
+
+| | DB | LB | RB | TE | OL | DL | EDGE | WR |
+|---|---|---|---|---|---|---|---|---|
+| Market (at signing) | 3.71 | 2.49 | 4.65 (n 24) | 3.86 | 5.74 | 8.77 | 7.80 | 9.23 |
+| Label's curve (90% share) | 0.96 | 0.49 | 0.47 | 1.76 | 3.29 | 2.64 | 3.01 | 5.34 |
+| Curve / market | 0.26 | 0.20 | 0.10 | 0.46 | 0.57 | 0.30 | 0.39 | 0.58 |
+
+The curves under-price quality everywhere, and least at WR / OL. cfdarko fits price(share, q) on the contract
+in force each season (often signed years earlier) against that season's quality; where quality persists poorly
+(DB, LB, RB; also DL / EDGE) this season's play says little about a price set earlier, so the fitted slope
+flattens. It's the timing of pay vs performance, which acts like noise and hits low-persistence positions hardest.
+
+Reading: the model's currency tilts toward WR relative to defense. A top-5 vs #50 prospect is worth +6% more
+than pay says at WR, -7% at EDGE, -13% at DB, -14% at LB. With WR vs EDGE a near-tie in round 1 (section above),
+a ~13% tilt is enough to decide many of those picks. Not changed yet; next: a choice test with the rank spread
+tilted to match pay by group (cheap), or curves refit at signing (cfdarko change, full rebuild).
