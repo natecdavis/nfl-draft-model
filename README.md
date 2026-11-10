@@ -2051,3 +2051,18 @@ Coaching only (visits start 2015). Hypotheses fixed before running.
   know something the slot doesn't. Usable only post-draft / for team-specific adjustments; the board can't see it.
 - EDGE height failed: no effect vs slot in 2006-15, no other group shows one either. The original's strongest
   part (vs consensus) can't be checked here, but the vs-slot half doesn't hold. Treat the tall-EDGE lead as dropped.
+
+**Part 2: weight gain and word length** (`scripts/old_class_replication2.py`, same design, hypotheses fixed first).
+
+| Test (vs slot) | Original 2016-22 | Replication | |
+|---|---|---|---|
+| Weight gained since recruit listing, per sd (same combine weight, years, class FE) | x1.06 (p ~0.08-0.10) | x1.02 (0.93-1.12), 468 players 2009-15 | failed |
+| Same, OL / DL / EDGE / TE | - | x0.87 (p 0.04; opposite direction) | |
+| Press-conference mean word length, per sd (prediction < 1) | x0.85 (p < 0.001) | x1.20 (0.93-1.54), 105 players 2012-15; one-sided p 0.92 | failed |
+
+- Weight gain: recruit listings only reach classes ~2009+, and only 468 of 2,432 drafted players link. No effect
+  overall; the big-position cut runs the other way. Dropped.
+- Word length: wrong sign (longer-word half 1.17x slot, shorter 0.72x), classes split 2012-13 positive,
+  2014-15 negative. With the failed 2023-25 replication (x0.95), two independent samples don't support the
+  discovery result: treat it as a 2016-22 artifact. Dropped.
+- Of the four leads replicated on old classes, only coaching contact held.
