@@ -2000,3 +2000,32 @@ Reading: the model's currency tilts toward WR relative to defense. A top-5 vs #5
 than pay says at WR, -7% at EDGE, -13% at DB, -14% at LB. With WR vs EDGE a near-tie in round 1 (section above),
 a ~13% tilt is enough to decide many of those picks. Not changed yet; next: a choice test with the rank spread
 tilted to match pay by group (cheap), or curves refit at signing (cfdarko change, full rebuild).
+
+### Choice test: rank spread tilted to match pay (`scripts/tilt_choice.py`)
+
+Each position's playing time (value, not cost) x ((t + 10) / (r0 + 10)) ^ (b_pay - b_label), elasticities from
+part 1 above, r0 set so the position's average over drafted board players is unchanged; QB untouched. Tilt at
+rank 5 / 50 / 150: LB 1.25 / 1.07 / 0.96, DB 1.21 / 1.05 / 0.95, RB 1.13, EDGE 1.09, DL 1.04, OL 0.96, WR 0.93 /
+0.98 / 1.02. Drafts 2014-22, 288 team-drafts, vs B (today's model):
+
+| Minus B, per team-draft | Titles | AV | Seasons started | 2nd-contract pay | Same choice (R1) |
+|---|---|---|---|---|---|
+| Full tilt | -0.01 (-0.25 to +0.18) | +0.8 (-0.7 to +2.2) | +0.08 (-0.10 to +0.26) | +0.15; R1 +0.24 (+0.00 to +0.50) | 79% (91%) |
+| Half tilt | -0.06 | +0.0 | -0.00 | +0.03 | 88% (94%) |
+
+Round 1 barely moves (WR 62% -> 57%, EDGE 2% -> 5%; no CB / S / LB); WRs among each team's first 3 picks 1.75 ->
+1.71. Ties everywhere; the pay gain is the tilt's own target. Not adopted.
+
+**Why so little: the gap is level, not spread.** At the 177 round-1 picks where B takes a WR, the best available
+player at other positions is worth, as a share of the WR's value (median): EDGE 0.52, DL 0.44, OL 0.45, TE 0.44,
+DB 0.37, RB 0.33, LB 0.15, though the best EDGE is usually ranked higher (median board rank 17 vs the WR's 21).
+A #5 prospect at pick 10 for a contender: EDGE 0.60 of a #5 WR, IDL 0.51, CB 0.33, S 0.35, T / G 0.30, LB 0.07.
+A ~1.1-1.25x tilt can't close a 2x gap.
+
+Is the level gap right in the model's own currency? The round-1 WR recommendations vs the best non-WR at the
+same pick (wr_class_check pairs, 2014-22, each WR once per draft): predicted 2.17 vs 1.20 (gap +0.97), delivered
+2.29 vs 1.48 (gap +0.81); delivered / predicted WR 1.05, alternative 1.23 (difference +0.18, -0.34 to +0.67).
+EDGE pairs: predicted 2.14 vs 1.14, delivered 1.86 vs 1.07. Roughly calibrated: the alternatives do a bit better
+than predicted, not nearly enough to close the gap. The remaining question is the currency's position levels
+(pay as the measure of wins), which the betting-line absence test already checked: the market values a WR
+starter at 0.80 pts/game vs EDGE 0.38, CB 0.36, LB 0.34, OL 0.47.
