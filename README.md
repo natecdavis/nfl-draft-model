@@ -2029,3 +2029,25 @@ EDGE pairs: predicted 2.14 vs 1.14, delivered 1.86 vs 1.07. Roughly calibrated: 
 than predicted, not nearly enough to close the gap. The remaining question is the currency's position levels
 (pay as the measure of wins), which the betting-line absence test already checked: the market values a WR
 starter at 0.80 pts/game vs EDGE 0.38, CB 0.36, LB 0.34, OL 0.47.
+
+## Old-class replication: coaching contact and EDGE height (`scripts/old_class_replication.py`, Nov 2026)
+
+Classes 2006-2015 never entered the 2016-22 tests and have complete careers. No consensus board before 2014, so
+only the "vs draft slot" versions replicate. Slot expectation: the project's slot model fit leave-one-class-out
+within 2006-15 (overall actual/expected x0.99). Staffs 2006-11 added from Wikipedia (`scripts/staffs_pre2012.py`,
+separate files `nfl_staffs_2006` / `coach_careers_2006`; 167 of 192 team-seasons parsed, picks by the other 25 dropped).
+Coaching only (visits start 2015). Hypotheses fixed before running.
+
+| Test (vs slot) | Original 2016-22 | Replication 2006-15 | Pooled 2006-22, class FE |
+|---|---|---|---|
+| Connected drafter, linked schools | x1.06 (coaching), x1.10 p 0.06 (pooled contact) | x1.21 (0.95-1.48, p 0.10); random-team placebo 6% >= real | x1.12-1.14 (p 0.08) |
+| Same, picks 1-100 | x1.14 p 0.03 (contact) | x1.22 (p 0.15); placebo 8% | x1.12-1.15 (p 0.12) |
+| Recent link, rounds 1-3 | x1.25 (28) | x1.38 (14, p 0.20); placebo 3% | x1.31-1.34 (42, p 0.02) |
+| EDGE height per sd | x1.13-1.18 (x1.26 vs consensus) | x0.98 (0.84-1.15); x1.02 with weight; 2006-10 x1.05, 2011-15 x0.93 | - |
+
+- Coaching contact replicated in direction and somewhat larger, both halves (2006-10 x1.24, 2011-15 x1.18),
+  and beats a random-team placebo. Still no single result clears p 0.05 except the pooled recent-link cut (which
+  was a secondary lead, 42 players). Reading: a real but modest effect (~x1.1) - teams that coached a player
+  know something the slot doesn't. Usable only post-draft / for team-specific adjustments; the board can't see it.
+- EDGE height failed: no effect vs slot in 2006-15, no other group shows one either. The original's strongest
+  part (vs consensus) can't be checked here, but the vs-slot half doesn't hold. Treat the tall-EDGE lead as dropped.
