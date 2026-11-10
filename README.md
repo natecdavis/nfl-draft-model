@@ -1927,3 +1927,35 @@ Found on the way: `roster_need.departures_and_adds` keeps only the last team of 
 strings ("BUF/DAL/CLE"), so a player who re-signed and was later traded looks like he left (e.g. Amari Cooper,
 DAL 2020). stack_choice.py uses every listed team; roster_need.py, need_choice.py and wr_stacking.py test A
 still use the old rule (affects which incumbents count, not the conclusions' direction; unchecked).
+
+## Round-1 WR edge: one class or a few hits? (`scripts/wr_class_check.py`, Nov 2026)
+
+Round-1 picks where the review recommends a WR and the team took someone else; each WR once per draft (mean
+over his picks). Compared with the team's pick, the model's best available non-QB non-WR player at that pick
+(stack_tables, version B values) and the board's best. Realized titles (% of a title); 2023-25 scored on
+seasons played so far.
+
+| 2014-22, 28 WRs (95% CI resampling classes) | WR rec minus |
+|---|---|
+| Team's pick | +1.48 (+0.70 to +2.41) |
+| Best non-WR (16 of 28 EDGE, 5 IDL, 4 TE) | +0.81 (-0.12 to +1.93) |
+| Board best | +1.25 (+0.32 to +2.27) |
+| AV / starts / pay vs team | +0.6 / -0.34 / +1.16 (all n.s.) |
+| AV / starts / pay vs non-WR | -5.7 / +0.08 / -0.50 (all n.s.) |
+
+- **Not a 2020 artifact.** Leaving out any one class: vs team +1.15 to +1.72, vs non-WR +0.45 (without
+  2020) to +1.22. 2016 (Michael Thomas) moves it as much as 2020.
+- **A few hits carry the edge over other positions.** Thomas 13.0, Lamb 7.0, Pickens 6.9, Chase 6.0,
+  Evans 5.2, Jefferson 4.6, Metcalf 4.6. Median WR minus non-WR 0.00 (WR better in 50%); Wilcoxon p 0.51.
+  Capping every player's titles at 4 (both sides): WR 1.60 vs non-WR 1.41 (+0.19); at 3: +0.08. Hit rate
+  (> 3% of a title) WR 25% vs non-WR 21%; busts (< 0.5) 29% vs 36%.
+- **Against teams' picks it holds up:** capped at 3, still +0.54; Wilcoxon p 0.08; none of the teams'
+  picks reached 3.
+- **Fresh classes 2023-25 so far (8 WRs):** vs team +0.74 (+0.16 to +2.37), vs non-WR +0.60 (-0.13 to
+  +2.40); 2023 (Smith-Njigba, Downs) carries it; 2024-25 ~0.
+
+Reading: the model's round-1 WRs beat what teams took, but over the best alternative position (mostly edge
+rushers) the gain is a right tail: WRs and edge rushers are about even typically, and a handful of WR stars
+make the difference. That is how title value is supposed to work (stars dominate), but 28 WRs with 4-7 deciding
+it is thin, and outside yardsticks don't back the WR-over-EDGE preference. The model's lean is "WR ≥ EDGE in
+round 1", not "WR >> everything"; teams choosing edge rushers there are not clearly wrong. No change.
