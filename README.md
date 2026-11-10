@@ -2066,3 +2066,17 @@ Coaching only (visits start 2015). Hypotheses fixed before running.
   2014-15 negative. With the failed 2023-25 replication (x0.95), two independent samples don't support the
   discovery result: treat it as a 2016-22 artifact. Dropped.
 - Of the four leads replicated on old classes, only coaching contact held.
+
+**Part 3: remaining borderline leads** (`scripts/old_class_replication3.py`). Most can't reach the old classes:
+
+| Lead (vs slot) | Original | 2006-15 | |
+|---|---|---|---|
+| MLB-drafted (1999-2004 MLB drafts fetched) | 7 drafted 2016-22, too few; guide-text baseball x1.23 (p 0.07) | x1.42 (0.66-2.76), beat slot 50% vs 35% (p 0.13-0.16); 22 players (Wilson, Winston, Kaepernick, Tate, Decker ...) | same direction, underpowered |
+| OT arm < 33 in | x1.31 (p 0.13, 10) | 3 of 71 drafted OTs 2011-15 | too few |
+| One-year wonder (PFF) | x0.78 (p 0.04) | cfdarko PFF college grades start with the 2014 season (raw 2010-13 has no grade files) | untestable |
+| Sons of NFL players | x1.15-1.16, beat 56-61% vs 38% | name rule (Jr./II/III + earlier NFL player) fails validation on 2018-22 (precision 56%, recall 11%), and 2006-15 draft names carry no suffixes; Wikipedia's second-generation list is selected on outcome (lists 83% of hand-coded sons with good careers, 40% of weaker, 29% of undrafted) | untestable without hand coding |
+| WR / QB height, weight-gain subgroups | x1.15 / x0.78; other positions x1.08, top quarter x1.14 | WR x1.03, QB x0.90 (part 1); other positions x1.09 (p 0.20), top quarter x0.94 (part 2) | not replicated |
+
+Overall, of the borderline leads replicated on old classes, coaching contact is the only one that held; MLB-drafted
+points the same way but 22 players can't settle it. Sons could be extended only by hand-coding older guides
+(Brugler's earlier books or NFL.com bios) or a source that lists sons regardless of how their careers went.
