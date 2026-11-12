@@ -184,6 +184,31 @@ with tab1:
         best = show.iloc[0]
         st.success(f"Best value at #{ours}: **{best['name']}** ({best.pos}), "
                    f"+{best[f'titles if taken at #{ours}']:.2f}% of a title.")
+        if len(upcoming) > 1:
+            st.subheader("Take him, then the best available at our later picks")
+            look = engine.lookahead(live, upcoming, now)
+            look = look.rename(columns={"titles_now": f"titles at #{ours}", "titles_later_picks": "titles at our later picks",
+                                        "titles_total": "titles, whole draft", "p_there_at_our_pick": f"chance there at #{ours}",
+                                        "vs_best_now": "vs taking the best-value player"})
+            st.dataframe(look, hide_index=True, width="stretch",
+                         column_config={c: st.column_config.NumberColumn(format="%.2f") for c in look.columns
+                                        if c.startswith(("titles", "vs"))} |
+                                       {f"chance there at #{ours}": st.column_config.ProgressColumn(
+                                           min_value=0, max_value=1, format="%.0f%%")})
+            st.caption("Each row: we take this player, then the best player for our roster at each later pick, over "
+                       "simulated drafts (the same simulations for every row). In past drafts (2014-22) choosing by this "
+                       "column tied or slightly trailed plain best-value-now on title value (scripts/lookahead_recheck.py), "
+                       "so the ranking above stays the recommendation; use this to see what a choice costs later.")
+            st.subheader(f"Position drop-off: #{ours} vs #{upcoming[1]}")
+            drop = engine.position_dropoff(live, upcoming, now)
+            st.dataframe(drop, hide_index=True, width="stretch",
+                         column_config={c: st.column_config.NumberColumn(format="%.2f") for c in drop.columns
+                                        if c not in ("position", "chance of a big drop (>half)")} |
+                                       {"chance of a big drop (>half)": st.column_config.ProgressColumn(
+                                           min_value=0, max_value=1, format="%.0f%%")})
+            st.caption("Best value at each position now vs the expected best at that position at our next pick if we "
+                       "pass on it. Read it for cliffs, not as a ranking: choosing by largest drop-off did worse in past "
+                       "drafts (it chases positions whose talent falls fastest even when they're worth little).")
 
 with tab2:
     st.write("Enter what we give and what we get. Picks this draft by number; future picks like '2028 R1'.")

@@ -2080,3 +2080,65 @@ Coaching only (visits start 2015). Hypotheses fixed before running.
 Overall, of the borderline leads replicated on old classes, coaching contact is the only one that held; MLB-drafted
 points the same way but 22 players can't settle it. Sons could be extended only by hand-coding older guides
 (Brugler's earlier books or NFL.com bios) or a source that lists sons regardless of how their careers went.
+
+## Availability: needs, runs and fallers (`scripts/availability_test.py`, Nov 2026)
+
+Question: would modeling other teams' needs, position runs and fallers predict "will he still be there at
+our next pick?" better than the app's scatter around consensus rank? Pick-choice model (conditional logit
+over the available Hasan-board players plus an off-board option, every pick 2014-2026): consensus rank,
+how far he has fallen, position x round, the picking team's open starting spots at his position, QB need
+(now / later), what that team already took this draft, board players at his position taken in the last 8
+picks, how many better players at his position remain; variant with top-30 visits.
+
+Fit on all drafts (z-scores): rank dominant; fallers keep falling (-6.3); open spots +5.8; QB need now
++6.7, later +3.5; team already took his position -12 (QB -4.2); runs +2.2 (weak); depth at his position ~0;
+visit +24.
+
+Rolling test (fit on earlier drafts, test 2017-2026; every pick <= 160 by a team that picks again; board
+players still available with rank <= next pick + 32; 108k player-decisions), log loss:
+
+| | scatter (app) | scatter, conditioned on still being there | rank+position | + needs | + runs | + visits |
+|---|---|---|---|---|---|---|
+| all | 0.552 | **0.536** | 0.538 | 0.538 | 0.538 | 0.533 |
+| round-1 decisions | 0.487 | 0.487 | 0.488 | 0.488 | 0.489 | 0.492 |
+| QBs | 0.644 | 0.560 | 0.556 | **0.548** | 0.548 | 0.552 |
+| fallers (rank < pick) | 0.618 | 0.552 | 0.551 | 0.551 | 0.551 | 0.547 |
+| 2025-26 | 0.562 | 0.542 | 0.538 | 0.538 | 0.539 | 0.529 |
+
+- Nearly all of the gain is one fix: the app drew every remaining player's draft spot from scratch, so a
+  faller (consensus #5 still there at #20) was mostly drawn before #20 and treated as gone. Drawing the
+  spot given he's still on the board: +0.015 log loss (95% +0.014 to +0.017), better in 9/10 drafts,
+  calibration fixed (predicted <10% available: actual 12.5% -> 6.4%). **Adopted in `draftday.simulate`.**
+- Team needs don't help overall out of sample (-0.001 vs the conditioned scatter, non-QB -0.002). For QBs
+  they help (+0.012, 95% +0.005 to +0.020), but in only 4/10 drafts (one case: Shedeur Sanders 2025).
+  Not adopted.
+- Runs and position depth: nothing.
+- Visits: +0.005 over needs in picks 33-160 (7-8/10 drafts), worse in round 1. Where the visit list
+  came from and when it was published isn't known (some visits are reported only after the draft), so
+  treat this as an upper bound. A team's own visit tracker could be an optional input later; not built.
+- Round 1: nothing beats the plain scatter. Top-of-draft surprises (trades, medicals) aren't in these inputs.
+
+## Looking ahead on draft day, rechecked (`scripts/lookahead_recheck.py`, `DraftEngine.lookahead`, `position_dropoff`, Nov 2026)
+
+Question: instead of one player's chance of lasting, compare what waiting costs: (a) rollout = value now +
+expected value of our later picks if we take him; (b) position drop-off = best at a position now minus the
+expected best there at our next pick. Both were tested in `scripts/plan_choice.py` (versions C, D) with the
+old availability draws; rerun here with the conditioned draws (versions Ct, Dt), same tables, boards and seeds,
+drafts 2014-2022, 288 team-drafts. Per team-draft vs greedy (B), raw scoring (the right counterfactual: one
+team uses the model):
+
+| | Titles (single) | Titles (family) | AV | Seasons started | 2nd-contract pay |
+|---|---|---|---|---|---|
+| Rollout, old draws (D) | -0.28 (-0.67 to +0.07) | -0.34 | -1.2 | -0.32 | -0.52 |
+| Rollout, conditioned (Dt) | -0.36 (-0.75 to -0.03) | -0.44 (-0.92 to -0.01) | -0.3 | -0.36 | -0.50 |
+| Drop-off, conditioned (Ct) | -0.96 (-1.50 to -0.49) | -1.16 | -2.0 | -0.98 | -0.94 |
+
+- The availability fix doesn't rescue looking ahead: the rollout ties or slightly trails greedy on titles;
+  Dt vs D -0.08 (-0.20 to +0.02). It changes 24% of round-1 choices and ~50% in rounds 4-7.
+- Drop-off still clearly worse (chases positions whose talent falls fastest).
+- With shared scoring (a player on n teams' model drafts counts 1/n), rollout ties on titles and gains
+  AV +3.2 (+1.3 to +5.3) and starts +0.35: it avoids the faller that greedy hands to many teams. Not the
+  draft-day case.
+- App: "On the clock" now also shows both tables (rollout per candidate with the same simulations for
+  every row; drop-off by position, with the chance of a big drop). The ranking stays value-now; the tables
+  show what a choice costs at later picks.

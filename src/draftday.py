@@ -29,6 +29,7 @@ from functools import lru_cache
 
 import numpy as np
 import pandas as pd
+from scipy.special import ndtr, ndtri
 
 from outlook import GROUPS
 from pick_value import baseline_paths, pick_effect, sample_outcomes
@@ -165,8 +166,14 @@ class DraftEngine:
         V = self.value_matrix(board, picks)
         grp_codes, grp_idx = np.unique(board.grp.to_numpy(), return_inverse=True)
         adp = board.adp.to_numpy(float)
-        z = rng.standard_normal((sims, len(board)))
-        realized = np.exp(np.log(adp + 10) + drift(adp) + spread(adp) * z) - 10
+        # Everyone on the live board is still undrafted at `now`, so draw each player's draft spot
+        # given that it's `now` or later. Without this, a faller (consensus #5 still there at #20) is
+        # drawn mostly before #20 and treated as gone at once; in fact fallers keep falling. Rolling
+        # test 2017-2026 (scripts/availability_test.py): log loss 0.552 -> 0.536, better in 9/10 drafts.
+        mu, sd = np.log(adp + 10) + drift(adp), spread(adp)
+        lo = ndtr((np.log(now + 10) - mu) / sd)
+        z = ndtri(np.clip(lo + (1 - lo) * rng.random((sims, len(board))), 1e-12, 1 - 1e-12))
+        realized = np.exp(mu + sd * z) - 10
         order = np.argsort(realized, axis=1)
         avail_at = np.zeros((len(board), len(picks)))
         got_value = np.zeros((sims, len(picks)))
@@ -202,6 +209,105 @@ class DraftEngine:
         if len(sim["picks"]) > 1:
             out[f"p_avail_at_{sim['picks'][1]}"] = sim["p_available"][:, 1]
         return out.sort_values("titles_if_taken_now", ascending=False)
+
+    # ---------- looking ahead to our later picks ----------
+
+    def _draws(self, board, now, sims, seed):
+        """(sims, players) order keys for other teams' picks: lower = taken sooner, each player's
+        spot drawn given he's still on the board at `now` (same rule as simulate)."""
+        adp = board.adp.to_numpy(float)
+        mu, sd = np.log(adp + 10) + drift(adp), spread(adp)
+        lo = ndtr((np.log(now + 10) - mu) / sd)
+        rng = np.random.default_rng(seed)
+        return mu + sd * ndtri(np.clip(lo + (1 - lo) * rng.random((sims, len(board))), 1e-12, 1 - 1e-12))
+
+    @staticmethod
+    def _others_take(avail, key, n):
+        """Other teams take n players: the available ones with the lowest keys (in place)."""
+        if n <= 0:
+            return
+        k = np.where(avail, key, np.inf)
+        n = min(n, avail.shape[1] - 1)
+        np.put_along_axis(avail, np.argpartition(k, n, axis=1)[:, :n], False, axis=1)
+
+    def lookahead(self, board: pd.DataFrame, picks: list[int], now: int, top: int = 12, sims: int = 600,
+                  seed: int = 1) -> pd.DataFrame:
+        """For each serious candidate at our next pick: titles from him + expected titles from our
+        later picks this draft if we take him (later picks: best available for the roster), over
+        simulated drafts. The same simulated drafts are used for every candidate, so differences
+        between candidates aren't simulation noise. Candidates: our top `top` by value now, plus
+        the best at each position."""
+        picks = sorted(p for p in picks if p >= now)
+        if not picks:
+            return pd.DataFrame()
+        V = self.value_matrix(board, picks)
+        g = board.grp.to_numpy()
+        codes, gidx = np.unique(g, return_inverse=True)
+        v0 = np.where(g == "SPEC", -np.inf, V[:, 0, 0])
+        cand = list(np.argsort(-v0)[:top])
+        for c in range(len(codes)):
+            m = np.where(gidx == c, v0, -np.inf)
+            if np.isfinite(m.max()) and codes[c] != "SPEC":
+                cand.append(int(np.argmax(m)))
+        cand = sorted(set(int(c) for c in cand))
+        C, N = len(cand), len(board)
+        key = np.tile(self._draws(board, now, sims, seed), (C, 1))
+        avail = np.ones((C * sims, N), bool)
+        count = np.zeros((C * sims, len(codes)), int)
+        forced = np.repeat(np.array(cand), sims)
+        rows = np.arange(C * sims)
+        got = np.zeros((C * sims, len(picks)))
+        had = np.zeros(C * sims, bool)
+        prev = now
+        for j, k in enumerate(picks):
+            self._others_take(avail, key, k - prev)
+            vals = np.where(avail, V[np.arange(N)[None, :], j, np.minimum(count[:, gidx], 2)], -np.inf)
+            i = np.argmax(vals, axis=1)
+            if j == 0:  # take the candidate if he's still there, else the best available
+                had = avail[rows, forced]
+                i = np.where(had, forced, i)
+            v = vals[rows, i]
+            ok = np.isfinite(v)
+            got[ok, j] = v[ok]
+            avail[rows[ok], i[ok]] = False
+            np.add.at(count, (rows[ok], gidx[i[ok]]), 1)
+            prev = k + 1
+        got = got.reshape(C, sims, len(picks))
+        out = board.iloc[cand][["name", "pos", "rank", "adp"]].copy()
+        out["titles_now"] = V[cand, 0, 0] * 100
+        out["titles_later_picks"] = got[:, :, 1:].sum(axis=2).mean(axis=1) * 100
+        out["titles_total"] = got.sum(axis=2).mean(axis=1) * 100
+        out["p_there_at_our_pick"] = had.reshape(C, sims).mean(axis=1)
+        out["vs_best_now"] = out.titles_total - out.titles_total.loc[out.titles_now.idxmax()]
+        return out.sort_values("titles_total", ascending=False).reset_index(drop=True)
+
+    def position_dropoff(self, board: pd.DataFrame, picks: list[int], now: int, sims: int = 2000,
+                         seed: int = 1) -> pd.DataFrame:
+        """For each position: the best value available at our next pick vs the expected best at
+        that position at the pick after, if we don't take one now. A big drop = a cliff."""
+        picks = sorted(p for p in picks if p >= now)
+        if len(picks) < 2:
+            return pd.DataFrame()
+        V = self.value_matrix(board, picks[:2])
+        g = board.grp.to_numpy()
+        key = self._draws(board, now, sims, seed)
+        avail = np.ones((sims, len(board)), bool)
+        self._others_take(avail, key, picks[0] - now)
+        best = {}
+        for j in (0, 1):
+            if j == 1:  # we take nobody at this position now; others pick in between
+                self._others_take(avail, key, picks[1] - picks[0] - 1)
+            for grp in sorted(set(g) - {"SPEC"}):
+                m = (g == grp)
+                vals = np.where(avail[:, m], V[m, j, 0][None, :], -np.inf).max(axis=1)
+                best[(grp, j)] = np.where(np.isfinite(vals), vals, 0.0)
+        rows = []
+        for grp in sorted(set(g) - {"SPEC"}):
+            a, b = best[(grp, 0)], best[(grp, 1)]
+            rows.append({"position": grp, f"best at #{picks[0]}": a.mean() * 100,
+                         f"expected best at #{picks[1]}": b.mean() * 100, "drop_off": (a - b).mean() * 100,
+                         "chance of a big drop (>half)": float(((a - b) > 0.5 * np.abs(a)).mean())})
+        return pd.DataFrame(rows).sort_values("drop_off", ascending=False).reset_index(drop=True)
 
     def draft_value(self, board, picks, now, future: list[Pick] = (), sims=2000) -> float:
         """Expected titles from a set of picks: this draft's (board-aware) + future (generic)."""
