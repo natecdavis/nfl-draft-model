@@ -2461,3 +2461,35 @@ Effect: the model's value of future late picks barely moves (middle team, titles
 12-32% on the old chart, and the refit chart raises the next-year discount factor for rounds 2-7 from 0.57 to 0.64
 (next 1st unchanged at ~#43). App examples: Mahomes-style trade 0.87 -> 0.86, #10 for #20 + #52 1.05 -> 1.06,
 middle team's next 1st for #42 1.00 -> 1.02.
+
+## Ledger of every lead tested (`reports/ledger.csv`, Nov 2026)
+
+One row per hypothesis or model change tested in this README (205 rows, split where a section tests several things).
+Each row has the headline effect and p-value or 95% range copied from its section, n, significant at 5%, whether a
+fresh sample replicated it, the verdict, the section and the script. "Replicated" counts only a fresh or independent
+sample, or a held-out test; a year split inside the same sample is "not tried". Rows were extracted from this README and
+the project notes and spot-checked against the sections. Rerun or edit by hand when a section changes.
+
+| Verdict | Rows |
+|---|---|
+| Not adopted | 165 |
+| Adopted | 17 |
+| Fix applied | 10 |
+| Information only (shown in the app) | 7 |
+| Parked | 6 |
+
+**Leads for information the board misses** (90 rows: scouting text, multi-sport, coaching contact, visits, growth,
+size, transcripts, literature biases, injuries, team skill, ...):
+- 58 have a stated test. 22 are significant at 5%; about 3 would be expected by chance if all were null. Most of the
+  rest are null without a p-value. These tests share players and years and include subgroup cuts of the same idea, so
+  they are not independent and the excess is smaller than it looks.
+- Of the 22, 8 were put to a fresh sample: 6 failed (Hasan reach and stars, sons of NFL players, EDGE height, transcript
+  word length, recruiting rank, one-year wonders). Two held: coaching or visit contact in picks 1-100 (x1.14 vs slot)
+  and the round-1 WR edge over teams' picks. Neither changes the board: contact is only known after the draft, and the
+  WR edge sits inside the model's existing recommendations.
+- 12 were never retested (track athletes x0.84, "raw" language x0.75, RB receiving grade x1.15, RB pass blocking
+  x1.33, recent coaching links x1.21, and others). Treat each as one draw from many tests until a fresh sample says
+  otherwise. The obvious rechecks come when the 2023-24 classes mature.
+- No private-information lead was adopted into the model. What changed the model is engine and yardstick work:
+  comparison-career correction, monotone value, board-less classes dropped, training links fixed, the darko label,
+  within-position units, cap cost, conditioned availability draws and comp-pick numbering.
