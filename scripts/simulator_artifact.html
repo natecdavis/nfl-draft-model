@@ -105,15 +105,18 @@ button.take { padding: 4px 10px; font-size: 13px; }
 <div class="wrap">
   <header>
     <h1>Draft Simulator</h1>
-    <p class="sub">Replay a team's draft at the picks it actually made and choose your own player each time. Other teams draft exactly as they really did. Values are the change in expected Super Bowls over five seasons, in % of one title, for that team's situation on draft night.</p>
+    <p class="sub">Replay a team's draft from the picks it held when the draft began: OK or nix each trade it really made on draft night, and choose your own player at every pick you hold. Other teams draft as they really did. Values are the change in expected Super Bowls over five seasons, in % of one title, for that team's situation on draft night.</p>
   </header>
 
   <section class="card">
     <div class="controls">
       <label for="year">Draft<select id="year"></select></label>
       <label for="team">Team<select id="team"></select></label>
+      <label for="rule">If you nix a trade, the partner takes<select id="rule">
+        <option value="slot">the player really picked at its slot</option>
+        <option value="partner">the player it really took with our pick</option></select></label>
       <div class="actions">
-        <button id="undo" type="button">Undo last pick</button>
+        <button id="undo" type="button">Undo last step</button>
         <button id="reset" type="button">Start over</button>
       </div>
     </div>
@@ -127,7 +130,7 @@ button.take { padding: 4px 10px; font-size: 13px; }
     <section class="card" id="history"></section>
   </div>
 
-  <p class="note">How it works: at each pick, everyone really taken before it is gone (including this team's own earlier picks, even if you passed on them), and anyone you took is gone at your later picks. Each player you take at a position lowers the value of the next one there; after one QB the QB need is filled, and a flagged QB need counts with its measured chance of being real. Candidates are Arif Hasan's consensus board plus drafted players who weren't on it (valued as ranked just past it, #330). Positions are the consensus board's own labels; a label that often changes position in the NFL (a 5-technique, an edge rusher who becomes an off-ball linebacker, a safety who moves to linebacker) is valued as a blend of those positions and shown like "DL/EDGE". Kickers and punters are valued by where they were actually drafted (the board rarely ranks them): the gain of a drafted specialist over an undrafted one, measured in points 2006-2022, and only the first at each position counts; long snappers aren't valued. Draft-night trades aren't simulated. "Delivered" columns count each player's first four seasons; drafts since 2023 count the seasons played so far (through 2025). Undrafted players count from the 2016 class.</p>
+  <p class="note">How it works: at each pick, everyone really taken before it is gone (including this team's own earlier picks, even if you passed on them), and anyone you took is gone at your later picks. Each player you take at a position lowers the value of the next one there; after one QB the QB need is filled, and a flagged QB need counts with its measured chance of being real. Candidates are Arif Hasan's consensus board plus drafted players who weren't on it (valued as ranked just past it, #330). Positions are the consensus board's own labels; a label that often changes position in the NFL (a 5-technique, an edge rusher who becomes an off-ball linebacker, a safety who moves to linebacker) is valued as a blend of those positions and shown like "DL/EDGE". Kickers and punters are valued by where they were actually drafted (the board rarely ranks them): the gain of a drafted specialist over an undrafted one, measured in points 2006-2022, and only the first at each position counts; long snappers aren't valued. Draft-night trades: only the trades the team really made can be offered (declined offers aren't public); each comes up before the first pick it involves, with the trade calculator's verdict and the market price, and one you can no longer make after an earlier choice is skipped. If you nix a trade, the partner's slot is filled by the rule at the top: by default, whoever was really picked there (the board is then exactly what it really was at every later pick); or, as the other end of the range, the partner makes the choices it really made with our picks, and the player really taken at that slot goes back on the board. "Delivered" columns count each player's first four seasons; drafts since 2023 count the seasons played so far (through 2025). Undrafted players count from the 2016 class.</p>
 </div>
 
 <script>
@@ -143,7 +146,7 @@ const fmt = v => v == null || Number.isNaN(v) ? "–" : (v >= 0 ? "+" : "−") +
 const rankTxt = r => r == null ? "off board" : "#" + r;
 
 let D, TAB, REAL, META, LT, LK, GI;
-let year, team, choices = [];
+let year, team;
 
 async function gunzip(b64) {
   const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
@@ -203,15 +206,22 @@ const store = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
-const key = () => `draftsim:${year}:${team}`;
-function save() { store.set(key(), choices); store.set("draftsim:last", { year, team }); }
+// actions: {t: "pick", idx} or {t: "trade", id, ok}; replayed in order (see replay)
+const key = () => `draftsim2:${year}:${team}`;
+function save() { store.set(key(), actions); store.set("draftsim:last", { year, team }); store.set("draftsim:rule", rule); }
+let actions = [], rule = "slot";
 
-function options(T, P, pick, taken, counts) {
+const roundOf = k => { const r = (META.rounds[year] || []); let n = 1; r.forEach((s, i) => { if (k >= s) n = i + 1; }); return n; };
+const futTxt = f => `${+year + f[0]} R${f[1]}`;
+const pickList = (now, fut, players) => [...now.map(k => "#" + k), ...fut.map(futTxt), ...players.map(n => esc(n) + " (player)")].join(", ") || "nothing";
+
+function options(T, P, pick, taken, counts, atOf) {
   const out = [];
   P.forEach((p, idx) => {
-    const [name, g, rank, school, at, by, , , label] = p;
+    const [name, g, rank, school, , by, , , label] = p;
+    const at = atOf(idx);
     if (!(g in GI) || taken.has(idx) || (at != null && at < pick)) return;
-    out.push({ idx, name, g, label, rank, school, at, by, v: value(T, p, Math.min(counts[g] || 0, 2), pick) });
+    out.push({ idx, name, g, label, rank, school, at: p[4], by, v: value(T, p, Math.min(counts[g] || 0, 2), pick) });
   });
   out.sort((a, b) => b.v - a.v);
   out.forEach((o, n) => o.mr = n + 1);
@@ -219,45 +229,127 @@ function options(T, P, pick, taken, counts) {
 }
 const went = o => o.at == null ? "undrafted" : `#${o.at} ${o.by}${o.by === team ? " (this team)" : ""}`;
 
+// Replay the actions from draft night's start. Picks the team held when the draft began; each draft-night
+// trade comes up before the first pick it involves. A trade we can no longer make (we don't hold a pick it
+// gives, or already hold one it gets) is skipped. Board: everyone really taken before a pick is gone (the
+// slot keeps its player); with rule "partner", a nixed trade's partner instead makes its real choices from
+// our picks at the slots it keeps, and players really taken at those slots go back on the board.
+function replay(T, P) {
+  const owned = new Set(T.start.length ? T.start : T.picks.map(p => p[0]));
+  const used = new Set(), taken = new Set(), counts = {}, decided = new Map(), made = [], override = new Map();
+  const atOf = idx => override.has(idx) ? override.get(idx) : P[idx][4];
+  const trig = t => Math.min(...t.give, ...t.get, Infinity) === Infinity ? 0 : Math.min(...t.give, ...t.get);
+  let ai = 0, broken = false;
+  for (let guard = 0; guard < 400; guard++) {
+    const free = [...owned].filter(k => !used.has(k)).sort((x, y) => x - y);
+    const nextPick = free.length ? free[0] : Infinity;
+    let t = T.trades.find(t => !decided.has(t.id) && trig(t) <= nextPick);
+    // an earlier trade that moved one of its picks comes first (chains: a pick acquired, then traded again)
+    for (let moved = true; t && moved; ) {
+      moved = false;
+      const share = (a, b) => [...a.give, ...a.get].some(k => b.give.includes(k) || b.get.includes(k));
+      const e = T.trades.slice(0, T.trades.indexOf(t)).find(e => !decided.has(e.id) && share(e, t));
+      if (e) { t = e; moved = true; }
+    }
+    if (t) {
+      const cant = t.give.find(k => !owned.has(k) || used.has(k)), dup = t.get.find(k => owned.has(k) || used.has(k));
+      if (cant != null || dup != null) {
+        decided.set(t.id, { ok: false, auto: true, why: cant != null ? `you no longer hold #${cant}` : `you already hold #${dup}` });
+        continue;
+      }
+      const a = actions[ai];
+      if (!a) return { owned, made, decided, taken, counts, atOf, next: { t: "trade", trade: t }, broken };
+      if (a.t !== "trade" || a.id !== t.id) { broken = true; actions = actions.slice(0, ai); continue; }
+      ai++;
+      decided.set(t.id, { ok: a.ok });
+      if (a.ok) { t.give.forEach(k => owned.delete(k)); t.get.forEach(k => owned.add(k)); }
+      else if (rule === "partner") {
+        // the partner keeps t.get: it makes the choices it really made with our picks (t.give) there, in order
+        const theirs = P.map((p, i) => i).filter(i => t.give.includes(P[i][4]) && P[i][5] === t.partner).sort((x, y) => P[x][4] - P[y][4]);
+        const slots = [...t.get].sort((x, y) => x - y);
+        P.forEach((p, i) => { if (slots.includes(p[4])) override.set(i, null); });  // back on the board
+        theirs.forEach((i, n) => override.set(i, n < slots.length ? slots[n] : null));
+      }
+      continue;
+    }
+    if (nextPick === Infinity) return { owned, made, decided, taken, counts, atOf, next: null, broken };
+    const k = nextPick, a = actions[ai];
+    const o = options(T, P, k, taken, counts, atOf);
+    if (!a) return { owned, made, decided, taken, counts, atOf, next: { t: "pick", k, o }, broken };
+    const ch = a.t === "pick" ? o.find(x => x.idx === a.idx) : null;
+    if (!ch) { broken = true; actions = actions.slice(0, ai); continue; }
+    ai++;
+    made.push({ k, idx: ch.idx, v: ch.v, top: o[0], me: P[ch.idx] });
+    used.add(k); taken.add(ch.idx); counts[ch.g] = (counts[ch.g] || 0) + 1;
+  }
+  return { owned, made, decided, taken, counts, atOf, next: null, broken };
+}
+
+function realAtPick(T, k, idx) {
+  if (T.real == null || !T.kp) return null;
+  const j = T.kp.indexOf(k);
+  return j < 0 ? null : realAt(T, j, idx);
+}
+const futVal = t => t.get_fut.reduce((s, f) => s + f[2], 0) - t.give_fut.reduce((s, f) => s + f[2], 0);
+
+function tradeCard(T, t) {
+  const m = t.market;
+  const verdict = t.verdict == null ? `<div class="d">No model verdict: the deal includes a player, and the model only values picks.</div>`
+    : `<div class="v ${t.verdict >= 0 ? "pos-pos" : "neg"}">${fmt(t.verdict)}</div><div class="d">change in titles for ${esc(team)} (% of one), the trade calculator on draft night${t.qb_get.length ? `; #${t.qb_get.join(", #")} counted as a QB pick, as ${esc(team)} used it` : ""}</div>`;
+  const mk = !m ? `<div class="d">No market price${t.give_players.length || t.get_players.length ? " (a player is involved)" : ""}.</div>`
+    : `<div class="v">${m.ratio >= 1 ? "+" : "−"}${Math.abs((m.ratio - 1) * 100).toFixed(0)}%</div><div class="d">we get vs give at market prices (95% ${((m.ratio_lo - 1) * 100).toFixed(0)}% to ${((m.ratio_hi - 1) * 100).toFixed(0)}%); like #${m.give_eq.toFixed(0)} given for #${m.get_eq.toFixed(0)}${m.moving_up ? `; ${m.moving_up === "us" ? "we're" : "they're"} moving up (movers usually pay ~${((m.premium - 1) * 100).toFixed(0)}% over the chart)` : ""}</div>`;
+  return `
+    <div class="clock"><span class="pick">Trade</span><h2>Offer from ${esc(t.partner)}</h2><span class="chip">${esc(t.date)}</span><span class="chip gold">${esc(team)} made this trade</span></div>
+    <div class="tiles">
+      <div class="tile"><div class="k">We give</div><div class="v" style="font-size:18px">${pickList(t.give, t.give_fut, t.give_players)}</div></div>
+      <div class="tile"><div class="k">We get</div><div class="v" style="font-size:18px">${pickList(t.get, t.get_fut, t.get_players)}</div></div>
+      <div class="tile model"><div class="k">Model's verdict</div>${verdict}</div>
+      <div class="tile"><div class="k">Market price</div>${mk}</div>
+    </div>
+    <div class="actions"><button class="primary" type="button" id="tradeOk">OK the trade</button><button type="button" id="tradeNix">Nix it</button></div>
+    <p class="note">If you nix it you keep your picks and ${esc(t.partner)} keeps its own. The board then follows the rule chosen at the top: ${rule === "slot" ? "whoever was really taken at each pick is gone at that pick (so " + esc(t.partner) + " takes the player really picked at the slot it keeps)" : esc(t.partner) + " makes the choices it really made with our picks at the slots it keeps, and players really taken at those slots go back on the board"}.</p>`;
+}
+
 function render() {
   const T = D.teams[year][team], P = D.pools[year];
   const qbNeed = T.qb_from == null ? "no QB need in the window"
     : `needs a starting QB from season ${T.qb_from}` + (T.p_need < 1 ? ` (${Math.round(T.p_need * 100)}% likely)` : "");
-  $("state").innerHTML = `<b>${esc(team)} going into ${year}:</b> last season ${T.strength >= 0 ? "+" : "−"}${Math.abs(T.strength).toFixed(1)} pts/game vs average · QB ${esc(T.qb)} (${esc(T.status)}) → ${esc(qbNeed)}`;
+  const S = replay(T, P);
+  if (S.broken) save();
+  const held = [...S.owned].filter(k => !S.made.some(m => m.k === k)).sort((x, y) => x - y);
+  $("state").innerHTML = `<b>${esc(team)} going into ${year}:</b> last season ${T.strength >= 0 ? "+" : "−"}${Math.abs(T.strength).toFixed(1)} pts/game vs average · QB ${esc(T.qb)} (${esc(T.status)}) → ${esc(qbNeed)}<br>Picks still to make: ${held.length ? held.map(k => "#" + k).join(", ") : "none"}${T.trades.length ? ` · ${T.trades.length} draft-night trade${T.trades.length > 1 ? "s" : ""} to decide` : ""}`;
 
-  const taken = new Set(), counts = {}, hist = [];
-  choices.forEach((pid, n) => {
-    const pk = T.picks[n], k = pk[0], o = options(T, P, k, taken, counts), me = P[pid];
-    const v = value(T, me, Math.min(counts[me[1]] || 0, 2), k);
-    const tm = P.find(p => p[4] === k);
-    hist.push({ pk, me, v, top: o[0], team: tm });
-    taken.add(pid); counts[me[1]] = (counts[me[1]] || 0) + 1;
-  });
-
-  // on the clock
   const C = $("clock");
-  if (choices.length < T.picks.length) {
-    const [k, rnd, orig, traded, player, grp] = T.picks[choices.length];
-    const o = options(T, P, k, taken, counts);
-    const tp = o.find(x => x.at === k);
-    const teamTile = tp
-      ? `<div class="v">${esc(tp.name)} <span class="pos">${posOf(tp.g, tp.label)}</span></div><div class="d">${fmt(tp.v)} · model #${tp.mr} · consensus ${rankTxt(tp.rank)}</div>`
-      : `<div class="v">${esc(player)} <span class="pos">${pos(grp)}</span></div><div class="d">${(grp in GI) ? "you already drafted him" : "not valued (long snapper or unmapped position)"}</div>`;
+  if (S.next && S.next.t === "trade") {
+    C.innerHTML = tradeCard(T, S.next.trade);
+    $("tradeOk").onclick = () => act({ t: "trade", id: S.next.trade.id, ok: true });
+    $("tradeNix").onclick = () => act({ t: "trade", id: S.next.trade.id, ok: false });
+  } else if (S.next) {
+    const k = S.next.k, o = S.next.o, rnd = roundOf(k);
+    const real = T.picks.find(p => p[0] === k);
+    const tp = o.find(x => x.at === k && x.by === team);
+    const atk = P.findIndex(p => p[4] === k);
+    let teamTile;
+    if (real) teamTile = tp
+      ? `<div class="k">${esc(team)} actually took</div><div class="v">${esc(tp.name)} <span class="pos">${posOf(tp.g, tp.label)}</span></div><div class="d">${fmt(tp.v)} · model #${tp.mr} · consensus ${rankTxt(tp.rank)}</div>`
+      : `<div class="k">${esc(team)} actually took</div><div class="v">${esc(real[4])} <span class="pos">${pos(real[5])}</span></div><div class="d">${(real[5] in GI) ? "you already drafted him" : "not valued (long snapper or unmapped position)"}</div>`;
+    else teamTile = `<div class="k">In reality this pick was another team's</div><div class="v">${atk >= 0 ? esc(P[atk][0]) : "–"}</div><div class="d">${atk >= 0 ? `taken by ${esc(P[atk][5])}` : ""} · ${esc(team)} didn't pick here</div>`;
     const top = o[0];
     const row = x => `<tr class="${x.at === k ? "teampick" : ""}">
         <td class="n">${x.mr}</td>
-        <td class="name">${esc(x.name)}<small>${esc(x.school)}${x.at === k ? " · team's pick" : ""}</small></td>
+        <td class="name">${esc(x.name)}<small>${esc(x.school)}${x.at === k ? " · really taken here" : ""}</small></td>
         <td class="pos-col"><span class="pos">${posOf(x.g, x.label)}</span></td>
         <td class="n">${rankTxt(x.rank)}</td>
         <td class="hide-sm">${esc(went(x))}</td>
         <td class="n">${fmt(x.v)}</td>
         <td><button class="take" type="button" data-idx="${x.idx}">Draft</button></td></tr>`;
+    const nMade = S.made.length;
     C.innerHTML = `
       <div class="clock"><span class="pick">#${k}</span><h2>On the clock</h2>
-        <span class="chip">Round ${rnd}</span><span class="chip">Pick ${choices.length + 1} of ${T.picks.length}</span>
-        ${traded ? `<span class="chip gold">from ${esc(orig)} on draft night</span>` : ""}</div>
+        <span class="chip">Round ${rnd}</span><span class="chip">Your pick ${nMade + 1}</span>
+        ${real && real[3] ? `<span class="chip gold">from ${esc(real[2])} on draft night</span>` : ""}</div>
       <div class="tiles">
-        <div class="tile team"><div class="k">${esc(team)} actually took</div>${teamTile}</div>
+        <div class="tile team">${teamTile}</div>
         <div class="tile model"><div class="k">Model's top choice</div><div class="v">${esc(top.name)} <span class="pos">${posOf(top.g, top.label)}</span></div><div class="d">${fmt(top.v)} · consensus ${rankTxt(top.rank)}</div>${rnd > 1 ? `<div class="d edge">No tested edge after round 1: in past drafts (2014-2022) the model's picks here did no better than teams'.</div>` : ""}</div>
       </div>
       <div class="actions">
@@ -271,10 +363,10 @@ function render() {
         <div class="panel"><label for="search">More players: #26 on, or search all ${o.length} available<input type="search" id="search" placeholder="Name, school or position" autocomplete="off"></label>
           <div class="results" id="results"></div></div>
       </div>
-      <p class="note">Model = order by titles added for this team at this pick, given your draft so far. The team's pick is valued with your draft so far, so it can differ from the team's own value below.</p>`;
-    $("takeTop").onclick = () => take(top.idx);
-    if (tp) $("takeTeam").onclick = () => take(tp.idx);
-    C.querySelectorAll("button.take").forEach(b => b.onclick = () => take(+b.dataset.idx));
+      <p class="note">Model = order by titles added for this team at this pick, given your draft so far.</p>`;
+    $("takeTop").onclick = () => act({ t: "pick", idx: top.idx });
+    if (tp) $("takeTeam").onclick = () => act({ t: "pick", idx: tp.idx });
+    C.querySelectorAll("button.take").forEach(b => b.onclick = () => act({ t: "pick", idx: +b.dataset.idx }));
     const srow = x => `<tr class="${x.at === k ? "teampick" : ""}"><td class="n">${x.mr}</td>
         <td class="name">${esc(x.name)}<small>${esc(x.school)} · ${rankTxt(x.rank)} · went ${esc(went(x))}</small></td>
         <td class="pos-col"><span class="pos">${posOf(x.g, x.label)}</span></td><td class="n">${fmt(x.v)}</td>
@@ -283,56 +375,61 @@ function render() {
       const R = $("results");
       const hits = (q ? o.filter(x => (x.name + " " + x.school + " " + posOf(x.g, x.label)).toLowerCase().includes(q)) : o.slice(25)).slice(0, 100);
       R.innerHTML = hits.length ? `<table><tbody>${hits.map(srow).join("")}</tbody></table>` : `<p class="note" style="padding:8px">No available player matches “${esc(q)}”.</p>`;
-      R.querySelectorAll("button.take").forEach(b => b.onclick = () => take(+b.dataset.idx));
+      R.querySelectorAll("button.take").forEach(b => b.onclick = () => act({ t: "pick", idx: +b.dataset.idx }));
     };
     showResults("");
     $("search").oninput = e => showResults(e.target.value.trim().toLowerCase());
   } else {
-    C.innerHTML = `<div class="done">Draft complete</div><p class="note">All ${T.picks.length} of ${esc(team)}'s picks are made. Undo to change the last one, start over, or pick another team.</p>`;
+    C.innerHTML = `<div class="done">Draft complete</div><p class="note">You made all your picks. Undo to change the last step, start over, or pick another team.</p>`;
   }
 
-  // history
+  // history: your draft vs the team's real draft
   const H = $("history");
-  if (!hist.length) {
-    H.innerHTML = `<h2>Your draft vs ${esc(team)}'s</h2><p class="note">${esc(team)} made ${T.picks.length} picks in ${year}: ${T.picks.map(p => "#" + p[0]).join(", ")}. Your choices and the team's real picks will line up here.</p>`;
-  } else {
-    let you = 0, them = 0, rY = 0, rT = 0;
-    const scored = T.real != null;
-    const soFar = scored && T.seasons < 4 ? `so far: ${T.seasons} of 4 seasons` : "rookie contracts, as played";
-    const rows = hist.map((h, n) => {
-      const [k, , , , player, grp, br, vTeam, realTeam] = h.pk;
-      you += h.v; them += vTeam ?? 0;
-      const tm = h.team || [];
-      const realYou = realAt(T, n, choices[n]);
-      rY += realYou ?? 0; rT += realTeam ?? 0;
-      const same = !h.top || h.top.idx === choices[hist.indexOf(h)];
-      return `<tr><td class="n">${k}</td><td class="n">${h.pk[1]}</td>
-        <td class="name">${esc(h.me[0])}<small>${posOf(h.me[1], h.me[8])} · ${esc(h.me[3])} · ${rankTxt(h.me[2])}</small></td>
-        <td class="n">${fmt(h.v)}</td>
-        <td class="name">${same ? "<small>same</small>" : `${esc(h.top.name)}<small>${pos(h.top.g)} · ${rankTxt(h.top.rank)}</small>`}</td>
-        <td class="n">${same ? "" : fmt(h.top.v)}</td>
-        <td class="name">${esc(player)}<small>${pos(grp)}${tm[3] ? " · " + esc(tm[3]) : ""} · ${rankTxt(br)}</small></td>
-        <td class="n">${fmt(vTeam)}</td>
-        <td class="n">${scored ? fmt(realYou) : "–"}</td><td class="n">${scored ? fmt(realTeam) : "–"}</td></tr>`;
-    }).join("");
-    const done = hist.length;
-    H.innerHTML = `<h2>Your draft vs ${esc(team)}'s</h2>
-      <div class="sum">
-        <div class="tile model"><div class="k">Your titles</div><div class="v">${fmt(you)}</div><div class="d">${done} pick${done > 1 ? "s" : ""}</div></div>
-        <div class="tile team"><div class="k">${esc(team)}'s titles</div><div class="v">${fmt(them)}</div><div class="d">same slots</div></div>
-        <div class="tile model"><div class="k">You: actually delivered</div><div class="v">${scored ? fmt(rY) : "–"}</div><div class="d">${scored ? soFar : "no season played yet"}</div></div>
-        <div class="tile team"><div class="k">${esc(team)}: actually delivered</div><div class="v">${scored ? fmt(rT) : "–"}</div><div class="d">${scored ? soFar : "no season played yet"}</div></div>
-      </div>
-      <div class="scroll"><table>
-        <thead><tr><th class="n">Pick</th><th class="n">Rd</th><th>You took</th><th class="n">Titles %</th><th>Model's #1 then</th><th class="n">Titles %</th><th>${esc(team)} took</th><th class="n">Titles %</th><th class="n">You: delivered</th><th class="n">Team: delivered</th></tr></thead>
-        <tbody>${rows}</tbody></table></div>
-      <p class="note">Titles = the model's draft-night value. The team's values follow its own draft (its needs set by its own earlier picks). Delivered = what each player really did in his first four seasons (with the team that actually drafted him, or none if he never reached the NFL), at the cost of this pick, as titles for this team, in % of one.${!scored ? " No season of this draft has been played yet." : T.seasons < 4 ? ` This draft has played ${T.seasons} of its 4 rookie-contract seasons: only those count so far (value and cost), so totals will change.` : ""}</p>`;
-  }
-  $("undo").disabled = !choices.length;
-  $("reset").disabled = !choices.length;
+  const tradeRows = T.trades.map(t => {
+    const d = S.decided.get(t.id);
+    const what = !d ? "<small>not yet</small>" : d.auto ? `<span class="neg">not possible</span><small>${esc(d.why)}</small>` : d.ok ? "OK'd" : "<b>Nixed</b>";
+    return `<tr><td>${esc(t.partner)}</td><td>${pickList(t.give, t.give_fut, t.give_players)}</td><td>${pickList(t.get, t.get_fut, t.get_players)}</td>
+      <td class="n">${fmt(t.verdict)}</td><td>${what}</td></tr>`;
+  }).join("");
+  const scored = T.real != null;
+  const soFar = scored && T.seasons < 4 ? `so far: ${T.seasons} of 4 seasons` : "rookie contracts, as played";
+  let you = 0, rY = 0, missing = 0;
+  const rows = S.made.map(m => {
+    you += m.v;
+    const r = realAtPick(T, m.k, m.idx); if (r == null) missing++; rY += r ?? 0;
+    const real = T.picks.find(p => p[0] === m.k);
+    const same = m.top.idx === m.idx;
+    return `<tr><td class="n">${m.k}</td><td class="n">${roundOf(m.k)}</td>
+      <td class="name">${esc(m.me[0])}<small>${posOf(m.me[1], m.me[8])} · ${esc(m.me[3])} · ${rankTxt(m.me[2])}</small></td>
+      <td class="n">${fmt(m.v)}</td>
+      <td class="name">${same ? "<small>same</small>" : `${esc(m.top.name)}<small>${pos(m.top.g)} · ${rankTxt(m.top.rank)}</small>`}</td>
+      <td class="name">${real ? `${esc(real[4])}<small>${pos(real[5])}</small>` : "<small>not a pick the team made</small>"}</td>
+      <td class="n">${scored ? fmt(r) : "–"}</td></tr>`;
+  }).join("");
+  let them = 0, rT = 0;
+  T.picks.forEach(p => { them += p[7] ?? 0; rT += p[8] ?? 0; });
+  const futYou = T.trades.reduce((s, t) => s + ((S.decided.get(t.id) || {}).ok ? futVal(t) : 0), 0);
+  const futTeam = T.trades.reduce((s, t) => s + futVal(t), 0);
+  const anyFut = T.trades.some(t => t.give_fut.length || t.get_fut.length);
+  const complete = !S.next;
+  H.innerHTML = `<h2>Your draft vs ${esc(team)}'s</h2>
+    <div class="sum">
+      <div class="tile model"><div class="k">Your titles</div><div class="v">${fmt(you + futYou)}</div><div class="d">${S.made.length} pick${S.made.length === 1 ? "" : "s"}${anyFut ? ` · future picks ${fmt(futYou)}` : ""}${complete ? "" : " so far"}</div></div>
+      <div class="tile team"><div class="k">${esc(team)}'s titles</div><div class="v">${fmt(them + futTeam)}</div><div class="d">its ${T.picks.length} real picks${anyFut ? ` · future picks ${fmt(futTeam)}` : ""}</div></div>
+      <div class="tile model"><div class="k">You: actually delivered</div><div class="v">${scored ? fmt(rY) : "–"}</div><div class="d">${scored ? soFar : "no season played yet"}${anyFut ? " · this draft only" : ""}</div></div>
+      <div class="tile team"><div class="k">${esc(team)}: actually delivered</div><div class="v">${scored ? fmt(rT) : "–"}</div><div class="d">${scored ? soFar : "no season played yet"}${anyFut ? " · this draft only" : ""}</div></div>
+    </div>
+    ${S.made.length ? `<div class="scroll"><table>
+      <thead><tr><th class="n">Pick</th><th class="n">Rd</th><th>You took</th><th class="n">Titles %</th><th>Model's #1 then</th><th>${esc(team)} took here</th><th class="n">You: delivered</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>` : `<p class="note">${esc(team)} really made ${T.picks.length} picks in ${year}: ${T.picks.map(p => "#" + p[0]).join(", ")}.</p>`}
+    ${T.trades.length ? `<h3 style="font-size:16px;text-transform:uppercase;color:var(--muted)">Draft-night trades</h3><div class="scroll"><table>
+      <thead><tr><th>With</th><th>${esc(team)} gave</th><th>${esc(team)} got</th><th class="n">Model verdict</th><th>You</th></tr></thead><tbody>${tradeRows}</tbody></table></div>` : ""}
+    <p class="note">Titles = the model's draft-night value; the team's side is its real draft (its own picks, every trade made). Future picks count at the trade calculator's value for this team; "delivered" covers this draft's picks only. Delivered = what each player really did in his first four seasons, at the cost of the pick where you took him, as titles for this team (% of one).${!scored ? " No season of this draft has been played yet." : T.seasons < 4 ? ` This draft has played ${T.seasons} of its 4 rookie-contract seasons so far.` : ""}${S.broken ? " <b>Some later steps were dropped: they weren't possible after an earlier change.</b>" : ""}</p>`;
+  $("undo").disabled = !actions.length;
+  $("reset").disabled = !actions.length;
 }
 
-function take(idx) { choices.push(idx); save(); render(); }
+function act(a) { actions.push(a); save(); render(); }
 
 function setTeamOptions(keep) {
   const teams = Object.keys(D.teams[year]).sort();
@@ -340,7 +437,7 @@ function setTeamOptions(keep) {
   team = teams.includes(keep) ? keep : teams[0];
   $("team").value = team;
 }
-function load() { choices = store.get(key()) || []; render(); }
+function load() { actions = store.get(key()) || []; render(); }
 
 (async () => {
   try {
@@ -361,8 +458,11 @@ function load() { choices = store.get(key()) || []; render(); }
   setTeamOptions(last.team);
   $("year").onchange = e => { year = e.target.value; setTeamOptions(team); save(); load(); };
   $("team").onchange = e => { team = e.target.value; save(); load(); };
-  $("undo").onclick = () => { choices.pop(); save(); render(); };
-  $("reset").onclick = () => { choices = []; save(); render(); };
+  $("undo").onclick = () => { actions.pop(); save(); render(); };
+  $("reset").onclick = () => { actions = []; save(); render(); };
+  rule = store.get("draftsim:rule") === "partner" ? "partner" : "slot";
+  $("rule").value = rule;
+  $("rule").onchange = e => { rule = e.target.value; save(); render(); };
   $("loading").hidden = true; $("main").hidden = false;
   load();
 })();

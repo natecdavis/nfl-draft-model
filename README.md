@@ -86,7 +86,7 @@ Replay test: scripts/replay_2021.py (49ers 2021 with ESPN's board). App test: sc
 ## Draft simulator (app page "Draft simulator", `src/simulator.py`)
 
 Pick a team and a past draft (2014-2026) and make your own choice at each pick the team actually
-made (including picks it traded for on draft night; trades themselves aren't simulated). At each
+made (the classic page; the main page also offers the team's draft-night trades, below). At each
 pick: what the team really did, the model's top 15 for that team at that moment, and a searchable
 list of every available player (Hasan board players plus drafted players who weren't on it).
 Other teams draft as they really did: at pick k, everyone actually taken before k is gone, including
@@ -108,6 +108,31 @@ ones to rounding. "Draft simulator classic" keeps the Streamlit version. The sam
 with `python scripts/export_simulator_artifact.py`, is published as a private Claude artifact (it embeds
 Hasan's boards: keep it private). The app's look (`.streamlit/config.toml`) matches it. Tests:
 `scripts/test_simulator_html.py`, `scripts/test_simulator_page.py` (classic).
+
+**Draft-night trades (main page, Nov 2026).** The main page now starts from the picks the team held when the draft
+began and offers each draft-night trade it really made (declined offers aren't public), before the first pick the
+trade involves: what each side gives (picks, future picks, players), the trade calculator's verdict for this team
+(`review_trades`; pick-only trades; a received pick counts as a QB pick if the team took a QB there) and the market
+price (`src/market.py`; pick-only trades). OK it or nix it. Data: `export_simulator_artifact.night_trades` (cached
+in data/derived/sim_night_trades_v3.json) and realized values at every pick the team could own
+(`realized_extra`, data/derived/sim_realized_extra_v1.npz).
+- Starting picks: each pick's owner at the root of its draft-night chain (gave it, never received it that night).
+  `review.draft_night`'s first-giver rule mislabels 63 picks 2014-2026 on same-day chains (review labels only).
+- Order: by date, and within a day by pick flow (a trade that hands on a pick comes after the one that brought it
+  in; nflverse trade ids aren't in time order within a day). A trade you can no longer make after an earlier choice
+  (you don't hold a pick it gives, or already hold one it gets) is skipped and marked "not possible".
+- Board after a nix, two rules (a selector at the top): **slot** (default): everyone really taken at a pick is gone
+  at that pick, so the partner takes the player really picked at the slot it keeps and the board at every later pick
+  is the real one; **partner**: the partner makes the choices it really made with our picks, in order, at the slots it
+  keeps, and players really taken at those slots go back on the board. The two bracket what the partner would have
+  done; your result under both is the range. E.g. nixing KC's 2017 trade-up for Mahomes: under slot, BUF takes Mahomes
+  at #10 and KC picks at #27 with Tre'Davious White available; under partner, BUF takes White at #10 and Mahomes is
+  there at #27.
+- Totals: your picks plus the calculator's value of future picks from trades you OK'd, vs the team's real draft and
+  all its trades; "delivered" covers this draft's picks only.
+- Check: OK every trade and take the team's real player -> the team's real picks in 398 of 416 team-drafts; the other
+  18 differ by a late pick where the trade log disagrees with who picked (e.g. 2018: the log sends #154 BUF -> BAL,
+  BUF made the pick). Test: `node scripts/test_simulator_trades.mjs` (after building the page).
 
 ## Roster need test (`scripts/roster_need.py`)
 

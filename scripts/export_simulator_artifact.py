@@ -35,6 +35,8 @@ DEST = OUT / "artifact" / "draft_simulator.html"
 SCALE = 100_000  # tables stored as int16 = value (fraction of a title) x SCALE
 REAL_SCALE = 1000  # realized titles stored as int16 = % of a title x REAL_SCALE; missing = -32768
 REAL_CACHE = OUT / "sim_realized_v4.npz"  # v2: recent drafts scored "so far"; v3: real positions; v4: K/P
+EXTRA_CACHE = OUT / "sim_realized_extra_v1.npz"  # picks a team could own if it nixes draft-night trades
+NIGHT_CACHE = OUT / "sim_night_trades_v3.json"  # draft-night trades per team: verdicts, market prices
 
 
 def realized_arrays(S, R, verbose=False) -> dict:
@@ -62,6 +64,139 @@ def realized_arrays(S, R, verbose=False) -> dict:
     return out
 
 
+def _trade_order(night, y) -> list:
+    """Draft-night trade ids in the order they happened: by date, and within a day by how picks flowed (a trade
+    that hands on a pick comes after the trade that brought it in; trade ids aren't in time order within a day)."""
+    import graphlib
+    cur = night[(night.pick_season == y) & night.pick_number.notna()]
+    ts = graphlib.TopologicalSorter()
+    dates = night.groupby("trade_id").trade_date.first()
+    for tid in dates.index:
+        ts.add(tid)
+    for k, g in cur.groupby("pick_number"):
+        for a in g.itertuples():  # a: someone receives k; b: that team gives k on later
+            for b in g.itertuples():
+                if a.trade_id != b.trade_id and b.gave == a.received and dates[a.trade_id] <= dates[b.trade_id]:
+                    ts.add(b.trade_id, a.trade_id)
+    try:
+        flow = list(ts.static_order())
+    except graphlib.CycleError:
+        flow = sorted(dates.index)
+    rank = {t: i for i, t in enumerate(flow)}
+    return sorted(dates.index, key=lambda t: (dates[t], rank[t]))
+
+
+def night_trades(S, verbose=False) -> dict:
+    """{"year": {"team": {"start": picks held when the draft began, "trades": [...]}}}: every draft-night
+    trade the team made, in order, with what each side gave (picks this draft by number, future picks
+    [years ahead, round], players by name), the trade calculator's verdict for this team (titles over 5
+    seasons; pick-only trades; a pick it received counts as a QB pick if it took a QB there, as in the review),
+    the model's value of each future pick, and the market price (src/market.py; pick-only trades). Cached."""
+    stamp = max((OUT / f).stat().st_mtime for f in ["review_states.parquet", "review_trades.parquet", "market_chart.json"])
+    if NIGHT_CACHE.exists() and NIGHT_CACHE.stat().st_mtime > stamp:
+        return json.load(open(NIGHT_CACHE))
+    import market
+    from review import draft_night
+    from trade import Context, Pick, evaluate
+    ctx = Context()
+    RT = pd.read_parquet(OUT / "review_trades.parquet")
+    verdict = {(int(r.year), int(r.trade_id), r.team): float(r.titles_change) for r in RT.itertuples()}
+    fut_cache, out = {}, {}
+    for y in sorted(S.year.unique()):
+        y = int(y)
+        d, night = draft_night(y)
+        sits = {r.team: situation(r) for _, r in S[S.year == y].iterrows()}
+        # who held each pick when the draft began: the team at the root of its draft-night chain (gave it, never
+        # received it that night); review.draft_night's first-giver rule can pick a later link on same-day chains
+        cur = night[(night.pick_season == y) & night.pick_number.notna()]
+        root = {}
+        for k, g in cur.groupby("pick_number"):
+            r = set(g.gave) - set(g.received)
+            if len(r) == 1:
+                root[int(k)] = r.pop()
+        owner0 = {int(k): root.get(int(k), tm) for k, tm in zip(d.pick, d.team)}
+        start = {}
+        for k, tm in owner0.items():
+            start.setdefault(tm, []).append(k)
+        start = {tm: sorted(v) for tm, v in start.items()}
+        pos_at = dict(zip(d.pick, d.grp))
+        Y = out.setdefault(str(y), {})
+        for tm, sit in sits.items():
+            Y[tm] = {"start": start.get(tm, []), "trades": []}
+        for tid in _trade_order(night, y):
+            g = night[night.trade_id == tid]
+            for tm in sorted(set(g.gave) | set(g.received)):
+                if tm not in sits:
+                    continue
+                partner = next(iter((set(g.gave) | set(g.received)) - {tm}), None)
+                sit = sits[tm]
+
+                def side(rows_, giving):
+                    now = sorted(int(r.pick_number) for r in rows_.itertuples() if r.pick_season == y)
+                    fut, futp = [], []
+                    for r in rows_.itertuples():
+                        if pd.notna(r.pick_season) and r.pick_season > y:
+                            yr, rnd = int(r.pick_season - y), int(r.pick_round)
+                            src = "own" if giving else {"start": sits.get(partner, {"start": 0.0})["start"]}
+                            ck = (_key(sit, y), yr, rnd, json.dumps(src))
+                            if ck not in fut_cache:
+                                fut_cache[ck] = evaluate(ctx, sit, [], [Pick(rnd=rnd, year=yr, src=src)], n=4000,
+                                                         seed=yr * 10 + rnd)["trade"] * 100
+                            fut.append([yr, rnd, round(fut_cache[ck], 3)])
+                            futp.append(Pick(rnd=rnd, year=yr, src=src))
+                    players = [r.pfr_name for r in rows_.itertuples() if pd.isna(r.pick_season)]
+                    return now, fut, futp, players
+                gn, gf, gfp, gp = side(g[g.gave == tm], True)
+                tn, tf, tfp, tp = side(g[g.received == tm], False)
+                m = None
+                if (gn or gf) and (tn or tf) and not (gp or tp):  # players: no price for the picks alone
+                    r = market.price(sit, gn, tn, gfp, tfp, n=2000, seed=int(tid))
+                    m = {k: (None if pd.isna(r[k]) else round(float(r[k]), 3)) for k in ("ratio", "ratio_lo", "ratio_hi",
+                                                                                       "give_eq", "get_eq", "premium")}
+                    m["moving_up"] = r["moving_up"]
+                v = verdict.get((y, int(tid), tm))
+                Y[tm]["trades"].append({"id": int(tid), "date": str(g.trade_date.iloc[0]), "partner": partner,
+                                        "give": gn, "get": tn, "give_fut": gf, "get_fut": tf,
+                                        "give_players": gp, "get_players": tp,
+                                        "qb_get": [k for k in tn if pos_at.get(k) == "QB"],
+                                        "verdict": None if v is None else round(v, 3), "market": m})
+        if verbose:
+            print(f"night trades {y} done", flush=True)
+    json.dump(out, open(NIGHT_CACHE, "w"))
+    return out
+
+
+def realized_extra(S, R, night, verbose=False) -> dict:
+    """Realized titles (as realized_arrays) at the picks a team could own if it nixes draft-night trades:
+    picks it held when the draft began and picks in its trades, other than the picks it really made.
+    {"year_team": (picks list, array (picks, pool players))}. Cached."""
+    stamp = max(REAL_CACHE.stat().st_mtime, NIGHT_CACHE.stat().st_mtime)
+    if EXTRA_CACHE.exists() and EXTRA_CACHE.stat().st_mtime > stamp:
+        z = np.load(EXTRA_CACHE)
+        return {k[:-2]: (z[k].tolist(), z[k[:-2] + "_a"]) for k in z.files if k.endswith("_k")}
+    from review import RealizedV2
+    from trade import Context
+    RV, out, save = RealizedV2(Context()), {}, {}
+    for y in sorted(int(y) for y in R.year.unique() if RV.seasons_played(int(y)) > 0):
+        P = pool(y)
+        g, at, nm = P.grp_record.tolist(), P.drafted_at.tolist(), P["name"].tolist()
+        for _, r in S[S.year == y].iterrows():
+            info = night.get(str(y), {}).get(r.team)
+            if not info:
+                continue
+            real = set(int(k) for k in R[(R.year == y) & (R.team == r.team)].pick)
+            allk = set(info["start"]) | {k for t in info["trades"] for k in t["give"] + t["get"]}
+            ks = sorted(allk - real)
+            if ks:
+                a = np.array([RV.titles_many(situation(r), y, k, g, at, nm, partial=True) for k in ks])
+                out[f"{y}_{r.team}"] = (ks, a)
+                save[f"{y}_{r.team}_k"], save[f"{y}_{r.team}_a"] = np.array(ks), a
+        if verbose:
+            print(f"realized extra {y} done", flush=True)
+    np.savez_compressed(EXTRA_CACHE, **save)
+    return out
+
+
 def build_html(theme: str | None = None, verbose: bool = False) -> str:
     """The whole page as one HTML string, from the current review data and simulator tables.
     theme: "light" / "dark" pins the palette (e.g. to match the Streamlit app); None follows the viewer."""
@@ -74,6 +209,8 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
     num = lambda x, nd=3: None if pd.isna(x) else round(float(x), nd)
 
     real = realized_arrays(S, R, verbose)
+    night = night_trades(S, verbose)
+    extra = realized_extra(S, R, night, verbose)
     keys, blobs = {}, []
     teams, rblobs, roff = {}, [], 0
     for _, r in S.iterrows():
@@ -101,6 +238,8 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
             "table": keys[k], "real": None,
             "picks": [[int(p.pick), int(p["round"]), p.original_team, int(bool(p.traded_on_night)), p.player, p.grp,
                        num(p.board_rank, 0), num(p.value_actual), num(p.real_team)] for _, p in mine.iterrows()],
+            "start": night.get(str(int(r.year)), {}).get(r.team, {}).get("start", []),
+            "trades": night.get(str(int(r.year)), {}).get(r.team, {}).get("trades", []),
         }
     played = {str(int(y)): int(n) for y, n in real.get("_seasons", [])}
     pool_cache = {}
@@ -109,9 +248,13 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
             continue
         y, tm = yt.split("_")
         if tm in teams.get(y, {}):
-            q = np.where(np.isnan(a), -32768, np.clip(np.round(a * REAL_SCALE), -32767, 32767)).astype("<i2")
             T = teams[y][tm]
-            T["real"], T["seasons"] = roff, played.get(y, 4)
+            kp = [pk[0] for pk in T["picks"]]
+            if yt in extra:  # picks it could own by nixing draft-night trades, after its real picks
+                kp += extra[yt][0]
+                a = np.vstack([a, extra[yt][1]])
+            q = np.where(np.isnan(a), -32768, np.clip(np.round(a * REAL_SCALE), -32767, 32767)).astype("<i2")
+            T["real"], T["seasons"], T["kp"] = roff, played.get(y, 4), kp
             rblobs.append(q.tobytes()); roff += q.size
             # the review doesn't score drafts after 2022 or specialists: the team's own pick, from the same array
             P = pool_cache.setdefault(y, pool(int(y)))
@@ -133,7 +276,8 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
                                if not (len(ws) == 1)}
         if verbose:
             print(f"{y}: {len(P)} players", flush=True)
-    meta = {"groups": GROUPS + SPEC_GROUPS, "T": T_GRID.tolist(), "K": K_GRID.tolist(), "fw": FALL_WEIGHT, "off": OFF_BOARD_RANK,
+    rounds = {str(int(y)): g.groupby("round").pick.min().astype(int).tolist() for y, g in dp.groupby("season")}
+    meta = {"rounds": rounds, "groups": GROUPS + SPEC_GROUPS, "T": T_GRID.tolist(), "K": K_GRID.tolist(), "fw": FALL_WEIGHT, "off": OFF_BOARD_RANK,
             "scale": SCALE, "real_scale": REAL_SCALE, "blends": blends, "n_tables": len(blobs), "latest_av_season": int(dp.season.max())}
     data = json.dumps({"meta": meta, "teams": teams, "pools": pools}, separators=(",", ":"), ensure_ascii=False)
     b64 = lambda b: base64.b64encode(gzip.compress(b, 9)).decode()
