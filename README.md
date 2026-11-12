@@ -2241,3 +2241,40 @@ rookie's real seasons count). Per team-draft, fix - base:
 - Worse on every yardstick, even the one that credits rookie seasons. The year-1 zero is wrong as a forecast of
   playing time, but it was acting as a brake: the model already values early QBs too highly (README 'QB reach
   penalty', 'Whole-draft choice test'), and making them worth more makes it reach sooner. Kept today's rule.
+
+## Future picks: market discount vs the model (`scripts/future_pick_test.py`, Nov 2026)
+
+Market: 591 pick-only draft-window trades (March-May, two teams, no conditional picks, 2002-25; 135 with next
+year's picks). Fit jointly: chart for this year's picks v(k) = exp(-0.089 (k-1)^0.729) (v(10) 0.64, v(32) 0.34,
+v(64) 0.16, v(100) 0.08), up-team premium x1.11, and next year's picks worth delta x the expected value of their
+slot now (slot drawn from the original owner's prior-season strength):
+- next year's 1st: delta 0.48 (95% 0.39-0.54); rounds 2-7: 0.57 (0.51-0.65). Two years out: 5 trades, not usable.
+- A middle team's next 1st trades like **#42 this year** (95% #37-#53); next 2nd like #74 (#69-#78); next 3rd
+  like #109. The market discounts about one round, as in Massey-Thaler.
+
+Model (`src/trade.py`, titles over 5 seasons): equivalent pick this year for next year's 1st (middle team's / own):
+
+| Situation | Next year's 1st | Next year's 2nd | Next year's 3rd |
+|---|---|---|---|
+| Contender, veteran QB | #53 / #69 | #73 / #83 | #98 / #138 |
+| Contender, rookie-deal QB | #71 / #81 | #87 / #101 | #137 / #177 |
+| Middle of the pack | #19 / #20 | #50 / #53 | #75 / #78 |
+| Rebuilding | #13 / #11 | #22 / #21 | #54 / #51 |
+
+Trades at the market rate, change in titles (% of one; se ~0.02):
+
+| Situation | Sell own next 1st for #42 | Buy a middle team's next 1st with #42 | Sell own next 2nd for #74 | Buy next 2nd with #74 |
+|---|---|---|---|---|
+| Contender, veteran QB | +0.60 | -0.25 | +0.25 | -0.10 |
+| Contender, rookie-deal QB | +0.73 | -0.48 | +0.40 | -0.30 |
+| Middle of the pack | -0.22 | +0.24 | -0.22 | +0.22 |
+| Rebuilding | -0.33 | +0.31 | -0.31 | +0.25 |
+
+- The market applies one discount to everyone; the model's depends on the title window. Contenders should sell
+  future picks at the market rate, middle and rebuilding teams should buy them (a rebuilding team's next 1st is
+  worth about #11-13 now to it, but the market prices it at #42). Rebuilding teams value next year's picks above
+  the same slot now (ratio 1.0-1.6): the player arrives as the team improves.
+- These are the model's implications, not checked against outcomes: the market's flat discount may also price
+  things the model leaves out (GM job security, uncertainty about the slot). Nothing changed; the trade
+  calculator already values future picks this way. Possible addition: show the market price of each side in the
+  app's Trade offer tab, so the gap is visible.
