@@ -2167,3 +2167,32 @@ sample; pricing = drafted vs board rank, position FE):
   disagree across proxies: snap drop and Beast +, no combine testing -). Fall shading unchanged.
 - Reading: public injury history is priced by the board and slot. What teams know beyond it (medical
   grades, re-checks) isn't in any public proxy here. Nothing adopted.
+
+## Team drafting skill: franchises, GMs, head coaches (`scripts/draft_skill_test.py`, Nov 2026)
+
+Question: do some franchises or decision-makers consistently beat draft slot? If so, a skilled team's reach
+would be information (fall shading could depend on who passed) and trade partners could be judged. Drafted
+players 2006-22 (4,188; 544 team-drafts), value seasons 1-4 vs the slot model fit leave-one-class-out, class-demeaned;
+team-draft score = sum of its picks' residuals (% of cap; SD 17.1). GM / head coach from the cached Wikipedia
+team-season infoboxes (GM 98% of team-seasons; gaps filled only when both sides agree or the head coach is unchanged,
+e.g. Belichick; Bengals = Mike Brown). Placebo: team labels shuffled among team-drafts within each year.
+
+| Test | Result | Placebo / null |
+|---|---|---|
+| Franchise spread, value vs slot | SD of franchise means 4.82 | 4.17 (p 0.10); est. true SD 2.4 per draft vs 17.1 noise |
+| Persistence (vs previous 3 drafts) | r -0.01 | -0.00 (p 0.57) |
+| Rounds 1-2 / 3-7 | persistence -0.03 / -0.01 | n.s. |
+| 2006-14 vs 2015-22 franchise means | r +0.11 | 32 franchises |
+| GM tenures (4+ drafts), odd vs even drafts | r +0.12 (-0.15 to +0.38) | 56 tenures |
+| Head coach tenures | r -0.36 (-0.58 to -0.08) | 53 tenures; wrong sign |
+| GMs at 2+ franchises (first vs later) | r -0.27 | 5 GMs |
+| Predict next draft from shrunk past record | R^2 0.003 (team), 0.002 (GM) | |
+| Seasons started vs pick | true SD 0 | |
+| AV vs pick | spread p 0.02, persistence +0.11 (p 0.01) | gone net of team margin in seasons 1-4 (spread p 0.96) |
+
+- No usable drafting skill: franchise differences are about what chance produces, nothing persists from one
+  draft to the next, and it doesn't follow GMs. Best/worst franchise means (DAL +10, CLE -10 per draft) are
+  mostly luck. Matches Massey-Thaler and later work.
+- The AV signal is team quality (AV credits players on good teams), not drafting.
+- So: the app's uniform treatment stands. No reason to shade a faller by who passed on him, or to judge a
+  trade partner's reach by its history.
