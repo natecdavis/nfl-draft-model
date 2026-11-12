@@ -65,6 +65,13 @@ class Context:
         self.nonqb_groups, self.nonqb_w = w.index.to_numpy(), w.to_numpy()
 
 
+# Compensatory picks sit at the end of rounds 3-7, so later rounds start later than 32 x (round - 1): a future
+# round-r pick is numbered this many spots later (mean net extra picks per round 2017-2026, after forfeits, from
+# nflverse draft_picks; round 3 +7, 4 +5, 5 +6, 6 +8, 7 +7, cumulative). Barely moves the model's values
+# (late picks are worth about the same 10-25 spots apart) but lowers late future picks' market prices 12-32%.
+COMP_OFFSET = {4: 7, 5: 12, 6: 18, 7: 26}
+
+
 def _slots(pick: Pick, sit: dict, base: np.ndarray, rng) -> np.ndarray:
     """Overall pick number per simulation."""
     n = len(base)
@@ -81,7 +88,7 @@ def _slots(pick: Pick, sit: dict, base: np.ndarray, rng) -> np.ndarray:
     observed = x + rng.normal(0, LUCK_SD, n)
     others = rng.normal(0, np.hypot(TRUE_SD, LUCK_SD), (n, 31))
     slot = 1 + (others < observed[:, None]).sum(axis=1)  # worst record picks first
-    return slot + 32 * (pick.rnd - 1)
+    return slot + 32 * (pick.rnd - 1) + COMP_OFFSET.get(pick.rnd, 0)
 
 
 def package_points(ctx: Context, sit: dict, picks: list[Pick], base: np.ndarray, rng) -> np.ndarray:

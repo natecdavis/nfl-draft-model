@@ -2323,6 +2323,9 @@ slot now (slot drawn from the original owner's prior-season strength):
 - next year's 1st: delta 0.48 (95% 0.39-0.54); rounds 2-7: 0.57 (0.51-0.65). Two years out: 5 trades, not usable.
 - A middle team's next 1st trades like **#42 this year** (95% #37-#53); next 2nd like #74 (#69-#78); next 3rd
   like #109. The market discounts about one round, as in Massey-Thaler.
+- Refit after numbering future late-round picks with comp picks (below): chart exp(-0.081 (k-1)^0.747), premium
+  x1.11, next 1st 0.48 (#43 now), rounds 2-7 0.64 (0.56-0.74; was 0.57 because rounds 4-7 were numbered too early):
+  next 2nd ~#68, 3rd ~#103. The app uses the refit.
 
 Model (`src/trade.py`, titles over 5 seasons): equivalent pick this year for next year's 1st (middle team's / own):
 
@@ -2424,8 +2427,8 @@ non-QB; ranked 1-32 but 16+ spots below the pick -> note that teams know more ab
 
 Under the model's verdict, the Trade offer tab now shows what the trade market would charge. Each side is priced
 on the chart fitted to 593 pick-only draft-window trades, 2002-2025 (`scripts/future_pick_test.py chart` ->
-`data/derived/market_chart.json`). Pick k this year is worth exp(-0.089 (k-1)^0.729). Next year's 1st is worth
-0.48x the expected value of its slot, and rounds 2-7 0.57x; the slot comes from the original owner's likely finish.
+`data/derived/market_chart.json`). Pick k this year is worth exp(-0.081 (k-1)^0.747). Next year's 1st is worth
+0.48x the expected value of its slot, and rounds 2-7 0.64x (refit with comp-pick numbering, below); the slot comes from the original owner's likely finish.
 Picks two or more years out are extrapolated as delta^years, since only 5 such trades exist.
 
 The tab shows:
@@ -2443,3 +2446,18 @@ Examples (middle team):
 
 It is information, not a second verdict. The model's title change is what to act on; the market price says whether a
 partner is likely to accept, and where the model and the market disagree (contenders' future 1sts) is the arbitrage.
+
+## Comp picks in future pick numbers (`trade.COMP_OFFSET`, Nov 2026)
+
+Compensatory picks (end of rounds 3-7, ~32 a year) push every later round back, but the calculator numbered a
+future round-r pick as slot + 32 x (r - 1). Net extra picks per round 2017-2026 (nflverse draft_picks, after
+forfeits): round 3 +7.0, 4 +5.1, 5 +6.3, 6 +7.9, 7 +6.7, so future rounds 4 / 5 / 6 / 7 now start 7 / 12 / 18 / 26
+spots later (checked: rounds actually start at #104 / 141 / 179 / 219 on average). This-year picks are entered by
+number, so comp picks the team holds already count correctly; future comp picks can't be traded (tradable only once
+awarded, in March).
+
+Effect: the model's value of future late picks barely moves (middle team, titles: #112 -> #119 0.415 -> 0.419, #144 ->
+#156 0.367 -> 0.331, #208 -> #234 0.249 -> 0.234; within simulation noise). Market prices of late future picks fall
+12-32% on the old chart, and the refit chart raises the next-year discount factor for rounds 2-7 from 0.57 to 0.64
+(next 1st unchanged at ~#43). App examples: Mahomes-style trade 0.87 -> 0.86, #10 for #20 + #52 1.05 -> 1.06,
+middle team's next 1st for #42 1.00 -> 1.02.
