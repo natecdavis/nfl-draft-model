@@ -333,3 +333,43 @@ class DraftEngine:
             v = sum(self.simulate(board, moved, now, sims)["exp_value"])
             rows.append({"move_to": t, "titles_lost": (base - v) * 100})
         return pd.DataFrame(rows)
+
+
+# ---------- QB reach flag (scripts/qb_reach_flag.py, README 'QB valuation') ----------
+
+def qb_reach_note(res: pd.DataFrame, pick: int, next_pick: int | None = None) -> tuple[str, str] | None:
+    """When the best-value player is a QB the past says to be wary of, a (level, message) for the app:
+    "warning" for a QB ranked 33+ on the consensus board (the model's QB choices there delivered well under
+    what it predicted, 2014-22), "info" for a QB ranked 1-32 sitting 16+ spots below the pick. None otherwise.
+    `res` is on_the_clock's output (best first)."""
+    import json
+    from outlook import OUT
+    if res.empty or res.iloc[0].pos != "QB":
+        return None
+    path = OUT / "qb_reach.json"
+    if not path.exists():
+        return None
+    look = json.load(open(path))
+    best, rank = res.iloc[0], float(res.iloc[0]["rank"])
+    alt = res[res.pos != "QB"].head(1)
+    col = f"p_avail_at_{next_pick}" if next_pick else None
+    there = (f" He's still there at our next pick (#{next_pick}) in {best[col]:.0%} of simulated drafts."
+             if col and col in res.columns else "")
+    other = (f" Best non-QB: {alt.iloc[0]['name']} ({alt.iloc[0].pos}), +{alt.iloc[0].titles_if_taken_now:.2f}."
+             if len(alt) else "")
+    b = next(r for r in look["rank"] if r["lo"] <= rank <= r["hi"])
+    past = (f"In past drafts (2014-22) the model's picks of QBs {b['bucket']} delivered {b['ratio']:.2f}x the titles it "
+            f"predicted (95% range {b['ratio_lo']:.2f}-{b['ratio_hi']:.2f}); {round(b['starters'] * b['n'])} of {b['n']} "
+            f"became starters (3+ seasons).")
+    if rank > 32:
+        return "warning", (f"QB caution: {best['name']} is #{rank:.0f} on the consensus board. {past} The model's value "
+                           f"for QBs ranked this low is likely too high (too few past QBs to pin down how often they "
+                           f"become starters).{there}{other}")
+    gap = rank - pick
+    if gap >= 16:
+        d = next(r for r in look["dist"] if r["lo"] <= gap <= r["hi"])
+        return "info", (f"QB reach: {best['name']} is #{rank:.0f} on the board, {gap:.0f} spots below this pick. The model's "
+                        f"QB choices this far below the pick delivered {d['ratio']:.2f}x predicted (95% "
+                        f"{d['ratio_lo']:.2f}-{d['ratio_hi']:.2f}, n {d['n']}). Teams know more about QBs than the "
+                        f"boards do: where a QB is expected to go says more than his board rank.{there}{other}")
+    return None

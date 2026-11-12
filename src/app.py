@@ -10,7 +10,7 @@ import pandas as pd
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).parent))
-from draftday import NEED_EARLY, DraftEngine  # noqa: E402
+from draftday import NEED_EARLY, DraftEngine, qb_reach_note  # noqa: E402
 from public_board import athletic_nudge, consensus, parse_board  # noqa: E402
 from outlook import GROUPS  # noqa: E402
 from trade import Pick  # noqa: E402
@@ -184,6 +184,9 @@ with tab1:
         best = show.iloc[0]
         st.success(f"Best value at #{ours}: **{best['name']}** ({best.pos}), "
                    f"+{best[f'titles if taken at #{ours}']:.2f}% of a title.")
+        note = qb_reach_note(res, ours, upcoming[1] if len(upcoming) > 1 else None)
+        if note:
+            (st.warning if note[0] == "warning" else st.info)(note[1])
         if len(upcoming) > 1:
             st.subheader("Take him, then the best available at our later picks")
             look = engine.lookahead(live, upcoming, now)

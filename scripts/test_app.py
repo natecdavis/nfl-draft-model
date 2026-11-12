@@ -15,6 +15,7 @@ print("demo:", [s.value for s in at.success][:1])
 at.selectbox[0].set_value("NYJ").run()
 at.multiselect[0].set_value(["Trevor Lawrence", "Zach Wilson"]).run()
 print("NYJ after 2 taken:", [s.value for s in at.success][:1])
+print("QB flag:", [m.value[:60] for m in list(at.info) + list(at.warning) if m.value.startswith("QB")])
 at.text_input(key=None) if False else None
 inputs = {w.label: w for w in at.text_input}
 inputs["We give: picks this draft"].set_value("5")
@@ -37,3 +38,15 @@ at.text_area(key="board1").set_value(board2).run()
 assert not at.exception, at.exception
 print("captions:", [c.value for c in at.caption if "Read" in c.value or "ombine" in c.value])
 print("pasted boards:", [s.value for s in at.success][:1])
+
+# 3. QB reach flag (draftday.qb_reach_note): day-2 QB -> warning, round-1 QB far below the pick -> info, else none
+import sys
+sys.path.insert(0, "src")
+from draftday import qb_reach_note
+r = pd.DataFrame({"name": ["Kyle Trask", "Dyami Brown"], "pos": ["QB", "WR"], "rank": [91, 70], "adp": [91, 70],
+                  "titles_if_taken_now": [2.3, 0.3], "p_avail_at_83": [0.62, 0.3]})
+assert qb_reach_note(r, 51, 83)[0] == "warning"
+assert qb_reach_note(r.assign(rank=[27, 20]), 8, 83)[0] == "info"
+assert qb_reach_note(r.assign(rank=[27, 20]), 15, 83) is None
+assert qb_reach_note(r.assign(pos=["WR", "QB"]), 51, 83) is None
+print("QB reach flag:", qb_reach_note(r, 51, 83)[1][:90], "...")

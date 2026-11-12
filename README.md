@@ -2401,3 +2401,21 @@ draft by team-draft bootstrap (+0.07 to +0.86), but it is one player: 2014 (+143
 taken by 10 teams instead of Manziel / Bortles / Bridgewater. By draft year: -0.28 to +1.56; without 2014 -0.03
 (-0.39 to +0.26). Round 2 worse (-0.11 per pick; QB choices 0.67x -> 0.17x, loses Hurts at NE #37). Not adopted:
 the 2014-22 pool has too few QBs ranked 33-100 (~25) to set their tail; rank matching reshuffles noise.
+(This repeats the earlier rank-matching check under 'QB reach penalty' (1.74 -> 1.63x, left as is) with a
+whole-draft replay added; same verdict. That section also tested a penalty on QBs ranked below the pick: not
+adopted.)
+
+**App: QB reach flag** (`draftday.qb_reach_note`, lookup from `scripts/qb_reach_flag.py` -> `data/derived/qb_reach.json`).
+When the best-value player on the clock is a QB, the "On the clock" tab adds a note. It changes no values.
+The model's QB choices 2014-22 (leave-one-draft-out, each player once per bucket; titles delivered / predicted,
+95% over draft years; starters = 3+ seasons):
+
+| QB's consensus rank | n | Delivered / predicted | Starters |
+|---|---|---|---|
+| 1-32 | 17 | 1.37 (0.99-2.01) | 71% |
+| 33-64 | 8 | 0.80 (0.16-1.75) | 25% |
+| 65+ | 14 | 0.21 (0.01-0.43) | 0% |
+
+By distance below the pick the signal is weak (at or above 1.02, 1-15 below 1.08, 16+ below 0.72, 0.11-1.36).
+So: ranked 33+ -> warning with that band's record, the chance he's still there at our next pick and the best
+non-QB; ranked 1-32 but 16+ spots below the pick -> note that teams know more about QBs than boards.
