@@ -2196,3 +2196,29 @@ e.g. Belichick; Bengals = Mike Brown). Placebo: team labels shuffled among team-
 - The AV signal is team quality (AV credits players on good teams), not drafting.
 - So: the app's uniform treatment stands. No reason to shade a faller by who passed on him, or to judge a
   trade partner's reach by its history.
+
+## Rookie QBs: sitting behind an incumbent (`scripts/qb_sit_test.py`, Nov 2026)
+
+The model's rule (`pick_value.pick_effect`): a drafted QB's seasons before the team's QB need begins (`qb_from`)
+are set to zero; later seasons keep comparable QBs' shares (most of whom started early). Two claims tested on
+QBs drafted 2006-22 (193; rounds 1-3: 93), playing time = share of his team's dropbacks, value vs the slot
+model per season (leave-one-class-out):
+
+**1. "He sits": mostly wrong.** Using the model's own draft-day status (2014-22), rounds 1-3 rookies the model
+has sitting in season 1 averaged 36% of team dropbacks, 47% played 25%+, and delivered 0.92 of slot expectation
+that season (model: 0). Misses come from the weak-incumbent flags ("paid veteran, below-average play",
+"rookie deal (later round)": Wentz, Lawrence, Mayfield, Allen, Rosen started early); rookies behind a 37-year-old
+veteran really sat (share 0). In title terms the zero costs a QB 9-17% of his value at an average team (qb_from 2
+vs 1, picks 3-64) and 14-26% at a +3 team. Teams with no QB need flag (model: a drafted QB never plays) also got
+real value from round 1-3 QBs (0.6-1.1 of slot, 9 players; partly with other teams).
+
+**2. Sitting and development: can't tell.** Rookies who sat year 1 did worse later (seasons 2-4 x0.64 vs x1.14
+of slot; starter in season 3-4 21% vs 64%), but teams sit the raw ones. Using a solid incumbent (previous-season
+main QB with 300+ dropbacks, above-median EPA, still on the team) as the instrument: first stage +0.29 (F 7, weak);
+reduced form on seasons 2-4 value -1.2 (se 4.3, mean 16.7); IV -4.0 (se 14.4); EPA per dropback +0.11 (se 0.12).
+Rookies behind a solid incumbent: value x0.34 / 0.78 / 0.90 / 1.19 of slot in seasons 1-4 (rounds 1-3, 22). No sign
+sitting helps or hurts; the "later seasons like comparables" half of the rule stands.
+
+Not changed yet. Candidate fix: treat the weak-incumbent statuses as qb_from = 1 (need starts now; p_need still
+mixes in "need filled"), then the whole-draft choice test. It raises QB values for those teams, where the model
+already takes a QB (scripts/plan_choice.py: every flagged team does), so it mostly matters for trade values.
