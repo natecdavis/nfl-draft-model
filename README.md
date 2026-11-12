@@ -117,7 +117,8 @@ price (`src/market.py`; pick-only trades). OK it or nix it. Data: `export_simula
 in data/derived/sim_night_trades_v3.json) and realized values at every pick the team could own
 (`realized_extra`, data/derived/sim_realized_extra_v1.npz).
 - Starting picks: each pick's owner at the root of its draft-night chain (gave it, never received it that night).
-  `review.draft_night`'s first-giver rule mislabels 63 picks 2014-2026 on same-day chains (review labels only).
+  `review.draft_night` used to take the first giver by date, which mislabeled 66 picks 2014-2026 on same-day chains and
+  loops (labels only; fixed Nov 2026, a pick that loops back to its owner keeps the team that made it).
 - Order: by date, and within a day by pick flow (a trade that hands on a pick comes after the one that brought it
   in; nflverse trade ids aren't in time order within a day). A trade you can no longer make after an earlier choice
   (you don't hold a pick it gives, or already hold one it gets) is skipped and marked "not possible".
@@ -2527,3 +2528,29 @@ size, transcripts, literature biases, injuries, team skill, ...):
 - No private-information lead was adopted into the model. What changed the model is engine and yardstick work:
   comparison-career correction, monotone value, board-less classes dropped, training links fixed, the darko label,
   within-position units, cap cost, conditioned availability draws and comp-pick numbering.
+
+## Realized QB value as played (`review.REALIZED_QB`, Nov 2026)
+
+The realized yardstick (`review.RealizedV2`) used the model's draft-day QB rule: seasons before the team's qb_from
+counted zero, and a team with no flagged QB need got nothing from a QB it drafted. So Mahomes delivered -0.81 titles
+for KC 2017 (Alex Smith on draft day), Brock Purdy 0 for SF, Jalen Hurts -0.06 for PHI. Now "played" (default; env
+REALIZED_QB=rule restores it): a drafted QB's real seasons count wherever he went; his season values already show
+whether he started, so a rookie who sat still counts ~0. Mahomes +29.10, Purdy +23.09, Hurts +22.55, Kyler Murray
+-0.43 -> +6.96; 24 team picks and 75 model recommendations change. The model's valuation is unchanged (it still
+uses the draft-day flag); only the scoring of what happened.
+
+Scorecard, model minus team, round 1, 2014-2022 (95% over draft years):
+
+| | Old scoring | As played |
+|---|---|---|
+| Production review, first pick | +0.77 (-0.36 to +1.61) | -0.01 (-1.18 to +1.01) |
+| Production review, averaged | +1.74 (+1.00 to +2.46) | +1.33 (+0.50 to +2.25) |
+| Leave-one-draft-out (Nov 6 engine, rescored), first pick | +0.70 (-0.41 to +1.60) | +0.50 (-0.61 to +1.45) |
+| Leave-one-draft-out, averaged | +1.74 (+0.84 to +2.51) | +1.49 (+0.57 to +2.24) |
+
+Rounds 2-4 and 5-7 barely move (production R2-4 first +0.50 either way; R5-7 ~0). The drop is teams' QB picks
+that the old rule zeroed, mostly Mahomes at #10, now counting against the model's alternative. Round 1 stays
+the model's best-supported edge on the averaged count; the first-pick count is a tie. The held-out review predates
+the narrow and darko labels and wasn't rerun (`holdout/review_picks_lodo_lfon_qbscoring.parquet` has both
+scorings). Also rescored: the simulator's "delivered" columns. Not rescored: older study files built on
+RealizedV2 (misses / defer candidates, qb_sit_choice).

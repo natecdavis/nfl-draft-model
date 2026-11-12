@@ -95,11 +95,13 @@ def draft_night(year: int) -> pd.DataFrame:
     first_giver = moved.groupby("pick_number").gave.first()
     # owner when the draft began = the root of the pick's draft-night chain: a team that gave it and never received
     # it that night. The first giver by date can be a later link when a pick moves twice the same day (trade ids
-    # aren't in time order within a day): 63 picks 2014-2026 were mislabeled that way until Nov 2026.
+    # aren't in time order within a day): 66 picks 2014-2026 were mislabeled until Nov 2026 (63 chains, 3 loops).
+    # A pick that went round in a loop (A -> B -> A) has no such root: then the team that made the pick.
     root = {}
     for k, g in moved.groupby("pick_number"):
         r = set(g.gave) - set(g.received)
-        root[k] = r.pop() if len(r) == 1 else first_giver[k]
+        if len(r) == 1:
+            root[k] = r.pop()
     d["original_team"] = [root.get(p, tm) for p, tm in zip(d.pick, d.team)]
     d["traded_on_night"] = d.pick.isin(first_giver.index) & (d.original_team != d.team)
     return d.reset_index(drop=True), night
@@ -605,6 +607,13 @@ class Careers:
         return self.udfa.get((int(year), _norm(name or "")), {}).get(metric, 0.0)
 
 
+# Realized QB seasons (Nov 2026). "played" (default): a drafted QB's real seasons count wherever he was drafted; his
+# season values already reflect whether he started (a rookie who sat delivers ~0), so the draft-day QB flag isn't
+# needed to score what happened. "rule": the model's rule, as before: seasons before the team's draft-day qb_from
+# count zero and a team with no flagged QB need gets nothing from a QB (Mahomes scored -0.8 for KC 2017).
+REALIZED_QB = os.environ.get("REALIZED_QB", "played")
+
+
 class RealizedV2:
     """What a player actually delivered, in title odds for one team's situation, at the cost of
     a given pick: cfdarko's season-by-season labels (same units and encoding as outcomes_v2),
@@ -648,7 +657,7 @@ class RealizedV2:
             b = baseline_paths(sit, np.random.default_rng(0), self.n)
             self.base_cache[key] = (b, ctx.sb(b).sum(axis=1).mean())
         b, b0 = self.base_cache[key]
-        s2 = dict(sit); s2["qb_from"] = 99 if sit["qb_from"] is None else sit["qb_from"]
+        s2 = dict(sit); s2["qb_from"] = 1 if REALIZED_QB == "played" else (99 if sit["qb_from"] is None else sit["qb_from"])
         pts = pick_effect((y5 / price[0])[None, :], price, int(pick), grp, s2, ctx.cost, ctx.bar, ctx.rates)
         return (ctx.sb(b + pts).sum(axis=1).mean() - b0) * 100
 
@@ -688,7 +697,7 @@ class RealizedV2:
             b = baseline_paths(sit, np.random.default_rng(0), self.n)
             self.base_cache[key] = (b, ctx.sb(b).sum(axis=1).mean())
         b, b0 = self.base_cache[key]
-        s2 = dict(sit); s2["qb_from"] = 99 if sit["qb_from"] is None else sit["qb_from"]
+        s2 = dict(sit); s2["qb_from"] = 1 if REALIZED_QB == "played" else (99 if sit["qb_from"] is None else sit["qb_from"])
         vals = L[[f"value_y{t}" for t in range(1, 5)]].clip(lower=0).fillna(0.0)
         grps = np.asarray(grps, object)
         sp = np.flatnonzero(np.isin(grps, ["K", "P"]))  # kickers / punters (src/specialists.py)
