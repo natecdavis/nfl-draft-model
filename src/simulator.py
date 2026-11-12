@@ -60,6 +60,8 @@ def _key(sit, year=None) -> str:
     nb += "_mono" + MONOTONE if MONOTONE != "off" else ""  # monotone value in rank (outcomes_v2)
     nb += "_lf" if pm.LINK_FIX == "on" else ""  # training-data link repair (prospect_model)
     nb += "" if pm.LABEL == "stored" else f"_lb{pm.LABEL}"  # outcome label (prospect_model.LABEL)
+    from outcomes_v2 import QB_COMPS
+    nb += "" if QB_COMPS == "ev" else f"_qbc{QB_COMPS}"  # QB comparison coordinate (outcomes_v2.QB_COMPS)
     return f"start{sit['start']:g}_qb{sit['qb_from']}_shift{sh}_fw{FALL_WEIGHT:g}_v2_{UNITS}{ho}{cc}{nb}"
 
 

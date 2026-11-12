@@ -2370,3 +2370,34 @@ before the trade (a received pick valued as a QB when a QB was taken there, as i
   Watson +28, KC for Mahomes +22, BAL for Lamar Jackson +18); with them, future-pick buyers realized -0.53
   (-1.55 to +0.31).
 - The situation dependence (contenders sell, rebuilders buy) can't be checked: 18-34 trades per cell, ranges +-2.
+
+## QB valuation: where the model is off (Nov 2026)
+
+**Diagnosis** (leave-one-draft-out engine, `holdout/defer_candidates.parquet`; titles delivered / predicted, each
+player-year once, 95% over draft years). No broad QB over-valuation:
+
+| | Players | Delivered / predicted |
+|---|---|---|
+| Every QB available to a QB-needy team, rounds 1-2 | 56 | 1.39 (0.81-2.10) |
+| Non-QBs at the same picks | 1,082 | 0.96 (0.90-1.03) |
+| Model's QB choices, round 1 / 2 / 3 | 21 / 11 / 14 | 1.20 (0.77-1.81) / 0.56 (0.05-1.01) / 0.28 (0.08-0.54) |
+| Teams that traded up for a QB, 2006-21 (`future_pick_realized`) | 59 | predicted +3.3, realized +2.5, corr 0.51 |
+
+- Day-2 QBs are over-valued: comparison careers for QBs ranked 33-64 ~1.5x what they did, and the engine's chance
+  of a starter-level hit (4-season value > 0.30 of cap) at ranks 40-65 is 0.17-0.24 vs 0.07-0.17 for QBs drafted
+  around there 1999-2022. Title odds rise faster than linearly with strength, so the fat tail costs more than the
+  mean error (rank 80, middle team: 4.1 titles with the engine's shape vs 2.3 with history's, same mean).
+- Round-1 QB busts (Manziel, Lynch, Willis, Haskins, Rosen) are teams knowing more: the same 2014-22 QBs by draft
+  slot fall 0.35 / 0.23 / 0.16 (picks 1-10 / 11-20 / 21-32, 4-season value), by consensus rank 0.29 / 0.27 / 0.31.
+  The engine's flat round-1 curve is right for what it sees. (So 1999-2022 history by slot can't be used as a
+  consensus-rank yardstick: it made ranks 20-30 look 1.5x over-valued.)
+
+**Tested fix: QB comparison careers by consensus rank** (`outcomes_v2.QB_COMPS=rank`, `scripts/qb_comps.py`; default
+`ev`, nearest by expected value). Leave-one-draft-out board QBs 2014-22: ranks 33-100 mean error +0.035 -> +0.025
+of cap, rmse 0.146 -> 0.144, hit Brier 0.106 -> 0.105; ranks 33-50 still 1.5x (n 6). Pick values barely move at
+48-64, rise at 24-32 (Lamar Jackson, Watson, Carr become the direct comparisons; a rank-24 QB worth more than a
+rank-5 one) and get bumpier at 80-128. Whole-draft replay (288 team-drafts, rank minus ev): titles +0.47 per
+draft by team-draft bootstrap (+0.07 to +0.86), but it is one player: 2014 (+143 of the +135 total) is Derek Carr
+taken by 10 teams instead of Manziel / Bortles / Bridgewater. By draft year: -0.28 to +1.56; without 2014 -0.03
+(-0.39 to +0.26). Round 2 worse (-0.11 per pick; QB choices 0.67x -> 0.17x, loses Hurts at NE #37). Not adopted:
+the 2014-22 pool has too few QBs ranked 33-100 (~25) to set their tail; rank matching reshuffles noise.

@@ -110,6 +110,10 @@ NO_BOARD_CLASSES = os.environ.get("NO_BOARD_CLASSES", "drop")
 # value (drafted off-board players did better than board players ranked 251-300; pooling them put them
 # at 0.78x actual). Test: scripts/no_board.py (README). Environment variable MONOTONE overrides it.
 MONOTONE = os.environ.get("MONOTONE", "min")
+# QB comparison careers (test, scripts/qb_comps.py): "ev" = nearest by expected value (the regression barely
+# separates QB ranks, so QBs ranked 33-100 borrow careers from QBs ranked 11-32); "rank" = nearest by
+# consensus rank (log(rank + 10)), local-linear correction in the same coordinate. Env QB_COMPS overrides it.
+QB_COMPS = os.environ.get("QB_COMPS", "ev")
 MIN_COMPS, COMP_SHARE = 15, 1 / 6  # small position pools (QB): use the nearest sixth, at least 15
 REG = dict(min_child_samples=150, n_estimators=300, colsample_bytree=0.5, num_leaves=7, reg_lambda=5.0)
 
@@ -153,6 +157,10 @@ class OutcomeModel:
         comps["p14"] = self._predict(comps)
         self.comps = {g: (np.log(d.p14.to_numpy() + 1e-3), d[[f"y{t}" for t in pm.SEASONS]].to_numpy())
                       for g, d in comps.groupby("grp")}
+        if QB_COMPS == "rank" and "QB" in self.comps:
+            qb = comps[comps.grp == "QB"]
+            r = qb.hasan_rank.fillna(pm.OFF_BOARD).clip(1, pm.OFF_BOARD).to_numpy(float)
+            self.comps["QB"] = (np.log(r + 10), self.comps["QB"][1])
         self._near = lru_cache(maxsize=None)(self._nearest)
         self._scale = lru_cache(maxsize=None)(self._ll_scale)
         self._mono = {}
@@ -167,11 +175,17 @@ class OutcomeModel:
                             "grp_code": [list(self.cats).index(family)]})
         return np.array([m.predict(row[f])[0] for m, f in self.models])
 
+    def _key(self, family: str, rank: int) -> float:
+        """Where a player sits in the comparison coordinate (log expected value, or log rank for QB_COMPS=rank)."""
+        if family == "QB" and QB_COMPS == "rank":
+            return float(np.log(min(rank, pm.OFF_BOARD) + 10))
+        return float(np.log(self.expected(family, rank).sum() + 1e-3))
+
     def _nearest(self, family: str, rank: int):
         """Comparison careers and their weights: Gaussian in distance of expected value,
         width set by the k-th nearest (k = 60, or a sixth of a small pool, at least 15),
         so the set shifts smoothly as rank changes instead of jumping."""
-        lp = np.log(self.expected(family, rank).sum() + 1e-3)
+        lp = self._key(family, rank)
         keys, paths = self.comps[family]
         k = int(np.clip(len(keys) * COMP_SHARE, MIN_COMPS, N_COMPS))
         d = np.abs(keys - lp)
@@ -182,7 +196,7 @@ class OutcomeModel:
 
     def _ll_scale(self, family: str, rank: int) -> float:
         """Local-linear comparison mean / plain weighted comparison mean (1.0 when COMP_CORRECT is off)."""
-        lp = np.log(self.expected(family, rank).sum() + 1e-3)
+        lp = self._key(family, rank)
         keys, _ = self.comps[family]
         paths, w = self._near(family, rank)
         y, x = paths.sum(1), keys - lp
