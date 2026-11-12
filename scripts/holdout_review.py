@@ -38,6 +38,8 @@ LF = os.environ.get("LINK_FIX")  # set: training-data link repair test (prospect
 SUF = (f"_fw{FW}" if FW else "") + (f"_cost{CR}" if CR else "") + (f"_wr{WF}" if WF else "") + (f"_cc{CC}" if CC else "") + (f"_nb{NB}" if NB else "") + (f"_mono{MO}" if MO else "") + (f"_lf{LF}" if LF else "")
 FW = FW or CR or WF or CC or NB or MO or LF  # any test: leave-one-draft-out only
 JOBS = [("lodo", y) for y in range(2014, 2023)] + ([] if FW else [("expand", y) for y in range(2019, 2023)])
+if sys.argv[1:2] == ["expand"]:  # only the expanding-window drafts (the leave-one-draft-out file is kept)
+    JOBS = [j for j in JOBS if j[0] == "expand"]
 
 
 def qb_ev():
@@ -52,6 +54,9 @@ def one_job(job):
     from trade import Context
     t0 = time.time()
     o.HOLDOUT, o._MODEL = job, None
+    # the review points the engine at its own default for each draft (review.engine_for: leave-one-draft-out);
+    # keep this job's engine instead (else "expand" silently ran as leave-one-draft-out)
+    R.engine_for = lambda year, tables=None: job
     ctx, states, tables = Context(), R.States(), {}
     df, st, _ = R.review_year(job[1], states, ctx, tables)
     return job, df.assign(mode=job[0]), st, qb_ev(), time.time() - t0
@@ -71,7 +76,7 @@ def main(workers=7):
     import outcomes_v2 as o
     o.HOLDOUT, o._MODEL = None, None
     ev.append({"mode": "full", "year": 0, **{f"qb_ev_{r}": v for r, v in qb_ev().items()}})
-    if not FW:
+    if not FW and sys.argv[1:2] != ["expand"]:
         pd.DataFrame(ev).to_parquet(HD / "qb_ev.parquet")
     import review as R
     from trade import Context
@@ -118,7 +123,7 @@ def report():
         h = pd.read_parquet(f)
         print(f"\n=== drafts {years[0]}-{years[-1]}: model minus team where they disagree, each rec once ===")
         F = full[full.year.isin(years)]
-        card(F, "full engine (in-sample)")
+        card(F, "production review (itself leave-one-draft-out since Nov 2026)")
         if mode == "expand":
             card(pd.read_parquet(HD / "review_picks_lodo.parquet").query("year >= 2019"), "leave-one-draft-out")
         card(h[h.year.isin(years)], f"{mode}")
@@ -134,4 +139,4 @@ if __name__ == "__main__":
     if sys.argv[1:2] == ["report"]:
         report()
     else:
-        main(int(sys.argv[1]) if len(sys.argv) > 1 else 7)
+        main(int(sys.argv[-1]) if sys.argv[-1].isdigit() else 7)

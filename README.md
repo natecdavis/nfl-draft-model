@@ -2539,18 +2539,32 @@ whether he started, so a rookie who sat still counts ~0. Mahomes +29.10, Purdy +
 -0.43 -> +6.96; 24 team picks and 75 model recommendations change. The model's valuation is unchanged (it still
 uses the draft-day flag); only the scoring of what happened.
 
-Scorecard, model minus team, round 1, 2014-2022 (95% over draft years):
+Scorecard, model minus team, round 1 (95% over draft years). The production review is itself leave-one-draft-out
+(`review.REVIEW_HOLDOUT`, since the HTML simulator commit): each draft valued by an engine fit without it.
 
 | | Old scoring | As played |
 |---|---|---|
-| Production review, first pick | +0.77 (-0.36 to +1.61) | -0.01 (-1.18 to +1.01) |
-| Production review, averaged | +1.74 (+1.00 to +2.46) | +1.33 (+0.50 to +2.25) |
-| Leave-one-draft-out (Nov 6 engine, rescored), first pick | +0.70 (-0.41 to +1.60) | +0.50 (-0.61 to +1.45) |
-| Leave-one-draft-out, averaged | +1.74 (+0.84 to +2.51) | +1.49 (+0.57 to +2.24) |
+| Review 2014-2022 (leave-one-draft-out, current engine), first pick | +0.77 (-0.36 to +1.61) | -0.01 (-1.21 to +1.06) |
+| Same, averaged | +1.74 (+1.00 to +2.46) | +1.33 (+0.47 to +2.18) |
+| Nov 6 engine, rescored: first / averaged | +0.70 / +1.74 | +0.50 / +1.49 |
 
-Rounds 2-4 and 5-7 barely move (production R2-4 first +0.50 either way; R5-7 ~0). The drop is teams' QB picks
-that the old rule zeroed, mostly Mahomes at #10, now counting against the model's alternative. Round 1 stays
-the model's best-supported edge on the averaged count; the first-pick count is a tie. The held-out review predates
-the narrow and darko labels and wasn't rerun (`holdout/review_picks_lodo_lfon_qbscoring.parquet` has both
-scorings). Also rescored: the simulator's "delivered" columns. Not rescored: older study files built on
-RealizedV2 (misses / defer candidates, qb_sit_choice).
+Rounds 2-4 and 5-7 barely move (R2-4 averaged +0.66, +0.10 to +1.39; R5-7 -0.05). The drop is teams' QB picks
+that the old rule zeroed, mostly Mahomes at #10, now counting against the model's alternative. Round 1 stays the
+model's best-supported edge on the averaged count; the first-pick count is a tie. Also rescored: the simulator's
+"delivered" columns. Not rescored: older study files built on RealizedV2 (misses / defer candidates, qb_sit_choice).
+
+**Held-out review rerun (`scripts/holdout_review.py`, Nov 12, current engine, as-played QBs).** Found: since the
+production review became leave-one-draft-out, `review.engine_for` overrode the engine each job set, so "expand"
+(only what was known on draft day: classes before Y, seasons through Y-1) silently ran as leave-one-draft-out and
+the report's "full engine (in-sample)" column was the same leave-one-draft-out review. Fixed (each job keeps its
+engine; `python scripts/holdout_review.py expand [workers]` reruns only those drafts). Round 1, model minus team:
+
+| Drafts | Version | First pick | Averaged |
+|---|---|---|---|
+| 2014-2022 (n 50) | leave-one-draft-out | -0.01 (-1.21 to +1.06) | +1.33 (+0.47 to +2.18) |
+| 2019-2022 (n 24) | leave-one-draft-out | +0.70 (-0.70 to +1.89) | +1.17 (-0.27 to +2.76) |
+| 2019-2022 (n 23) | expanding window (draft-day knowledge) | +0.57 (-0.98 to +1.68) | +1.45 (+0.44 to +2.66) |
+
+The expanding window makes the same choice as leave-one-draft-out at 51% of picks (round 1 65%) and does as well or
+better in round 1 (non-QB recommendations averaged +1.25, +0.26 to +2.30); rounds 2-4 +0.61 (-0.12 to +1.70), rounds
+5-7 -0.09. The round-1 edge holds out of sample on the averaged count, not on the first-pick count.
