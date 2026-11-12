@@ -14,6 +14,7 @@ from draftday import NEED_EARLY, DraftEngine, qb_reach_note  # noqa: E402
 from public_board import athletic_nudge, consensus, parse_board  # noqa: E402
 from outlook import GROUPS  # noqa: E402
 from trade import Pick  # noqa: E402
+import market  # noqa: E402
 
 st.set_page_config(page_title="Draft room: Super Bowl odds", layout="wide")
 
@@ -227,6 +228,14 @@ with tab2:
         st.metric("Change in Super Bowls over 5 seasons", f"{r['change']:+.2f}% of a title", verdict)
         st.caption(f"Before: {r['before']:.2f}%, after: {r['after']:.2f}% (titles added by these picks). "
                    "Simulation noise is about ±0.1.")
+        if market.available():
+            st.subheader("What the market would charge")
+            m = market.price(engine.situation, give_now, get_now, give_fut, get_fut)
+            st.markdown(market.describe(m))
+            st.caption(f"Going rate from {m['n_trades']} pick-only draft-window trades, 2002-2025 "
+                       "(scripts/future_pick_test.py). The market discounts next year's 1st to about pick #42 now; the "
+                       "model's value of it depends on our title window. Use the verdict above to decide, and this to "
+                       "judge whether a partner will say yes and how far the offer is from what teams usually pay.")
 
 with tab3:
     if upcoming:

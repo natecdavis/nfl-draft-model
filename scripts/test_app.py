@@ -23,6 +23,7 @@ inputs["We get: picks this draft"].set_value("10, 40")
 at.button[0].click().run()
 assert not at.exception, at.exception
 print("trade:", [(m.value, m.delta) for m in at.metric])
+print("market:", [m.value[:80] for m in at.markdown if "market prices" in m.value])
 
 # 2. Pasted public boards (built from ESPN 2021 in two copy formats), combine nudge for 2021
 b = pd.read_csv("data/raw/lich/nfl_draft_prospects.csv", low_memory=False)

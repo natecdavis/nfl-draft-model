@@ -2419,3 +2419,27 @@ The model's QB choices 2014-22 (leave-one-draft-out, each player once per bucket
 By distance below the pick the signal is weak (at or above 1.02, 1-15 below 1.08, 16+ below 0.72, 0.11-1.36).
 So: ranked 33+ -> warning with that band's record, the chance he's still there at our next pick and the best
 non-QB; ranked 1-32 but 16+ spots below the pick -> note that teams know more about QBs than boards.
+
+## App: market price in the Trade offer tab (`src/market.py`, Nov 2026)
+
+Under the model's verdict, the Trade offer tab now shows what the trade market would charge. Each side is priced
+on the chart fitted to 593 pick-only draft-window trades, 2002-2025 (`scripts/future_pick_test.py chart` ->
+`data/derived/market_chart.json`). Pick k this year is worth exp(-0.089 (k-1)^0.729). Next year's 1st is worth
+0.48x the expected value of its slot, and rounds 2-7 0.57x; the slot comes from the original owner's likely finish.
+Picks two or more years out are extrapolated as delta^years, since only 5 such trades exist.
+
+The tab shows:
+- get / give, with a 95% range from refitting the chart on 300 resampled trade sets;
+- each side as an equivalent single pick this year;
+- who is moving up, and the usual ~11% premium paid by the team moving up.
+
+Examples (middle team):
+
+| Trade | Get / give | Range |
+|---|---|---|
+| Mahomes-style: #27, #91 and next year's 1st for #10 | 0.87 (moving up, so about typical) | 0.81-0.94 |
+| #10 for #20 + #52 | 1.05 | 1.00-1.11 |
+| Next year's 1st (middle team) for #42 | 1.00 | 0.88-1.28 |
+
+It is information, not a second verdict. The model's title change is what to act on; the market price says whether a
+partner is likely to accept, and where the model and the market disagree (contenders' future 1sts) is the arbitrage.

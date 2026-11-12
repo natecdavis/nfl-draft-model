@@ -13,7 +13,7 @@ log(value the up team gives) - log(value it gets) - c; 95% ranges by bootstrappi
 Reported in "equivalent current pick": the pick number this year worth the same as next year's 1st / 2nd / 3rd
 from a middle team, to the market and to the model in each situation.
 
-Run:  python scripts/future_pick_test.py
+Run:  python scripts/future_pick_test.py          (chart only, for the app:  ... chart)
 """
 import sys
 
@@ -188,7 +188,28 @@ def main():
     A.drop(columns="slots").to_parquet(OUT / "future_pick_trades.parquet")
     M.to_parquet(OUT / "future_pick_model.parquet")
     pd.DataFrame(B, columns=["lam", "beta", "c", "d1r1", "d1l", "d2"]).to_parquet(OUT / "future_pick_boot.parquet")
+    save_chart(th, B, len(P.ids))
+
+
+def save_chart(th, B, n):
+    """The market chart for the app's Trade offer tab (src/market.py): point fit and bootstrap draws."""
+    import json
+    keys = ["lam", "beta", "c", "d1r1", "d1l", "d2"]
+    json.dump({"fit": dict(zip(keys, map(float, th))), "boot": [dict(zip(keys, map(float, b))) for b in B],
+               "n_trades": int(n), "years": "2002-2025"}, open(OUT / "market_chart.json", "w"))
+
+
+def chart_only():
+    """Refit the market chart and save it (no model side): python scripts/future_pick_test.py chart"""
+    A = load_trades(Context())
+    P = Packed(A)
+    P.rows_of = {t: np.flatnonzero(P.ids[P.tix] == t) for t in P.ids}
+    th = fit(P)
+    rng = np.random.default_rng(1)
+    B = np.array([fit(PackedView(P, rng.choice(P.ids, len(P.ids), replace=True)), x0=th) for _ in range(300)])
+    save_chart(th, B, len(P.ids))
+    print(dict(zip(["lam", "beta", "c", "d1r1", "d1l", "d2"], th.round(3))))
 
 
 if __name__ == "__main__":
-    main()
+    chart_only() if sys.argv[1:2] == ["chart"] else main()
