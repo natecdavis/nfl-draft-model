@@ -2142,3 +2142,28 @@ team uses the model):
 - App: "On the clock" now also shows both tables (rollout per candidate with the same simulations for
   every row; drop-off by position, with the chance of a big drop). The ranking stays value-now; the tables
   show what a choice costs at later picks.
+
+## Injury and medical history: public proxies (`scripts/injury_test.py`, Nov 2026)
+
+No medical grades are public. Four proxies, pre-specified with one primary flag each (Bonferroni p < 0.006 over 4
+flags x 2 yardsticks), tested like the literature biases (value vs slot 2016-22, vs consensus 2018-22, out of
+sample; pricing = drafted vs board rank, position FE):
+
+| Proxy (flag) | Flagged share of drafted | Taken vs board | Value vs slot | Value vs consensus |
+|---|---|---|---|---|
+| A final-season PFF snaps < 60% of best earlier season (2015+; 2020 opt-outs excluded) | ~10% | x1.01 (p 0.64) | x1.11 (0.91-1.35) | x1.08 (0.86-1.31) |
+| B missed >= 25% of team games, last two seasons (game logs; not OL) | ~27% | x1.03 (p 0.13) | x1.04 (0.89-1.19) | x1.00 (0.80-1.22) |
+| C at combine, no drills at all (2017+; earlier files barely record non-testers) | ~12% (R1 19%) | x0.94 (p 0.04) | x0.98 (0.76-1.21) | x0.93 (0.69-1.17) |
+| D injury / medical concern in Brugler's Beast weaknesses (2019-22) | ~53% | x0.95 (p 0.03) | x1.05 (0.91-1.23) | x1.02 (0.87-1.19) |
+| D2 serious (surgery, tear, fracture, season-ending; secondary) | ~27% | x0.97 (p 0.29) | x1.05 (0.89-1.24) | x1.03 (0.87-1.19) |
+
+- No proxy predicts value beyond slot or the board; nothing passes even p < 0.05 on value. Point estimates
+  sit slightly above 1 (injured players, if anything, deliver a bit more than their slot), not below.
+- Pricing: teams take Beast-flagged and non-testing players ~5% later than the board (p 0.03-0.04, not
+  Bonferroni); snap drops and missed games aren't priced beyond the board. Too small to matter for availability.
+- Medical fallers vs the app's fall shading: among extreme fallers (pick > ~2x board rank) Beast-flagged
+  players beat slot x2.8, but on 14 vs 11 players. Over all fall sizes the effect largely disappears
+  (fallers past 1.3x rank: flagged x1.29 vs unflagged x1.14 of slot; fall x flag interactions n.s., signs
+  disagree across proxies: snap drop and Beast +, no combine testing -). Fall shading unchanged.
+- Reading: public injury history is priced by the board and slot. What teams know beyond it (medical
+  grades, re-checks) isn't in any public proxy here. Nothing adopted.
