@@ -2219,6 +2219,25 @@ reduced form on seasons 2-4 value -1.2 (se 4.3, mean 16.7); IV -4.0 (se 14.4); E
 Rookies behind a solid incumbent: value x0.34 / 0.78 / 0.90 / 1.19 of slot in seasons 1-4 (rounds 1-3, 22). No sign
 sitting helps or hurts; the "later seasons like comparables" half of the rule stands.
 
-Not changed yet. Candidate fix: treat the weak-incumbent statuses as qb_from = 1 (need starts now; p_need still
-mixes in "need filled"), then the whole-draft choice test. It raises QB values for those teams, where the model
-already takes a QB (scripts/plan_choice.py: every flagged team does), so it mostly matters for trade values.
+### Choice test: weak incumbents' need starts now (`scripts/qb_sit_choice.py`): not adopted
+
+Fix: statuses "rookie deal (later round)" and "..., below-average play" get qb_from = 1 instead of 2 (p_need
+unchanged). Greedy whole-draft choice test 2014-22, both versions on value tables rebuilt on the current engine
+(data/derived/qbsit_tables). Scored with today's rule and "as played" (every flagged need starts now, so a
+rookie's real seasons count). Per team-draft, fix - base:
+
+| | All 288 team-drafts | 62 weak-incumbent team-drafts |
+|---|---|---|
+| Titles, model rule | -0.23 (-0.52 to -0.02) | -1.09 (-2.30 to -0.08) |
+| Titles, as played | -0.24 (-0.51 to -0.02) | -1.11 (-2.38 to -0.11) |
+| AV | -1.2 (-2.7 to +0.1) | -5.5 (-12.2 to +0.0) |
+| Seasons started | -0.11 (-0.23 to -0.01) | -0.50 (-1.03 to -0.06) |
+| 2nd-contract pay | -0.22 (-0.52 to +0.05) | -1.01 (-2.50 to +0.18) |
+
+- The fix changes 17 picks, all at weak-incumbent teams, and the same number of QBs (0.97 per draft vs teams'
+  0.39). It moves the QB pick earlier: Manziel over Carr (NYG #12), Rosen over Lamar Jackson (BUF #7, ARI #10),
+  Hundley at #17 / #21, Paxton Lynch at #6, Jordan Love over CeeDee Lamb (ATL #16), Malik Willis at #2 (DET),
+  each time giving up a WR the base model took first (Michael Thomas, Allen Robinson, Lamb, Garrett Wilson).
+- Worse on every yardstick, even the one that credits rookie seasons. The year-1 zero is wrong as a forecast of
+  playing time, but it was acting as a brake: the model already values early QBs too highly (README 'QB reach
+  penalty', 'Whole-draft choice test'), and making them worth more makes it reach sooner. Kept today's rule.
