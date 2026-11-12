@@ -2081,6 +2081,78 @@ Overall, of the borderline leads replicated on old classes, coaching contact is 
 points the same way but 22 players can't settle it. Sons could be extended only by hand-coding older guides
 (Brugler's earlier books or NFL.com bios) or a source that lists sons regardless of how their careers went.
 
+## What inside contact is worth, through whom, and why (`scripts/contact_value.py`, Nov 2026)
+
+Drafted players 2006-22, slot model fit leave-one-class-out, fair group = players whose school had a link to some
+NFL staff (2,530; 219 connected). Questions fixed before running.
+
+**Value.** Connected picks beat slot 45% vs 36% (odds x1.47, p 0.01); value x1.11 (0.97-1.26). At the 2025 cap
+($279.2M): +$1.9M per connected pick over the rookie deal (90% -$0.1M to +$4.0M); rounds 1-2 x1.15, +$5.4M per pick
+(68); rounds 3-7 x1.05, +$0.4M (151). Teams make 0.42 connected picks a season (~$0.8M a year, ~1% of a class's
+value). 27% of NFL coach-seasons carry a college link from the last 5 years (~4.6 coaches per team); each sees
+~3.2 draftees a year from his schools, and his team drafts 0.11 of them: about **$0.2M of draft value per linked
+coach-season**.
+
+**Role** (each vs unconnected): role matches the player's position or side x1.27 (p 0.07, 52); coached there in the
+last 2 seasons x1.21-1.24 (p 0.04, 98); head coach / coordinator x1.25 (24, n.s.); assistant / QC x1.16 (82); position
+coach whose role doesn't match x1.00-1.06. NFL staff role stands in for the college role (careers aren't parsed by
+role).
+
+**Mechanism: information, not favoritism.** At the same pre-season talent estimate, connected players get the same
+snaps (x1.02, p 0.75); they grade +1.1 PFF points better (p 0.14). The edge doesn't fade when the connected coach
+leaves: seasons 2-4 coach still on staff x1.07, gone x1.12 (gone vs present x1.06, p 0.63). It's knowledge of the
+player at draft time.
+
+**Senior Bowl staff contact** (NFL staffs coached the teams; 12 of 17 years 2007-23 parsed, 728 drafted players):
+coaching teams drafted their players at their normal rate (3.3% vs 3.4% expected) and those 24 picks were x1.04 vs
+slot. A week of practice, watched by every team, gives no edge. Visits (2015-22): x1.09 (n.s.).
+
+Reading: the edge comes from multi-season, position-specific, recent knowledge (a coach who coached the player),
+most valuable on early picks; worth ~$0.2M a coach-season at today's draft rates, so it's a side benefit of a hire,
+not a reason for one. Since the information survives the coach's departure, it could be bought without the hire
+(consulting the player's college position coach).
+
+**Follow-ups** (`scripts/contact_followup.py`, fixed before running):
+
+*Jobs.* College-linked coaches skew junior: of linked coach-seasons, 12% quality control / intern (7% of all staff),
+33% assistant (27%), 44% position coach (41%), 8% coordinator (17%), 2% head coach (6%). Coaches fresh from college
+(coached there the season before): 16% QC, 36% assistant, 40% position coach. Draft value per linked coach-season is
+about flat by role (~0.06-0.10 connected picks, $0.11-0.20M; QC $0.13M; fresh from college $0.22M), so the
+information comes as cheaply in a junior hire as in a senior one.
+
+*Avoiding players.* (B1) Connected teams' picks of someone else in the 10 picks before a player went: x0.97 per pass
+(0.91-1.03, p 0.28; random-team placebo at or below that in 11% of draws); 32-pick window x1.02 (= placebo). Faint, in
+the right direction, not significant. (B2) Connected picks bust less (23% vs 28% below a quarter of expectation,
+odds x0.82, p 0.25) without more stars (12% vs 15%); the edge is mainly fewer misses. (B3) Among schoolmates from the
+same class, the connected team's pick beat slot 47% vs 34% for teammates taken by others (odds x1.75, p < 0.01;
+value x1.06): connected staffs pick the right teammate, consistent with better valuation at the margin.
+
+*Does the coach need to be on staff?* Links through a coach who left the team in the 2 seasons before the draft
+(still reachable): x0.84, beat slot 33% vs 36% (67 picks). Placebo, coach hired after the draft: x1.05 (63, null).
+On staff at the draft: x1.11, beat 44% vs 36% (p 0.03). The edge needs the coach on staff - informal access to a
+former colleague doesn't reproduce it. (Correction to the reading above: the information can't simply be bought
+without the hire.)
+
+## 2026 example: which college coaches to pair with which teams (`scripts/coach_pairing_2026.py`, Nov 2026)
+
+Ex ante: Hasan 2026 board top 120; each prospect's 2025 position coach (Wikipedia team-season page, or the program
+page as of 2025-10-15; 34 schools looked up from school / press sources, `coaches_*.jsonl` passed as argv[1], a few
+medium-confidence); each team's picks at the start of draft night; P(team takes him) from the availability model;
+value = P x edge (x1.15 rounds 1-2, x1.05 later) x expected value at the pick, $ at the 2025 cap, summed per coach.
+Needs and team preferences are ignored, so the chances are market-average.
+
+Top pairs: Ohio State LB coach James Laurinaitis (Reese #2, Styles #5) with NYJ $1.2M, LV $1.1M, NYG $1.1M; Miami
+DL / DE coaches Damione Lewis / Jason Taylor (Bain, Mesidor) with NYJ / NYG ~$0.85M; Notre Dame RB Ja'Juan Seider
+(Love, Price) NYJ $0.75M; Utah OL Jim Harding (Fano, Lomu) $0.7M; Indiana QB Chandler Whitmer (Mendoza) LV $0.65M;
+Tennessee DBs Willie Martinez (McCoy, Hood), Texas Tech OLB C.J. Ah You (Bailey, Height), LSU secondary Corey Raymond
+(Delane) ~$0.6M. Value concentrates in position rooms with two top prospects, paired with teams holding top-10 picks.
+Even the best pair is ~$1M: any one team's chance of taking a given prospect is ~5-14%.
+
+Ex post: several pairings would have been live (LV took Mendoza #1, NYJ Bailey #2, ARI Love #3, NYG Reese #5 and
+Hood #37, CLE Fano #9). Actual 2026 hires from these staffs: Whitmer -> TB QBs, Etheridge (Miami CB) and Matt Merritt
+(Miami RB) -> ARI, Lou Esposito (Michigan DL) -> BAL DL, Doug Belk (USC DBs) -> DEN, Jonathan Decoster (Florida asst
+OL) -> NE. Connected 2026 picks: BAL Rayshaun Benny (Michigan DT, #250, role-matched), ARI Carson Beck (Miami QB, #65).
+
 ## Availability: needs, runs and fallers (`scripts/availability_test.py`, Nov 2026)
 
 Question: would modeling other teams' needs, position runs and fallers predict "will he still be there at
@@ -2278,3 +2350,23 @@ Trades at the market rate, change in titles (% of one; se ~0.02):
   things the model leaves out (GM job security, uncertainty about the slot). Nothing changed; the trade
   calculator already values future picks this way. Possible addition: show the market price of each side in the
   app's Trade offer tab, so the gap is visible.
+
+### How real future-pick trades turned out (`scripts/future_pick_realized.py`)
+
+Draft-window pick-only trades 2006-21 with players' seasons 1-4 known (404 trades; 81 with next year's picks).
+Each pick -> the player drafted with it. Realized titles: his real seasons through the model's title machinery
+(next year's players arrive a season later), for the team's situation at trade time; predicted: trade.evaluate
+before the trade (a received pick valued as a QB when a QB was taken there, as in trade.real_trades).
+
+- Player value, no title model: the 15 traded next-year 1sts delivered x1.25 of the average player at the
+  market's equivalent #42 (95% 0.75-1.81), x0.75 of the average at their actual slot; slots came out as predicted
+  (17 vs 18). Next-year 2nds x1.33 of #74 (13 picks). Leans toward the market discounting too steeply; too few to say.
+- The trade calculator tracks outcomes: corr(predicted, realized) +0.36 per trade (the most it could be with this
+  much luck, if exactly right: ~+0.51); trades with next year's picks +0.30 (max ~+0.38).
+- Non-QB trades with next year's picks (71): teams that bought future picks were predicted +0.50 and realized
+  +0.38 (95% -0.06 to +0.88; raw player value +2.2% of cap, -0.2 to +4.9). The model's "buy future picks at the
+  market price" held up roughly as predicted, at the edge of significance.
+- QB trade-ups paid for with next year's picks were the big wins for the seller of the future pick (HOU for
+  Watson +28, KC for Mahomes +22, BAL for Lamar Jackson +18); with them, future-pick buyers realized -0.53
+  (-1.55 to +0.31).
+- The situation dependence (contenders sell, rebuilders buy) can't be checked: 18-34 trades per cell, ranges +-2.
