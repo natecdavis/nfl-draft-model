@@ -2398,6 +2398,15 @@ before the trade (a received pick valued as a QB when a QB was taken there, as i
   Watson +28, KC for Mahomes +22, BAL for Lamar Jackson +18); with them, future-pick buyers realized -0.53
   (-1.55 to +0.31).
 - The situation dependence (contenders sell, rebuilders buy) can't be checked: 18-34 trades per cell, ranges +-2.
+- Caveat and recheck (Nov 2026, `... states`): the run above sets every team's situation from its prior-season
+  rating with a QB need starting now (qb_from 1), so a QB pick looks valuable to every team. Rerun for 2014-21 with
+  each team's draft-day state from the past-drafts review (strength, scheduled shifts, QB need; outcomes still
+  scored as played): corr(predicted, realized) one side per trade +0.27 -> +0.28 (95% +0.07 to +0.51; n 224; the
+  2006-13 trades that lifted the earlier +0.36 have no review state), QB trades +0.32 -> +0.31, others +0.15 -> +0.16.
+  The one large change is KC 2017 (Mahomes): predicted +9.95 -> -4.18, because KC had Alex Smith (no QB need in the
+  window); it realized +22. Teams with no flagged QB need that traded up for a QB (11): predicted -0.71, realized
+  +2.05. A trade-up for a QB may itself signal a need the draft-day flag misses; 11 trades, mostly KC, too few to
+  act on. Conclusions above unchanged.
 
 ## QB valuation: where the model is off (Nov 2026)
 

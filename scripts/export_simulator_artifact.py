@@ -106,15 +106,7 @@ def night_trades(S, verbose=False) -> dict:
         y = int(y)
         d, night = draft_night(y)
         sits = {r.team: situation(r) for _, r in S[S.year == y].iterrows()}
-        # who held each pick when the draft began: the team at the root of its draft-night chain (gave it, never
-        # received it that night); review.draft_night's first-giver rule can pick a later link on same-day chains
-        cur = night[(night.pick_season == y) & night.pick_number.notna()]
-        root = {}
-        for k, g in cur.groupby("pick_number"):
-            r = set(g.gave) - set(g.received)
-            if len(r) == 1:
-                root[int(k)] = r.pop()
-        owner0 = {int(k): root.get(int(k), tm) for k, tm in zip(d.pick, d.team)}
+        owner0 = dict(zip(d.pick.astype(int), d.original_team))  # owner when the draft began (review.draft_night)
         start = {}
         for k, tm in owner0.items():
             start.setdefault(tm, []).append(k)

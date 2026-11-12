@@ -93,7 +93,14 @@ def draft_night(year: int) -> pd.DataFrame:
     night = t[(t.date >= start) & (t.date <= start + pd.Timedelta(days=3))]
     moved = night[(night.pick_season == year) & night.pick_number.notna()].sort_values("date")
     first_giver = moved.groupby("pick_number").gave.first()
-    d["original_team"] = [first_giver.get(p, tm) for p, tm in zip(d.pick, d.team)]
+    # owner when the draft began = the root of the pick's draft-night chain: a team that gave it and never received
+    # it that night. The first giver by date can be a later link when a pick moves twice the same day (trade ids
+    # aren't in time order within a day): 63 picks 2014-2026 were mislabeled that way until Nov 2026.
+    root = {}
+    for k, g in moved.groupby("pick_number"):
+        r = set(g.gave) - set(g.received)
+        root[k] = r.pop() if len(r) == 1 else first_giver[k]
+    d["original_team"] = [root.get(p, tm) for p, tm in zip(d.pick, d.team)]
     d["traded_on_night"] = d.pick.isin(first_giver.index) & (d.original_team != d.team)
     return d.reset_index(drop=True), night
 

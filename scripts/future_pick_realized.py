@@ -13,7 +13,7 @@ and next year's picks drafted by 2022 (labels need four seasons). Each pick -> t
    for the team's situation at trade time. Compared with the model's pre-trade verdict (trade.evaluate, as in
    trade.real_trades). This checks the model's player expectations, not its title-window assumption.
 
-Run:  python scripts/future_pick_realized.py
+Run:  python scripts/future_pick_realized.py          (2014-21 with each team's review state:  ... states)
 """
 import os
 import sys
@@ -112,9 +112,17 @@ def main():
             continue
         teams = sorted(set(g.gave) | set(g.received))
         has_fut = (g.yr == 1).any()
+        if STATES and S not in STATES_YEARS:
+            continue
         for tm in teams:
             prev = rat[S - 1].get(tm, 0.0)
             sit = {"start": CARRY * 0.73 * prev, "shift": {}, "qb_from": 1}
+            sit_pred = sit
+            if STATES:  # the model's draft-day view (review states); outcomes still scored as played
+                if (S, tm) not in STATES:
+                    continue
+                sit_pred = STATES[(S, tm)]
+                sit = dict(sit_pred, qb_from=1)
             base = baseline_paths(sit, np.random.default_rng(0), 2000)
             b0 = ctx.sb(base).sum(axis=1).mean()
 
@@ -153,14 +161,15 @@ def main():
                         out.append(Pick(rnd=int(r.pick_round), year=1,
                                         src={"start": CARRY * 0.73 * rat[S - 1].get(r.gave, 0.0)}))
                 return out
-            pred = evaluate(ctx, sit, to_picks(give, False), to_picks(get, True), n=3000, seed=int(tid))["change"] * 100
+            pred = evaluate(ctx, sit_pred, to_picks(give, False), to_picks(get, True), n=3000, seed=int(tid))["change"] * 100
             net_fut = (get.yr == 1).sum() - (give.yr == 1).sum()
             rows.append({"trade_id": tid, "season": S, "team": tm, "start": sit["start"], "has_future": has_fut,
+                         "qb_need": sit_pred.get("qb_from") is not None,
                          "net_future_picks": net_fut, "predicted": pred, "realized": real,
                          "raw_value_net": get.value.sum() - give.value.sum(),
                          "qb_up": bool(((g.yr == 0) & (g.grp == "QB") & (g.received == tm)).any())})
     R = pd.DataFrame(rows)
-    R.to_parquet(OUT / "future_pick_realized.parquet")
+    R.to_parquet(OUT / ("future_pick_realized_states.parquet" if STATES else "future_pick_realized.parquet"))
     print("\n2. Realized vs predicted change in titles (% of one), per team per trade:")
     qbt = set(R[R.qb_up].trade_id)
     R["qb_trade"] = R.trade_id.isin(qbt)
@@ -196,5 +205,19 @@ def main():
               f"raw value net {ci(g.raw_value_net)}% cap")
 
 
+STATES, STATES_YEARS = {}, set()
+
+
+def load_states():
+    """Each team's draft-day state from the past-drafts review (2014+): strength, scheduled shifts and QB need
+    (qb_from None = no QB need in the window, so a drafted QB adds nothing in the model)."""
+    from simulator import situation
+    st = pd.read_parquet(OUT / "review_states.parquet")
+    STATES.update({(int(r.year), r.team): situation(r) for _, r in st.iterrows()})
+    STATES_YEARS.update(int(y) for y in st.year.unique())
+
+
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["states"]:
+        load_states()
     main()
