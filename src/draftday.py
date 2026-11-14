@@ -23,6 +23,7 @@ the clock are lookups plus a quick availability simulation.
 Approximation: titles from several players are added up rather than simulated
 jointly (fine for a few picks; slightly understates the extra value of two hits).
 """
+import os
 import zlib
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -43,6 +44,13 @@ POS = {"QB": "QB", "RB": "RB", "HB": "RB", "FB": "RB", "WR": "WR", "TE": "TE",
 SPECIALISTS = {"K", "PK", "P", "LS"}  # not modeled: others can draft them, we never pick them
 NEED_EARLY = {"starter": 1.0, "rotation": 0.6, "depth": 0.3}  # share of snaps years 1-2 vs normal
 LEVELS = list(NEED_EARLY)
+# Rookies we already took at the position in this draft. "measured" (default since Nov 2026): the 2nd / 3rd+
+# rookie at a group keeps x0.95 / x0.88 of his playing time in every season, as measured on 2014-22 rookies
+# (scripts/roster_need.py regression with roster need, value years 1-4: -4.8%, 95% -14% to +5%; -12%, -27% to
+# +3%; README 'Roster need test'). "early" (the old rule): each earlier rookie drops the need one level
+# (NEED_EARLY, years 1-2 only), i.e. x0.6 then x0.3, several times the measured effect.
+NEED_STEP = os.environ.get("NEED_STEP", "measured")
+WITHIN_DRAFT = (1.0, 0.95, 0.88)
 
 
 # How far actual picks land from the consensus rank, in log(pick+10) units, measured on
@@ -91,13 +99,17 @@ class DraftEngine:
         return sample_outcomes(self.ctx.lib, self.ctx.curves, grp, int(np.clip(talent, 1, 262)), rng, n=self.n)
 
     def player_points(self, grp: str, talent: int, pick: int, level: str | None = None,
-                      qb_filled: bool = False) -> np.ndarray:
+                      qb_filled: bool = False, nth: int = 0) -> np.ndarray:
         """(n, 5) points of team strength from taking a player of this talent at this pick.
         level: how much he plays early (default: the team's need at his position).
-        qb_filled: we already drafted a QB this draft, so another one doesn't start."""
+        qb_filled: we already drafted a QB this draft, so another one doesn't start.
+        nth: rookies already taken at his group this draft (NEED_STEP "measured" only; with "early"
+        callers lower `level` instead)."""
         shares, price = self._outcomes(grp, int(talent))
         shares = shares.copy()
         shares[:, :2] *= NEED_EARLY[level or self.need.get(grp, "starter")]
+        if nth:
+            shares *= WITHIN_DRAFT[min(int(nth), 2)]
         sit = {**self.situation, "qb_from": 99 if qb_filled else self._qb_from()}
         return pick_effect(shares, price, int(pick), grp, sit, self.ctx.cost, self.ctx.bar, self.ctx.rates)
 
@@ -116,11 +128,18 @@ class DraftEngine:
         lt, lp = np.log(talent + 10), np.log(pick + 10)
         return int(round(np.exp(lt + self.fall_weight * (lp - lt)) - 10))
 
-    def _player_value(self, grp, talent, pick, level=None, qb_filled=False) -> float:
-        return self.titles(self.player_points(grp, self.effective_talent(talent, pick), pick, level, qb_filled))
+    def _player_value(self, grp, talent, pick, level=None, qb_filled=False, nth=0) -> float:
+        return self.titles(self.player_points(grp, self.effective_talent(talent, pick), pick, level, qb_filled, nth))
 
-    def player_value(self, grp, talent, pick, level=None, qb_filled=False) -> float:
-        return self._value(grp, int(talent), int(pick), level, qb_filled)
+    def player_value(self, grp, talent, pick, level=None, qb_filled=False, nth=0) -> float:
+        return self._value(grp, int(talent), int(pick), level, qb_filled, int(nth))
+
+    def step_value(self, grp, talent, pick, m) -> float:
+        """Value after we've taken m players at his group this draft (non-QB), per NEED_STEP."""
+        if NEED_STEP == "measured":
+            return self.player_value(grp, talent, pick, nth=m)
+        b = LEVELS.index(self.need.get(grp, "starter"))
+        return self.player_value(grp, talent, pick, LEVELS[min(b + m, 2)])
 
     def future_value(self, picks: list[Pick]) -> float:
         if not picks:
@@ -140,9 +159,8 @@ class DraftEngine:
 
     def value_matrix(self, board: pd.DataFrame, picks: list[int]) -> np.ndarray:
         """Titles from taking each player at each of our picks, at each need level:
-        (players, picks, 3). Level 0 = the team's need at that position; each
-        player we've already taken at the position drops it one level (for QBs:
-        after one QB, the need is filled)."""
+        (players, picks, 3). Index m = we've already taken m players at that position
+        this draft (NEED_STEP; for QBs: after one QB, the need is filled)."""
         V = np.full((len(board), len(picks), 3), -1.0)
         for i, (g, r) in enumerate(zip(board.grp, board["rank"])):
             if g == "SPEC":
@@ -152,8 +170,7 @@ class DraftEngine:
                     v0, v1 = self.player_value(g, r, k), self.player_value(g, r, k, qb_filled=True)
                     V[i, j] = [v0, v1, v1]
                 else:
-                    b = LEVELS.index(self.need.get(g, "starter"))
-                    V[i, j] = [self.player_value(g, r, k, LEVELS[min(b + m, 2)]) for m in range(3)]
+                    V[i, j] = [self.step_value(g, r, k, m) for m in range(3)]
         return V
 
     def simulate(self, board: pd.DataFrame, picks: list[int], now: int, sims: int = 2000, seed: int = 1) -> dict:

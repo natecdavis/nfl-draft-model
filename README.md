@@ -138,8 +138,9 @@ in data/derived/sim_night_trades_v3.json) and realized values at every pick the 
 ## Roster need test (`scripts/roster_need.py`)
 
 The model ignores the non-QB roster: every first pick at a position is treated as filling a starting
-spot; only picks earlier in the same draft lower need (2nd at a group x0.6, 3rd x0.3 of years 1-2
-playing time). Test: open starting spots on draft day per team and position group (last season's
+spot; only picks earlier in the same draft lower need (at the time of this test: 2nd at a group x0.6, 3rd
+x0.3 of years 1-2 playing time; replaced by the measured x0.95 / x0.88 in Nov 2026, see 'Within-draft need
+step' below). Test: open starting spots on draft day per team and position group (last season's
 snaps by players still on the team, plus veterans added before the draft, vs the league-typical
 amount; 2014-2025 drafts, 2,825 non-QB rookies), against what each rookie did, controlling for
 position x pick, position x consensus rank, team strength and year (SEs clustered by team-draft).
@@ -171,6 +172,19 @@ for this team's open spots vs those of the team that actually drafted him.
 | within-draft measured | +0.61 (+0.07 to +1.23) | +0.004 (-0.005 to +0.013) | 97% |
 | roster | +0.53 (+0.07 to +1.08); adjusted +0.58 | +0.008 (-0.025 to +0.040) | 70% |
 | both | +0.53 (+0.05 to +1.12); adjusted +0.57 | -0.007 (-0.038 to +0.026) | 74% |
+
+**Within-draft need step adopted (Nov 13 2026; `draftday.NEED_STEP`, `scripts/need_step_check.py`).** The old
+x0.6 / x0.3 was a guess several times the measured effect, and the measured rule tied it above, so the model now
+uses the measured one: the 2nd / 3rd+ rookie the team takes at a group keeps x0.95 / x0.88 of his playing time in
+every season (pooled 2014-22 regression with roster need, value years 1-4: -4.8%, 95% -14% to +5%; -12%, -27% to
++3%). E.g. a consensus #40 WR at #40 as the team's 2nd WR now loses 6% of his title value (was 19%), as the 3rd
+15% (was 32%). `NEED_STEP=early` restores the old rule; the user-set need levels in the draft-day app
+(starter / rotation / depth) are unchanged. Review, simulator tables (`_nsm` in the cache key) and the simulator
+page rebuilt. Model minus team where they disagree, each rec once, 2014-22, old -> new: round 1 +1.33 -> +1.33,
+rounds 2-4 +0.66 (+0.10 to +1.39) -> +0.73 (+0.13 to +1.51), rounds 5-7 -0.05 -> -0.09; recommendation changed at
+7% of picks (none in rounds 1-2); paired, all picks +0.01 (-0.00 to +0.02); rounds 2-4 position mix unchanged
+(WR 37%, QB 20%, G 18%, EDGE 14%). Research scripts that build `review.Table` now get the measured rule unless
+NEED_STEP=early is set.
 
 Roster need changes about 30% of choices but not their realized value, and doesn't change the position
 mix (OL, QB and WR still make up nearly all recommendations). Not adopted. Rounds 5-7 stay slightly

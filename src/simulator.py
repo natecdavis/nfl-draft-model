@@ -62,6 +62,8 @@ def _key(sit, year=None) -> str:
     nb += "" if pm.LABEL == "stored" else f"_lb{pm.LABEL}"  # outcome label (prospect_model.LABEL)
     from outcomes_v2 import QB_COMPS
     nb += "" if QB_COMPS == "ev" else f"_qbc{QB_COMPS}"  # QB comparison coordinate (outcomes_v2.QB_COMPS)
+    from draftday import NEED_STEP
+    nb += "_nsm" if NEED_STEP == "measured" else ""  # within-draft need step (draftday.NEED_STEP)
     return f"start{sit['start']:g}_qb{sit['qb_from']}_shift{sh}_fw{FALL_WEIGHT:g}_v2_{UNITS}{ho}{cc}{nb}"
 
 

@@ -32,7 +32,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from draftday import LEVELS, DraftEngine
+from draftday import LEVELS, NEED_STEP, DraftEngine
 from outlook import GROUPS, OUT, RAW
 from public_board import _norm
 from simulate import league_params, load_schedules
@@ -271,7 +271,8 @@ K_GRID = np.unique(np.round(np.exp(np.linspace(np.log(11), np.log(272), 22)) - 1
 
 class Table:
     """Titles for (position, need level, effective talent, pick) on a grid, for one situation.
-    Level 0-2 = starter/rotation/depth for non-QBs; for QBs 0 = fills the need, 1-2 = need filled.
+    Level 0-2 = players the team already took at the position this draft (draftday.NEED_STEP: measured
+    x1 / x0.95 / x0.88 all seasons; "early" = starter/rotation/depth); for QBs 0 = fills the need, 1-2 = filled.
     The grid is over talent already shaded for a fall; lookup() applies the shading once (the grid
     used to be built with player_value(), which shades again: fixed Nov 2026)."""
     def __init__(self, sit: dict, ctx: Context, fall_weight=0.8):
@@ -284,6 +285,7 @@ class Table:
                 for a, t in enumerate(T_GRID):
                     for b, k in enumerate(K_GRID):
                         pts = (e.player_points(g, t, k, qb_filled=li > 0) if g == "QB"
+                               else e.player_points(g, t, k, nth=li) if NEED_STEP == "measured"
                                else e.player_points(g, t, k, LEVELS[li]))
                         arr[li, a, b] = e.titles(pts)
             self.v[g] = arr
