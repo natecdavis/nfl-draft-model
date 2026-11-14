@@ -2702,3 +2702,25 @@ rounds 2-4 -0.14 (-0.66 to +0.39, starts +0.5), rounds 5-7 +0.12 (+0.01 to +0.24
 Verdict: not adopted. "All" wins head to head but rounds 2-4 vs teams drop (+0.59 -> +0.23) while the paired test ties,
 the same split that kept the QB haircut out. Recheck when the 2023-24 classes have four seasons. Neither version makes
 rounds 5-7 beat teams: the answer to the complaint stays "don't use the model's late-round picks" (the simulator says so).
+
+## After the rookie deal: seasons 5-7 for the drafting team (`scripts/second_contract.py`, Nov 14 2026)
+
+The complaint a team would make: "you only value rookie-contract years; a hit gets extended or tagged." The model's
+window is 5 seasons: seasons 1-4 on the rookie deal, season 5 only for round-1 picks kept on the option. Seasons 5-7
+priced like the label (`scripts/second_contract_label.py`: same harness and pay curves as the darko label, which it
+reproduces for seasons 1-5), counted for the drafting team only if he played that season for it; cost = APY (% of
+cap) of the latest contract with the drafting team (cap-hit version as a check). Drafted players 2011-2020 (2,335):
+
+- Still with the drafting team: season 5 20% (top-10 picks 52%), season 6 14%, season 7 11%; mostly extensions
+  (9% of all players in season 5), tags 1%.
+- No below-market second contracts on average: retained players cost more than their seasons were worth (top-10
+  picks -1.5% of cap in season 5 by APY; by the backloaded cap hit +0.6% in season 5, negative from season 6).
+- In the model's own currency (0.19 x value - 0.10 x cap cost, QBs 0.34) a kept player still adds, so season 5 would
+  add, as a share of seasons 1-4 (+ option): picks 1-10 +13%, 11-32 +11%, 33-64 +4%, 65-100 +6%, 101+ +4-5%;
+  by position (picks 1-100) QB +14%, EDGE +15%, WR / DL +8%, OL / TE +5-6%, LB / RB / DB ~0. Seasons 6-7 are outside
+  the 5-season title window.
+
+Not adopted: top picks would gain ~8% relative to late picks and QB / EDGE a little, in the direction already found
+too high (round-1 QB recs deliver 0.59x predicted, "Round-1 QBs: the yardstick was flattering them"); doing it properly
+needs season 5 sampled for every pick plus a matching realized yardstick and a full rebuild. For trades: moving down
+out of the top 10 is slightly less attractive than the calculator says.
