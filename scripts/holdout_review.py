@@ -35,8 +35,10 @@ CC = os.environ.get("COMP_CORRECT")  # set: comparison-career correction test (o
 NB = os.environ.get("NO_BOARD_CLASSES")  # set: board-less classes test (outcomes_v2.NO_BOARD_CLASSES)
 MO = os.environ.get("MONOTONE")  # set: monotone-in-rank test (outcomes_v2.MONOTONE)
 LF = os.environ.get("LINK_FIX")  # set: training-data link repair test (prospect_model.LINK_FIX)
-SUF = (f"_fw{FW}" if FW else "") + (f"_cost{CR}" if CR else "") + (f"_wr{WF}" if WF else "") + (f"_cc{CC}" if CC else "") + (f"_nb{NB}" if NB else "") + (f"_mono{MO}" if MO else "") + (f"_lf{LF}" if LF else "")
-FW = FW or CR or WF or CC or NB or MO or LF  # any test: leave-one-draft-out only
+UN = os.environ.get("OUTCOME_UNITS")  # set to the non-default: units robustness test (outcomes_v2.UNITS)
+UN = UN if UN and UN != "single" else None
+SUF = (f"_fw{FW}" if FW else "") + (f"_cost{CR}" if CR else "") + (f"_wr{WF}" if WF else "") + (f"_cc{CC}" if CC else "") + (f"_nb{NB}" if NB else "") + (f"_mono{MO}" if MO else "") + (f"_lf{LF}" if LF else "") + (f"_units{UN}" if UN else "")
+FW = FW or CR or WF or CC or NB or MO or LF or UN  # any test: leave-one-draft-out only
 JOBS = [("lodo", y) for y in range(2014, 2023)] + ([] if FW else [("expand", y) for y in range(2019, 2023)])
 if sys.argv[1:2] == ["expand"]:  # only the expanding-window drafts (the leave-one-draft-out file is kept)
     JOBS = [j for j in JOBS if j[0] == "expand"]

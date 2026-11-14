@@ -741,14 +741,14 @@ class RealizedV2:
         return out
 
 
-def add_realized_v2(df, states, ctx, n=2000):
+def add_realized_v2(df, states, ctx, n=2000, units=None):
     """Realized value (RealizedV2) for the team's pick, the model's pick and the best player
-    left on the consensus board."""
+    left on the consensus board. units: outcomes_v2.unit_factor (None = outcomes_v2.UNITS)."""
     sits = {(r.year, r.team): {"start": r.start, "shift": r.shift if isinstance(r.shift, dict) else eval(r.shift),
                                "qb_from": None if pd.isna(r.qb_from) else int(r.qb_from)}
             for r in states.itertuples()}
     pneed = {(r.year, r.team): (r.p_need if "p_need" in states.columns else 1.0) for r in states.itertuples()}
-    R = RealizedV2(ctx, n)
+    R = RealizedV2(ctx, n, units=units)
     df["real_team"] = [R.titles(sits[(y, tm)], gg, y, a, k, n_) for y, tm, gg, a, k, n_ in
                        zip(df.year, df.team, df.grp, df.pick, df.pick, df.player)]
     for col, g, at, nm in [("real_model", "rec_grp", "rec_drafted_at", "rec_player"),

@@ -189,6 +189,28 @@ def realized_extra(S, R, night, verbose=False) -> dict:
     return out
 
 
+def _delta(arr) -> bytes:
+    """A table (groups, 3 levels, T, K) as int16 (value x SCALE), differenced along K then T within each
+    group and level (gzip packs the differences ~2.5x smaller); the page undoes it with running sums, in
+    int16 arithmetic, so any wrap-around cancels exactly."""
+    q = np.round(arr * SCALE)
+    assert np.abs(q).max() < 32767
+    q = q.astype(np.int64)
+    d = np.diff(np.diff(q, axis=-1, prepend=0), axis=-2, prepend=0)
+    return d.astype("<i2").tobytes()  # astype wraps mod 2^16, like the page's Int16Array
+
+
+def _family_key(sit, year) -> str:
+    """The family-units table for this situation (outcomes_v2.UNITS = "family"; built by
+    OUTCOME_UNITS=family python src/simulator.py build)."""
+    import outcomes_v2 as o
+    prev, o.UNITS = o.UNITS, "family"
+    try:
+        return _key(sit, year)
+    finally:
+        o.UNITS = prev
+
+
 def build_html(theme: str | None = None, verbose: bool = False) -> str:
     """The whole page as one HTML string, from the current review data and simulator tables.
     theme: "light" / "dark" pins the palette (e.g. to match the Streamlit app); None follows the viewer."""
@@ -204,6 +226,7 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
     night = night_trades(S, verbose)
     extra = realized_extra(S, R, night, verbose)
     keys, blobs = {}, []
+    fkeys, fblobs = {}, []  # family-units tables (positions only): the "depends on position pricing" label
     teams, rblobs, roff = {}, [], 0
     for _, r in S.iterrows():
         sit = situation(r)
@@ -212,10 +235,13 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
             z = np.load(TABLE_DIR / f"{k}.npz")
             sp = _spec(sit, r.year)  # kickers / punters (src/specialists.py)
             arr = np.stack([z[g] for g in GROUPS] + [sp[g] for g in SPEC_GROUPS])  # (groups, 3 levels, T, K)
-            q = np.round(arr * SCALE)
-            assert np.abs(q).max() < 32767
             keys[k] = len(blobs)
-            blobs.append(q.astype("<i2").tobytes())
+            blobs.append(_delta(arr))
+        fk = _family_key(sit, r.year)
+        if fk not in fkeys:
+            z = np.load(TABLE_DIR / f"{fk}.npz")
+            fkeys[fk] = len(fblobs)
+            fblobs.append(_delta(np.stack([z[g] for g in GROUPS])))
         mine = R[(R.year == r.year) & (R.team == r.team)].sort_values("pick").copy()
         # the team's own kickers / punters: their group and draft-night value (the review leaves them out)
         spos = mine.pick.map(dpos.get(int(r.year), {})).astype(str).str.upper().map(POS_TO_GROUP)
@@ -227,7 +253,7 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
         teams.setdefault(str(int(r.year)), {})[r.team] = {
             "qb": r.qb, "status": r.status, "strength": num(r.strength_prior, 1),
             "qb_from": None if pd.isna(r.qb_from) else int(r.qb_from), "p_need": num(r.p_need, 2),
-            "table": keys[k], "real": None,
+            "table": keys[k], "ftable": fkeys[fk], "real": None,
             "picks": [[int(p.pick), int(p["round"]), p.original_team, int(bool(p.traded_on_night)), p.player, p.grp,
                        num(p.board_rank, 0), num(p.value_actual), num(p.real_team)] for _, p in mine.iterrows()],
             "start": night.get(str(int(r.year)), {}).get(r.team, {}).get("start", []),
@@ -270,10 +296,11 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
             print(f"{y}: {len(P)} players", flush=True)
     rounds = {str(int(y)): g.groupby("round").pick.min().astype(int).tolist() for y, g in dp.groupby("season")}
     meta = {"rounds": rounds, "groups": GROUPS + SPEC_GROUPS, "T": T_GRID.tolist(), "K": K_GRID.tolist(), "fw": FALL_WEIGHT, "off": OFF_BOARD_RANK,
-            "scale": SCALE, "real_scale": REAL_SCALE, "blends": blends, "n_tables": len(blobs), "latest_av_season": int(dp.season.max())}
+            "scale": SCALE, "real_scale": REAL_SCALE, "blends": blends, "n_tables": len(blobs), "fgroups": GROUPS, "latest_av_season": int(dp.season.max())}
     data = json.dumps({"meta": meta, "teams": teams, "pools": pools}, separators=(",", ":"), ensure_ascii=False)
     b64 = lambda b: base64.b64encode(gzip.compress(b, 9)).decode()
     html = TEMPLATE.read_text().replace("__DATA_GZ__", b64(data.encode())).replace("__TABLES_GZ__", b64(b"".join(blobs))) \
+        .replace("__FTABLES_GZ__", b64(b"".join(fblobs))) \
         .replace("__REAL_GZ__", b64(b"".join(rblobs)))
     if theme in ("light", "dark"):
         html = html.replace('<html lang="en">', f'<html lang="en" data-theme="{theme}">', 1)

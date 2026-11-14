@@ -2636,3 +2636,42 @@ Haskins fix, drafts 2014-22, model minus team where they disagree, each rec once
 averaged +0.60 (-0.06 to +1.20), first pick -0.49 (-1.77 to +0.62); rounds 2-4 averaged +0.59 (+0.21 to +1.01),
 first pick +0.40 (+0.03 to +0.80). Round-1 QB recs +0.46 (n 18) vs non-QB recs +0.67 (n 32); QB recs delivered /
 predicted 0.59x (round 1), 0.90x (rounds 2-4). Earlier scorecards in this README were scored as played.
+
+## Position pricing robustness (`scripts/units_robust.py`, Nov 14 2026)
+
+The complaint a team would make: "your position mix is an artifact of how you price positions." The model prices
+each season at what veterans at that position earn for that role (outcome units "single", adopted Nov 2026); the
+other defensible choice ("family") rescales each position family to match its own later pay, which marks down
+rotational positions (RB, TE, EDGE, DL) and favors OL. The production review (leave-one-draft-out, 2014-2022) was
+rerun under family units (`OUTCOME_UNITS=family python scripts/holdout_review.py`) and each recommendation compared:
+
+| Production rec vs family-units rec, all picks | Same player | Same position | Position flips |
+|---|---|---|---|
+| Round 1 | 78% | 5% | 17% |
+| Rounds 2-4 | 57% | 3% | 40% |
+| Rounds 5-7 | 51% | 5% | 44% |
+
+Flips are almost all one trade: EDGE / WR / TE (single) vs OL (family). Rounds 2-4 recommendations: OL 23% single,
+59% family; EDGE 14% vs 0%.
+
+Production recs minus the team's pick where they disagree (each rec once, averaged; titles on the single
+yardstick, then on the family one; bootstrap over draft years):
+
+| | Holds under both | Position flips |
+|---|---|---|
+| Round 1 | +0.83 (+0.13 to +1.39) / +0.73, 35 recs | +0.04 (-1.28 to +0.91) / -0.36, 15 recs |
+| Rounds 2-4 | +0.67 same player, +0.74 same position (wide) / +0.87, +0.56, 56 recs | +0.47 (-0.01 to +0.95) / +0.34, 38 recs |
+| Rounds 5-7 | about -0.1 | about -0.1 |
+
+- Round 1: the edge over teams is in the recommendations that hold under both pricings; the flips are worth
+  about nothing.
+- Rounds 2-4: both kinds beat teams by similar amounts, so the edge isn't a pricing artifact.
+- Where the two pricings disagree in rounds 2-4, the family (OL) recs did better on every outside yardstick
+  (seasons started +0.70, AV +4.5, second-contract pay +0.55% of cap) while titles tie (single yardstick +0.10,
+  family -0.26, both crossing zero). That reverses the Nov 5 pay result that favored single units; not enough to
+  switch back, but "you undervalue OL" is a fair point.
+
+Adopted (simulator only, no model change): the simulator also carries the family-units tables
+(`OUTCOME_UNITS=family python src/simulator.py build`) and labels the model's top choice "firm" or "depends on
+position pricing" (naming the family-units choice), with the past-drafts result for that round. Tables are now
+stored differenced (`export_simulator_artifact._delta`), so both sets take less room than one did.
