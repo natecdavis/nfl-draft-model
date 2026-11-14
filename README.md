@@ -2724,3 +2724,29 @@ Not adopted: top picks would gain ~8% relative to late picks and QB / EDGE a lit
 too high (round-1 QB recs deliver 0.59x predicted, "Round-1 QBs: the yardstick was flattering them"); doing it properly
 needs season 5 sampled for every pick plus a matching realized yardstick and a full rebuild. For trades: moving down
 out of the top 10 is slightly less attractive than the calculator says.
+
+## Draft-night trade-ups: value the player on the clock (`scripts/trade_target.py`, `review.TRADE_VALUE`, Nov 14 2026)
+
+The complaint a team would make: "we traded up for a player, and you scored the trade as if we'd get a typical pick."
+The calculator valued every current pick as a typical player at the slot (a received pick as a QB if one was taken).
+A team trading on the clock knows the board. Test: draft-night pick-only trades 2014-2021 (221), each team's draft-day
+state, outcomes scored as played (as `scripts/future_pick_realized.py`); the trade's earliest current pick valued as
+the player taken there (`trade.Pick(talent=...)`: his board rank shaded toward the pick, his position):
+
+| Corr(predicted, realized) | Slot (old) | On the clock | Every current pick (upper bound) |
+|---|---|---|---|
+| One side per trade (221) | +0.24 (+0.02 to +0.50) | +0.51 (+0.27 to +0.70) | +0.52 |
+| Trade-up side (221) | +0.34 | +0.39 | +0.43 |
+| Trade-ups for a QB (19) | +0.12 | +0.16 | +0.19 |
+| Trade-ups for a non-QB (202) | -0.01 (-0.24 to +0.20) | +0.26 (+0.03 to +0.45) | +0.37 |
+
+Paired gain on the clock minus slot: one side per trade +0.25 (0.00 to +0.52), non-QB trade-ups +0.27 (+0.02 to
++0.51); calibration slope ~1 (slot 0.60). Mean absolute error barely moves (QB trade-ups dominate it).
+
+Adopted for the team that gets the pick on the clock (`review.score_trades`, `TRADE_VALUE=clock`; `slot` restores):
+the team giving it up keeps the typical-player value, since its alternative was its own choice there, not the
+buyer's target (valuing it at the buyer's player swung SEA 2014's #32 trade-down from +0.84 to -11.7 for passing on
+Bridgewater). Verdicts recomputed (`python src/review.py verdicts`, each draft's leave-one-draft-out engine, as the
+review): 35% move by more than 0.05, 46 of 802 change sign, e.g. NO 2014 up to #20 for Brandin Cooks -0.51 -> +0.74,
+GB 2020 up to #26 for Love +8.1 -> +3.0. Simulator trade verdicts follow. The app's Trade offer tab still values
+picks as typical players (`trade.Pick` now takes an optional `talent` for a known target).

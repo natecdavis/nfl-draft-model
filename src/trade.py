@@ -8,6 +8,7 @@ in expected Super Bowls over the same 5 seasons.
 Picks:
   Pick(10)                       this year's #10, typical non-QB
   Pick(3, pos="QB")              this year's #3, used on a QB
+  Pick(10, pos="WR", talent=6)   this year's #10, used on a known player (board #6 WR, shaded)
   Pick(rnd=1, year=1)            the team's own first next year
   Pick(rnd=1, year=1, src="middle")  next year's first from a middle-of-the-pack team
 
@@ -44,6 +45,8 @@ class Pick:
     year: int = 0                 # 0 = this draft, 1 = next year, 2 = the year after
     rnd: int | None = None        # round, for future picks
     src: str | dict = "own"       # future picks: "own", a situation name, or "typical"
+    talent: float | None = None   # this year's pick used on a known player: his (shaded) board rank; None = typical
+                                  # player at the slot (talent = slot). Cost is still the slot's.
 
 
 class Context:
@@ -108,7 +111,8 @@ def package_points(ctx: Context, sit: dict, picks: list[Pick], base: np.ndarray,
         keys = pd.DataFrame({"g": grps, "k": numbers})
         for (g, k), idx in keys.groupby(["g", "k"]).groups.items():
             idx = np.asarray(idx)
-            shares, price = sample_outcomes(ctx.lib, ctx.curves, g, int(k), rng, n=len(idx))
+            t = int(k) if p.talent is None or p.year else int(np.clip(round(p.talent), 1, 262))
+            shares, price = sample_outcomes(ctx.lib, ctx.curves, g, t, rng, n=len(idx))
             pts = pick_effect(shares, price, int(k), g, s, ctx.cost, ctx.bar, ctx.rates)
             if p.year:
                 total[idx, p.year:] += pts[:, : 5 - p.year]

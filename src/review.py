@@ -342,6 +342,7 @@ def engine_for(year, tables=None):
 
 
 FALL_W = float(os.environ.get("REVIEW_FALL_WEIGHT", 0.85))  # fall shading (tests: scripts/holdout_review.py)
+TRADE_VALUE = os.environ.get("TRADE_VALUE", "clock")  # draft-night trade verdicts (score_trades)
 REVIEW_HOLDOUT = True  # leave-one-draft-out engine for past drafts (review, simulator)
 
 
@@ -398,8 +399,18 @@ def review_year(year, states, ctx, tables):
 
 
 def score_trades(year, night, states_df, ctx, picks_df):
-    """Draft-night trades made only of picks, scored for both teams (titles over 5 seasons)."""
+    """Draft-night trades made only of picks, scored for both teams (titles over 5 seasons).
+    TRADE_VALUE "clock" (default, Nov 2026): the trade's earliest pick this year, the one on the clock when the deal
+    is made, is valued for the team that gets it as the player taken there (his board rank shaded toward the pick,
+    and position: known at that moment); the team giving it up keeps today's typical-player value (its alternative
+    was its own choice there, not the buyer's target). Other picks this year as a typical player at the slot (a
+    received pick as a QB if a QB was taken there). For trade-ups this predicts how trades turned out better than
+    slot values (scripts/trade_target.py). "slot": the old rule."""
     pos_at = dict(zip(picks_df.pick, picks_df.grp))
+    b = board(year, picks_df)
+    on_board = {int(a): (float(r), g) for a, r, g in zip(b.drafted_at, b["rank"], b.grp_label) if pd.notna(a)}
+    eng = DraftEngine.__new__(DraftEngine)
+    eng.fall_weight = FALL_W
     sit = {r.team: {"start": r.start, "shift": r.shift, "qb_from": r.qb_from} for r in states_df.itertuples()}
     rows = []
     for tid, g in night.groupby("trade_id"):
@@ -408,14 +419,21 @@ def score_trades(year, night, states_df, ctx, picks_df):
         teams_ = sorted(set(g.gave) | set(g.received))
         if len(teams_) != 2:
             continue
+        cur = g[(g.pick_season == year) & g.pick_number.notna()]
+        clock = int(cur.pick_number.min()) if TRADE_VALUE == "clock" and len(cur) else None
         for tm in teams_:
             def pk(rows_, receiving):
                 out = []
                 for r in rows_.itertuples():
                     yr = int(r.pick_season - year)
                     if yr == 0 and pd.notna(r.pick_number):
-                        is_qb = receiving and pos_at.get(int(r.pick_number)) == "QB"
-                        out.append(Pick(int(r.pick_number), pos="QB" if is_qb else "nonqb"))
+                        k = int(r.pick_number)
+                        rk, gl = on_board.get(k, (float(OFF_BOARD_RANK), pos_at.get(k)))
+                        if receiving and k == clock and gl in GROUPS:
+                            out.append(Pick(k, pos=gl, talent=eng.effective_talent(min(rk, OFF_BOARD_RANK), k)))
+                            continue
+                        is_qb = receiving and pos_at.get(k) == "QB"
+                        out.append(Pick(k, pos="QB" if is_qb else "nonqb"))
                     elif 0 < yr <= 2 and pd.notna(r.pick_round):
                         src_start = sit.get(r.gave, {"start": 0})["start"]
                         out.append(Pick(rnd=int(r.pick_round), year=yr, src={"start": src_start}))
@@ -882,6 +900,21 @@ def trade_decisions(year, picks_df, states_df, ctx, tables) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def rescore_trades():
+    """Recompute review_trades.parquet (score_trades) for every reviewed year from the saved states."""
+    from trade import Context
+    st = pd.read_parquet(OUT / "review_states.parquet")
+    st["shift"] = [x if isinstance(x, dict) else eval(x) for x in st["shift"]]
+    st["qb_from"] = pd.Series([None if pd.isna(q) else int(q) for q in st.qb_from], index=st.index, dtype=object)
+    ctx, out = Context(), []
+    for y in sorted(st.year.unique()):
+        engine_for(int(y))  # as in the review run: the draft's own leave-one-draft-out engine
+        picks, night = draft_night(int(y))
+        out.append(score_trades(int(y), night, st[st.year == y], ctx, picks))
+        print(f"{y}: {len(out[-1]) // 2} trades", flush=True)
+    pd.concat(out, ignore_index=True).sort_values(["year", "trade_id", "team"]).reset_index(drop=True).to_parquet(OUT / "review_trades.parquet")
+
+
 def build_trade_decisions(years=YEARS):
     """Run trade_decisions for all reviewed years from the saved review files."""
     picks = pd.read_parquet(OUT / "review_picks.parquet")
@@ -902,7 +935,9 @@ def build_trade_decisions(years=YEARS):
 
 
 if __name__ == "__main__":
-    if sys.argv[1:2] == ["trades"]:
+    if sys.argv[1:2] == ["verdicts"]:  # recompute draft-night trade verdicts only (review_trades.parquet)
+        rescore_trades()
+    elif sys.argv[1:2] == ["trades"]:
         build_trade_decisions()
     elif sys.argv[1:2] == ["rescore"]:
         rescore()
