@@ -2582,3 +2582,57 @@ engine; `python scripts/holdout_review.py expand [workers]` reruns only those dr
 The expanding window makes the same choice as leave-one-draft-out at 51% of picks (round 1 65%) and does as well or
 better in round 1 (non-QB recommendations averaged +1.25, +0.26 to +2.30); rounds 2-4 +0.61 (-0.12 to +1.70), rounds
 5-7 -0.09. The round-1 edge holds out of sample on the averaged count, not on the first-pick count.
+
+## Round-1 QBs: the yardstick was flattering them (`scripts/qb_need_yardstick.py`, `scripts/qb_haircut.py`, Nov 13 2026)
+
+The complaint a team would make: "you want us to take a QB in round 1 every year." Round 1 of 2014-2026: the model
+recommends a QB at 37% of picks, teams take one at 10%. It's all teams with a flagged QB need: model 69-86% of their
+round-1 picks (veteran 36+, below-average paid veteran, stopgap, later-round rookie, no starter), teams 6-22%
+(no starter 64%); teams with a paid veteran or a first-round rookie: model 0%, teams 1-2%. The model also recommends
+a QB at 25% of round-1 picks of teams that took a QB in rounds 1-2 in the previous two drafts (teams 5%).
+
+**Yardstick bias.** The review scores a recommended QB "as played": his real career, at the team that really drafted
+him (usually one that started him). But the model recommended him to a team whose need was real only with
+probability p_need (0.52-0.79); otherwise the incumbent kept the job and the rookie sat. The prediction discounts
+by p_need, the yardstick didn't. Fair score: p_need x (as played) + (1 - p_need) x (sat through the window, cost
+charged), the same branches the model uses. Team picks unchanged. Drafts 2014-22, model minus team where they
+disagree, each rec once (95% over draft years):
+
+| Round 1 | As played | Fair |
+|---|---|---|
+| Averaged | +1.33 (+0.47 to +2.18) | +0.64 (-0.06 to +1.31) |
+| First pick | -0.01 (-1.21 to +1.06) | -0.47 (-1.76 to +0.65) |
+| QB recs (18) / non-QB recs (32), averaged | +2.49 / +0.67 | +0.60 / +0.67 |
+| Model's QB recs, delivered / predicted | 0.99x | 0.57x |
+
+Rounds 2-4: +0.73 -> +0.60 (+0.21 to +1.01); QB recs 1.18x -> 0.90x. So the round-1 edge credited to QB picks was
+mostly the yardstick: scored fairly, QB recommendations do no better than non-QB ones, and round-1 QBs for teams
+with an uncertain need deliver ~0.57x what the model predicts. This also applies to the 'QB valuation' diagnosis
+above ("model's QB choices round 1 1.20x", "no broad QB over-valuation"), scored as played.
+
+**Tested fix: shrink QB value** (`scripts/qb_haircut.py`: the review's choices replayed with the positive part of
+every QB value x h; same boards, states, tables (h = 1 reproduces the review at 100% of picks); fair yardstick).
+
+| h | R1 averaged | R1 first pick | R2-4 averaged | R1 QB recs | Paired vs h=1 per draft, R1 / R2-4 |
+|---|---|---|---|---|---|
+| 1.0 | +0.64 | -0.47 | +0.60 | 41% | |
+| 0.8 | +0.84 (+0.19 to +1.44) | -0.14 | +0.35 | 38% | +2.4 (-1.6 to +7.2) / -0.8 |
+| 0.65 | +0.83 (+0.11 to +1.43) | +0.50 | +0.41 | 32% | -3.3 (-13.0 to +5.9) / +5.3 |
+| 0.5 | +0.55 | +0.21 | +0.44 | 23% | -10.5 (-34.7 to +9.2) / +9.2 (-1.2 to +18.0) |
+| 0.35 | +0.31 | -0.30 | +0.50 | 10% | -11.7 / +14.9 (+3.9 to +24.6) |
+
+No h wins on every yardstick: round 1 gains a little on the each-rec-once counts at 0.65-0.8 and loses on the paired
+count; rounds 2-4 gain on the paired count only. Not adopted. Round-1 recommendations are not a tested edge over
+teams once QBs are scored fairly (+0.64, range touches zero); non-QB round-1 recommendations (+0.67) are the part
+that holds. Found on the way: a first-round QB in his rookie window whose contract is missing from the data fell
+to "veteran (contract not in data)" (WAS 2020, Haskins: p_need 0.54 instead of a filled need); fixed (a drafted
+player with no contract in the data, 1-4 years after his draft, is on his rookie deal; only WAS 2020 changes).
+
+**Adopted (Nov 13 2026): fair scoring is the review's default** (`review.REALIZED_REC = "fair"`, `RealizedV2.titles_rec`;
+`REALIZED_REC=played` restores the old scoring). It applies to players the team didn't draft (the model's
+recommendation, the best player on the board); team picks and the simulator's "delivered" columns stay as played.
+`python src/review.py rescore` recomputes the realized columns of the saved review. Production review after the
+Haskins fix, drafts 2014-22, model minus team where they disagree, each rec once (95% over draft years): round 1
+averaged +0.60 (-0.06 to +1.20), first pick -0.49 (-1.77 to +0.62); rounds 2-4 averaged +0.59 (+0.21 to +1.01),
+first pick +0.40 (+0.03 to +0.80). Round-1 QB recs +0.46 (n 18) vs non-QB recs +0.67 (n 32); QB recs delivered /
+predicted 0.59x (round 1), 0.90x (rounds 2-4). Earlier scorecards in this README were scored as played.

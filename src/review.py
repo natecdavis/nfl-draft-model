@@ -213,6 +213,8 @@ class States:
         # a rookie deal runs at most 5 seasons; past that, his later deal is just missing from the data
         on_rookie = (latest is not None and latest.year_signed == latest.draft_year
                      and pd.notna(dyear) and year - dyear <= 4)
+        # no contract in the data at all, but drafted within the rookie window (WAS 2020, Haskins: was "veteran")
+        on_rookie = on_rookie or (latest is None and pd.notna(dyear) and pd.notna(rnd) and 1 <= year - dyear <= 4)
         pay = latest.apy_cap_pct if latest is not None and not (
             latest.year_signed == latest.draft_year and not on_rookie) else np.nan
         shift, qb_from = {}, None
@@ -614,6 +616,7 @@ class Careers:
 # needed to score what happened. "rule": the model's rule, as before: seasons before the team's draft-day qb_from
 # count zero and a team with no flagged QB need gets nothing from a QB (Mahomes scored -0.8 for KC 2017).
 REALIZED_QB = os.environ.get("REALIZED_QB", "played")
+REALIZED_REC = os.environ.get("REALIZED_REC", "fair")  # "played": a recommended QB gets his real career in full
 
 
 class RealizedV2:
@@ -637,8 +640,9 @@ class RealizedV2:
         self.pfr_at = {(y, p): i for y, p, i in zip(dp.season, dp.pick, dp.pfr_player_id)}
         self.base_cache = {}
 
-    def titles(self, sit, grp, year, drafted_at, pick, name=None, scale=1.0):
-        """scale: multiply his seasons' values (e.g. a depth-chart adjustment); 1 = as he played."""
+    def titles(self, sit, grp, year, drafted_at, pick, name=None, scale=1.0, qb=None):
+        """scale: multiply his seasons' values (e.g. a depth-chart adjustment); 1 = as he played.
+        qb: QB rule for this call ("played" / "rule"; default REALIZED_QB)."""
         from outcomes_v2 import FAMILY, pay_factor, unit_factor
         from pick_value import baseline_paths, pick_effect
         if grp in ("K", "P") and year <= 2022:  # kickers / punters (src/specialists.py)
@@ -659,9 +663,21 @@ class RealizedV2:
             b = baseline_paths(sit, np.random.default_rng(0), self.n)
             self.base_cache[key] = (b, ctx.sb(b).sum(axis=1).mean())
         b, b0 = self.base_cache[key]
-        s2 = dict(sit); s2["qb_from"] = 1 if REALIZED_QB == "played" else (99 if sit["qb_from"] is None else sit["qb_from"])
+        s2 = dict(sit); s2["qb_from"] = 1 if (qb or REALIZED_QB) == "played" else (99 if sit["qb_from"] is None else sit["qb_from"])
         pts = pick_effect((y5 / price[0])[None, :], price, int(pick), grp, s2, ctx.cost, ctx.bar, ctx.rates)
         return (ctx.sb(b + pts).sum(axis=1).mean() - b0) * 100
+
+    def titles_rec(self, sit, p_need, grp, year, drafted_at, pick, name=None):
+        """A player the team did NOT draft (the model's recommendation, the best on the board), scored as the
+        model predicts him (REALIZED_REC "fair", default since Nov 2026): a QB for a team whose QB need is real
+        only with probability p_need counts p_need x his real career + (1 - p_need) x sitting through the window
+        (cost charged), the same two branches as the prediction. Before, his real career counted in full: it
+        happened at the team that drafted him, usually one that started him (scripts/qb_need_yardstick.py)."""
+        v = self.titles(sit, grp, year, drafted_at, pick, name)
+        if REALIZED_REC != "fair" or grp != "QB" or not (p_need < 1) or pd.isna(v):
+            return v
+        sat = self.titles({**sit, "qb_from": None}, grp, year, drafted_at, pick, name, qb="rule")
+        return p_need * v + (1 - p_need) * sat
 
     def _spec_many(self, sit, year, pick, grps, drafted_at, names, n_played):
         import specialists as spx
@@ -731,12 +747,24 @@ def add_realized_v2(df, states, ctx, n=2000):
     sits = {(r.year, r.team): {"start": r.start, "shift": r.shift if isinstance(r.shift, dict) else eval(r.shift),
                                "qb_from": None if pd.isna(r.qb_from) else int(r.qb_from)}
             for r in states.itertuples()}
+    pneed = {(r.year, r.team): (r.p_need if "p_need" in states.columns else 1.0) for r in states.itertuples()}
     R = RealizedV2(ctx, n)
-    for col, g, at, nm in [("real_team", "grp", "pick", "player"), ("real_model", "rec_grp", "rec_drafted_at", "rec_player"),
+    df["real_team"] = [R.titles(sits[(y, tm)], gg, y, a, k, n_) for y, tm, gg, a, k, n_ in
+                       zip(df.year, df.team, df.grp, df.pick, df.pick, df.player)]
+    for col, g, at, nm in [("real_model", "rec_grp", "rec_drafted_at", "rec_player"),
                            ("real_consensus", "best_available_grp", "best_available_drafted_at", "best_available")]:
-        df[col] = [R.titles(sits[(y, tm)], gg, y, a, k, n_) for y, tm, gg, a, k, n_ in
+        df[col] = [R.titles_rec(sits[(y, tm)], pneed[(y, tm)], gg, y, a, k, n_) for y, tm, gg, a, k, n_ in
                    zip(df.year, df.team, df[g], df[at], df.pick, df[nm])]
     return df
+
+
+def rescore():
+    """Recompute realized value columns of the saved review (after a yardstick change)."""
+    from trade import Context
+    f = OUT / "review_picks.parquet"
+    df = add_realized_v2(pd.read_parquet(f), pd.read_parquet(OUT / "review_states.parquet"), Context())
+    df.to_parquet(f)
+    print("rescored", len(df))
 
 
 # ---------- 5. trades as decisions (for one team's view) ----------
@@ -876,6 +904,8 @@ def build_trade_decisions(years=YEARS):
 if __name__ == "__main__":
     if sys.argv[1:2] == ["trades"]:
         build_trade_decisions()
+    elif sys.argv[1:2] == ["rescore"]:
+        rescore()
     else:
         a = [int(x) for x in sys.argv[1:]]
         main(*a)
