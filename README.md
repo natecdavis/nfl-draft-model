@@ -2675,3 +2675,30 @@ Adopted (simulator only, no model change): the simulator also carries the family
 (`OUTCOME_UNITS=family python src/simulator.py build`) and labels the model's top choice "firm" or "depends on
 position pricing" (naming the family-units choice), with the past-drafts result for that round. Tables are now
 stored differenced (`export_simulator_artifact._delta`), so both sets take less room than one did.
+
+## Late rounds: value a player where he'd really land (`scripts/landing_shade.py`, Nov 14 2026)
+
+The complaint a team would make: "your rounds 5-7 picks are worse than ours." Not a thin candidate pool (deeper boards
+didn't help: "Deeper rankings: Brugler grades"); the model's late recs deliver about half their predicted titles and half
+went undrafted. Fall shading values a player still there at pick k as if he'll turn out like a pick-k player, but it
+was fit on where fallers really went: still there at k means landing at k *or later*, often undrafted. Test: average
+the shaded talent over his landing spot given he's still there (draftday's availability model: log(L+10) normal around
+log(rank+10) + drift, spread by rank, truncated at L >= k, undrafted at 300); same tables, only the lookup changes.
+"fallen": only players already past their rank; "all": every player. Replayed choices ("now" = the production
+review at 100% of picks), fair yardstick, 2014-2022:
+
+| Model minus team (each rec once) | Now | Fallen | All |
+|---|---|---|---|
+| Round 1 | +0.60 (-0.07 to +1.23) | +0.58 | +0.85 (-0.13 to +1.71) |
+| Rounds 2-4 | +0.59 (+0.21 to +0.98) | +0.13 | +0.23 (-0.08 to +0.65) |
+| Rounds 5-7 | -0.09 (-0.22 to +0.11) | -0.10 | -0.06 (-0.17 to +0.10) |
+| Rounds 5-7 delivered / predicted | 0.55 | 0.40 | 0.63 |
+
+"All" minus now, each distinct swap once: round 1 +2.26 (+0.29 to +4.51, 19 swaps, starts +1.9; top 3 carry 47%:
+Wentz over Lynch, M. Thomas over Cook, Watson over M. Williams; losses Bridgewater over Bortles, Burrow over Herbert),
+rounds 2-4 -0.14 (-0.66 to +0.39, starts +0.5), rounds 5-7 +0.12 (+0.01 to +0.24, starts +0.4; moves toward CB / S).
+"Fallen" is worse (it pushes the model toward players just about to fall).
+
+Verdict: not adopted. "All" wins head to head but rounds 2-4 vs teams drop (+0.59 -> +0.23) while the paired test ties,
+the same split that kept the QB haircut out. Recheck when the 2023-24 classes have four seasons. Neither version makes
+rounds 5-7 beat teams: the answer to the complaint stays "don't use the model's late-round picks" (the simulator says so).
