@@ -189,6 +189,36 @@ def realized_extra(S, R, night, verbose=False) -> dict:
     return out
 
 
+def room_info(S) -> tuple[dict, dict, dict]:
+    """Room check (information only; README 'Strict follower' / 'Which veteran snaps can a rookie displace?').
+    Per (year, team): {group: [[name, share], ...]} = the team's own draftees from the last 3 drafts who played
+    for it last season, with their share of the team's offensive / defensive snaps (scripts/strict_follower.py
+    shares; >= 0.05 only). Also each group's room (median total snap share per team-season, 2014-25) and a
+    drafted player's expected season-1 share by consensus rank (T_GRID), for the picks made in the simulator."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import roster_need as rn
+    import strict_follower as sf
+    sh = sf.season_shares()
+    sh["team"] = sh.team.map(rn.team)
+    sh = sh.groupby(["pfr_player_id", "season", "team", "grp"], as_index=False).share.sum()
+    rooms = sf.rooms(sh)
+    room = rooms[rooms.season.between(2014, 2025)].groupby("grp").share.median()
+    f = sf.expected_curve(sf.board_players(), sh.groupby(["pfr_player_id", "season"]).share.sum())
+    e1 = {g: [round(float(f(g, t)[0]), 3) for t in T_GRID] for g in GROUPS}
+    names = pd.read_parquet(RAW / "snap_counts.parquet").drop_duplicates("pfr_player_id").set_index("pfr_player_id").player
+    dp = pd.read_parquet(RAW / "draft_picks.parquet")
+    dp = dp.assign(tm=dp.team.map(rn.team))
+    out = {}
+    for y, tm in zip(S.year.astype(int), S.team):
+        ids = set(dp[(dp.tm == tm) & dp.season.between(y - 3, y - 1)].pfr_player_id.dropna())
+        x = sh[(sh.season == y - 1) & (sh.team == tm) & sh.pfr_player_id.isin(ids) & (sh.share >= 0.05)]
+        g = {}
+        for r in x.sort_values("share", ascending=False).itertuples():
+            g.setdefault(r.grp, []).append([str(names.get(r.pfr_player_id, r.pfr_player_id)), round(float(r.share), 2)])
+        out[(y, tm)] = g
+    return out, {k: round(float(v), 2) for k, v in room.items()}, e1
+
+
 def _delta(arr) -> bytes:
     """A table (groups, 3 levels, T, K) as int16 (value x SCALE), differenced along K then T within each
     group and level (gzip packs the differences ~2.5x smaller); the page undoes it with running sums, in
@@ -225,6 +255,7 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
     real = realized_arrays(S, R, verbose)
     night = night_trades(S, verbose)
     extra = realized_extra(S, R, night, verbose)
+    rooms, room_med, e1 = room_info(S)
     keys, blobs = {}, []
     fkeys, fblobs = {}, []  # family-units tables (positions only): the "depends on position pricing" label
     teams, rblobs, roff = {}, [], 0
@@ -259,6 +290,7 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
                        num(p.board_rank, 0), num(p.value_actual), num(p.real_team)] for _, p in mine.iterrows()],
             "start": night.get(str(int(r.year)), {}).get(r.team, {}).get("start", []),
             "trades": night.get(str(int(r.year)), {}).get(r.team, {}).get("trades", []),
+            "room": rooms.get((int(r.year), r.team), {}),
         }
     played = {str(int(y)): int(n) for y, n in real.get("_seasons", [])}
     pool_cache = {}
@@ -297,7 +329,8 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
             print(f"{y}: {len(P)} players", flush=True)
     rounds = {str(int(y)): g.groupby("round").pick.min().astype(int).tolist() for y, g in dp.groupby("season")}
     meta = {"rounds": rounds, "groups": GROUPS + SPEC_GROUPS, "T": T_GRID.tolist(), "K": K_GRID.tolist(), "fw": FALL_WEIGHT, "off": OFF_BOARD_RANK,
-            "scale": SCALE, "real_scale": REAL_SCALE, "blends": blends, "n_tables": len(blobs), "fgroups": GROUPS, "latest_av_season": int(dp.season.max())}
+            "scale": SCALE, "real_scale": REAL_SCALE, "blends": blends, "n_tables": len(blobs), "fgroups": GROUPS, "latest_av_season": int(dp.season.max()),
+            "room": room_med, "e1": e1}
     data = json.dumps({"meta": meta, "teams": teams, "pools": pools}, separators=(",", ":"), ensure_ascii=False)
     b64 = lambda b: base64.b64encode(gzip.compress(b, 9)).decode()
     html = TEMPLATE.read_text().replace("__DATA_GZ__", b64(data.encode())).replace("__TABLES_GZ__", b64(b"".join(blobs))) \

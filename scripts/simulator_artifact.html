@@ -67,6 +67,11 @@ input[type=search] { width: 100%; }
 .tile .d { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .tile.team { border-left: 4px solid var(--gold); }
 .tile.model { border-left: 4px solid var(--turf); }
+.room { border: 1px dashed var(--line); border-radius: 8px; padding: 8px 12px; font-size: 13px; }
+.room ul { margin: 4px 0; padding-left: 18px; }
+.room li { margin: 2px 0; }
+.room .d { color: var(--muted); }
+.room .d b { color: var(--ink); }
 .tile .d.edge { font-size: 12px; font-style: italic; }
 .scroll { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: 14px; }
@@ -130,7 +135,7 @@ button.take { padding: 4px 10px; font-size: 13px; }
     <section class="card" id="history"></section>
   </div>
 
-  <p class="note">How it works: at each pick, everyone really taken before it is gone (including this team's own earlier picks, even if you passed on them), and anyone you took is gone at your later picks. Each player you take at a position lowers the value of the next one there; after one QB the QB need is filled, and a flagged QB need counts with its measured chance of being real (for a veteran flagged for age or a below-average season: 39% if he is under contract next year, 68% if his deal expires). Candidates are Arif Hasan's consensus board plus drafted players who weren't on it (valued as ranked just past it, #330). Positions are the consensus board's own labels; a label that often changes position in the NFL (a 5-technique, an edge rusher who becomes an off-ball linebacker, a safety who moves to linebacker) is valued as a blend of those positions and shown like "DL/EDGE". Position pricing: the model prices each season at what veterans at that position earn for that role; the other defensible choice prices each position family to match its own later pay, which marks down rotational positions (RB, TE, EDGE, DL) and favors OL. The model's top choice is labeled firm when it is also the top choice under that pricing, and "depends on position pricing" when the position changes (17% of round-1 picks, about 40% later, 2014-2022, mostly EDGE / WR / TE vs OL). Kickers and punters are valued by where they were actually drafted (the board rarely ranks them): the gain of a drafted specialist over an undrafted one, measured in points 2006-2022, and only the first at each position counts; long snappers aren't valued. Draft-night trades: only the trades the team really made can be offered (declined offers aren't public); each comes up before the first pick it involves, with the trade calculator's verdict (the pick on the clock is valued, for the team that gets it, as the player really taken there: his board rank and position were known when the deal was made) and the market price, and one you can no longer make after an earlier choice is skipped. If you nix a trade, the partner's slot is filled by the rule at the top: by default, whoever was really picked there (the board is then exactly what it really was at every later pick); or, as the other end of the range, the partner makes the choices it really made with our picks, and the player really taken at that slot goes back on the board. "Delivered" columns count each player's first four seasons; drafts since 2023 count the seasons played so far (through 2025). Undrafted players count from the 2016 class.</p>
+  <p class="note">How it works: at each pick, everyone really taken before it is gone (including this team's own earlier picks, even if you passed on them), and anyone you took is gone at your later picks. Each player you take at a position lowers the value of the next one there; after one QB the QB need is filled, and a flagged QB need counts with its measured chance of being real (for a veteran flagged for age or a below-average season: 39% if he is under contract next year, 68% if his deal expires). Candidates are Arif Hasan's consensus board plus drafted players who weren't on it (valued as ranked just past it, #330). Positions are the consensus board's own labels; a label that often changes position in the NFL (a 5-technique, an edge rusher who becomes an off-ball linebacker, a safety who moves to linebacker) is valued as a blend of those positions and shown like "DL/EDGE". Position pricing: the model prices each season at what veterans at that position earn for that role; the other defensible choice prices each position family to match its own later pay, which marks down rotational positions (RB, TE, EDGE, DL) and favors OL. The model's top choice is labeled firm when it is also the top choice under that pricing, and "depends on position pricing" when the position changes (17% of round-1 picks, about 40% later, 2014-2022, mostly EDGE / WR / TE vs OL). Room check (information only; the ranking ignores it): how many of a position's full-time slots the team's own draftees from the last three drafts held last season (their share of the team's snaps), plus the expected first-season share of players you take here, against the position's typical room (median total snap share per team-season, 2014-2025). Shown for the top choice's position and any position at least 60% full. In past drafts rookies took snaps freely from weaker veterans and were held back by good ones; where the room is already full of your own young players, a rookie's value is overstated (README "Strict follower" and "Which veteran snaps can a rookie displace?"). Kickers and punters are valued by where they were actually drafted (the board rarely ranks them): the gain of a drafted specialist over an undrafted one, measured in points 2006-2022, and only the first at each position counts; long snappers aren't valued. Draft-night trades: only the trades the team really made can be offered (declined offers aren't public); each comes up before the first pick it involves, with the trade calculator's verdict (the pick on the clock is valued, for the team that gets it, as the player really taken there: his board rank and position were known when the deal was made) and the market price, and one you can no longer make after an earlier choice is skipped. If you nix a trade, the partner's slot is filled by the rule at the top: by default, whoever was really picked there (the board is then exactly what it really was at every later pick); or, as the other end of the range, the partner makes the choices it really made with our picks, and the player really taken at that slot goes back on the board. "Delivered" columns count each player's first four seasons; drafts since 2023 count the seasons played so far (through 2025). Undrafted players count from the 2016 class.</p>
 </div>
 
 <script>
@@ -345,6 +350,40 @@ function tradeCard(T, t) {
     <p class="note">If you nix it you keep your picks and ${esc(t.partner)} keeps its own. The board then follows the rule chosen at the top: ${rule === "slot" ? "whoever was really taken at each pick is gone at that pick (so " + esc(t.partner) + " takes the player really picked at the slot it keeps)" : esc(t.partner) + " makes the choices it really made with our picks at the slots it keeps, and players really taken at those slots go back on the board"}.</p>`;
 }
 
+// Room check (information only; doesn't change the ranking): how much of a position's snaps the team's own
+// recent draftees already hold. Last season's real shares of its draftees from the last 3 drafts, plus the expected
+// season-1 share of players taken in this simulation, vs the position's typical room (median total snap share).
+// Rookies take snaps freely from weaker veterans; value is lost once your own young players fill the room.
+function e1Of(g, rank) {
+  const c = META.e1[g]; if (!c) return 0;
+  const x = Math.log((rank ?? META.off) + 10), xs = META.T.map(t => Math.log(t + 10));
+  if (x <= xs[0]) return c[0];
+  if (x >= xs[xs.length - 1]) return c[c.length - 1];
+  const i = searchLeft(xs, x) - 1, f = (x - xs[i]) / (xs[i + 1] - xs[i]);
+  return c[i] * (1 - f) + c[i + 1] * f;
+}
+function roomNote(T, P, S, top) {
+  const add = {};
+  S.made.forEach(m => { const p = P[m.idx]; if (p[1] in META.room) add[p[1]] = (add[p[1]] || 0) + e1Of(p[1], p[2]); });
+  const row = g => {
+    const have = (T.room[g] || []).reduce((a, x) => a + x[1], 0), plus = add[g] || 0, R = META.room[g];
+    return { g, have, plus, R, fill: (have + plus) / R };
+  };
+  const show = Object.keys(META.room).map(row).filter(r => r.g === top.g || r.fill >= 0.6)
+    .sort((a, b) => (b.g === top.g) - (a.g === top.g) || b.fill - a.fill).slice(0, 4);
+  if (!show.length || !(top.g in META.room)) return "";
+  const y = +year, yrs = `${y - 3}-${String(y - 1).slice(2)}`;
+  const line = r => {
+    const who = (T.room[r.g] || []).slice(0, 4).map(([n, v]) => `${esc(n)} ${v.toFixed(1)}`).join(", ");
+    const flag = r.fill >= 1 ? ` <span class="chip gold">full</span>` : r.fill >= 0.9 ? ` <span class="chip gold">nearly full</span>` : "";
+    const held = r.have < 0.05 ? `your ${yrs} draftees held none of its ~${r.R.toFixed(1)} full-time slots last season`
+      : `${r.have.toFixed(1)} of ~${r.R.toFixed(1)} full-time slots held by your ${yrs} draftees last season${who ? ` (${who})` : ""}`;
+    return `<li><b>${pos(r.g)}</b>${flag}: ${held}${r.plus > 0.05 ? `; today's picks add ~${r.plus.toFixed(1)} next season` : ""}.</li>`;
+  };
+  return `<div class="room"><div class="d"><b>Room check</b> <small>(information only, the ranking ignores it)</small></div><ul>${show.map(line).join("")}</ul>
+    <div class="d">Rookies take snaps freely from weaker veterans and are held back by good ones; value is lost once your own young players already fill a position's snaps.</div></div>`;
+}
+
 function render() {
   const T = D.teams[year][team], P = D.pools[year];
   const qbNeed = T.qb_from == null ? "no QB need in the window"
@@ -388,6 +427,7 @@ function render() {
         <div class="tile team">${teamTile}</div>
         <div class="tile model"><div class="k">Model's top choice</div><div class="v">${esc(top.name)} <span class="pos">${posOf(top.g, top.label)}</span></div><div class="d">${fmt(top.v)} · consensus ${rankTxt(top.rank)}</div>${pricingNote(top, ft, rnd)}</div>
       </div>
+      ${roomNote(T, P, S, top)}
       <div class="actions">
         <button class="primary" type="button" id="takeTop">Take ${esc(top.name)}</button>
         <button type="button" id="takeTeam" ${tp ? "" : "disabled"}>Take ${esc(team)}'s pick</button>
