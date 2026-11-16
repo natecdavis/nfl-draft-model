@@ -3194,5 +3194,20 @@ not always in order: "PHI/CHI" for a Bears signing later traded to the Eagles). 
 the signer, so a re-signed player later traded looked like he left before the draft and joined the later team
 (Robert Quinn on the 2014 Dolphins). Now: the listed team he played for in the season signed, else the first.
 ~3% of contracts. Displacement rerun: good -0.040, middling -0.024, weak +0.009 (was -0.040 / -0.025 / +0.010).
-Not rerun: `need_choice.py`, `quality_need.py`, `cross_year_need.py`, `availability_test.py`, `synergy_test.py`
-(all research tests, none adopted; the app doesn't use this function).
+Reruns with the fix (old -> new; no conclusion changes):
+
+| Test | Old | New |
+|---|---|---|
+| Roster need (`roster_need.py`), +1 open spot: year-1 snap share | +2.0 pts (+0.9 to +3.0) | +1.9 (+0.8 to +3.0) |
+| same, value years 1-4 (% of cap) | +0.50 (+0.18 to +0.82) | +0.45 (+0.13 to +0.78) |
+| Need choice (`need_choice.py`), paired vs current, all picks: roster | +0.008 (-0.025 to +0.040), same 70% | +0.013 (-0.025 to +0.052), same 70% |
+| same: both | -0.007 (-0.038 to +0.026) | -0.004 (-0.039 to +0.030) |
+| Quality need (`quality_need.py`), paired vs current, adjusted: quality | +0.001 (-0.029 to +0.030) | -0.008 (-0.036 to +0.021) |
+| same: count | +0.003 (-0.027 to +0.033) | +0.006 (-0.022 to +0.034) |
+| WR stacking A (`wr_stacking.py`), WR incumbents when a R1-2 WR arrives | -0.74 (-1.70 to +0.22) | -0.76 (-1.71 to +0.20) |
+| Availability (`availability_test.py`), needs vs truncated scatter, log loss | -0.001 | -0.001 (QB needs +0.012, same) |
+
+`need_choice.py`'s model-minus-team levels (current rule +0.38 now vs +0.57 in its README table) moved because of
+later yardstick changes (fair QB scoring, Nov 13), not this fix; its paired comparisons are the check. Not affected:
+`strict_follower.py` / `cross_year_need.py` (rooms from snap counts only), `synergy_test.py`, `rb_passgame_test.py`,
+`stack_choice.py` (its own version counting every listed team).
