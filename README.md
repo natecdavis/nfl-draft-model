@@ -2886,3 +2886,29 @@ September 1. Rule set before the run: equal slopes across non-QB veteran age buc
   guaranteed seasons as a share of contract value: non-QB <=26 1.3%, 27-29 2.7%, 30-32 4.4%, 33+ 2.1%. Older players
   get shorter deals (1.6-2.1 years vs 2.7), so the hidden dead-money cost of age is ~3% of contract value at most.
 Verdict: the market prices age about right per dollar; no overpay big enough to matter. Nothing changes.
+
+## Outside free agents vs own-team re-signings (`scripts/fa_vs_extension.py`, `scripts/fa_vs_extension_checks.py`, Nov 15 2026)
+
+Lead #4 of the contract-efficiency list: a winner's curse. Outside buyers know less than the player's own team, so
+free-agent dollars might buy fewer points than re-signing / extension dollars. Same team test as the age section.
+Each veteran's current contract is classed by where he played the season before signing: own team (re-signed,
+extended, tagged; 56% of non-QB veteran value), new team (outside free agent or traded; 30%), or no snaps the season
+before (14%). Rule set before the run: equal slopes own vs new for non-QB veterans.
+
+| Non-QB vets, pts per 1% of cap | Own team | New team | Own - new (p) |
+|---|---|---|---|
+| Baseline (dollars that played) | 0.22 (0.16-0.28) | 0.12 (0.05-0.19) | +0.10 (0.005) |
+| Dollars spent (price if any snap) | 0.11 | 0.04 | (0.02) |
+| Contracts >= 5% of cap | 0.20 | 0.15 | (0.25) |
+| Under 29 / 29+ | 0.22 / 0.21 | 0.11 / 0.13 | +0.11 (0.06) / +0.08 (0.24) |
+| **Franchise fixed effects** | 0.21 (0.14-0.27) | 0.23 (0.15-0.32) | **-0.03 (0.55)** |
+
+- The pre-set test passes at baseline, and it isn't age (value-weighted ages 28.4 vs 28.9). By group the gap is
+  largest at the front seven (0.15 vs 0.01, p 0.03).
+- But within a franchise the gap disappears: a year with more outside free-agent money buys as many points per dollar
+  as own-team money. The baseline gap is *which teams* lean on free agency (franchises that are persistently weaker
+  for other reasons), not free agents being overpaid. Consistent with that, this season's free-agent money predicts a
+  *lower* rating next season (-0.07 vs own +0.11): it tracks weak organizations.
+- Early exits: unplayed guaranteed seasons, contracts signed 2013-21 (APY >= 1%): non-QB new team 1.9% of contract
+  value, own 0.6%: real but small.
+Verdict: no winner's curse in prices once franchise quality is held fixed. Nothing changes for the draft model.
