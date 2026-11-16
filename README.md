@@ -3114,3 +3114,85 @@ Changes 29% of choices, realized value unchanged; the position mix barely moves 
 CB 0 -> 11). Not adopted. Note: on today's scoring (fair QB rule, units, holdout tables), the per-pick edge where
 model and team disagree is +0.07 to +0.10, not significant (R5-7 slightly negative), well below the +0.57 of the
 earlier roster-need test on older scoring.
+
+## Room check: are team rooms persistent? (`scripts/room_persistence.py`, Nov 16 2026)
+
+The simulator's room check divides a team's occupied snaps by one league-median room per position (2014-25),
+the same for every team. Test: predict each team's total starter-equivalents per position in season Y
+(2016-25, 320 team-seasons per group) with coefficients fit only on seasons before Y, from what is known on
+draft day. Candidates: league median (pooled, or recent seasons only); + b x the team's deviation last
+season (lag1); + two seasons (lag12); lag1 with a separate b after a head-coach change.
+
+| Group | sd of room | RMSE, median | RMSE, lag1 | Cut | Carry-over b | b, new HC | b, same HC |
+|---|---|---|---|---|---|---|---|
+| LB | 0.38 | 0.385 | 0.308 | 20% | 0.59 | 0.34 | 0.66 |
+| S | 0.48 | 0.486 | 0.394 | 19% | 0.56 | 0.51 | 0.57 |
+| RB | 0.14 | 0.136 | 0.107 | 21% | 0.59 | 0.50 | 0.61 |
+| IDL | 0.30 | 0.305 | 0.252 | 17% | 0.57 | 0.43 | 0.62 |
+| WR | 0.22 | 0.219 | 0.187 | 15% | 0.54 | 0.43 | 0.56 |
+| ED | 0.32 | 0.321 | 0.276 | 14% | 0.49 | 0.40 | 0.53 |
+| CB | 0.44 | 0.435 | 0.373 | 14% | 0.51 | 0.42 | 0.53 |
+| G / T / C | 0.60 / 0.42 / 0.44 | 0.602 / 0.419 / 0.441 | 0.536 / 0.386 / 0.401 | 11 / 8 / 9% | 0.46 / 0.37 / 0.40 | | |
+| TE | 0.19 | 0.187 | 0.169 | 10% | 0.42 | 0.32 | 0.44 |
+| OL (T+G+C) | 0.11 | 0.107 | 0.107 | 0% | 0.37 | | |
+
+- lag1 beats the median in every group (team-clustered 95% CI of the MSE difference excludes 0 in all but QB
+  and OL). About half of a team's deviation carries over one season; a second season adds little (b2 0-0.16,
+  lag12 no better out of sample). A head-coach change (22% of team-seasons) lowers the carry-over (LB 0.66 ->
+  0.34) but splitting by it doesn't improve out-of-sample error.
+- Rooms are shares of fixed totals: defense 11.00 (sd 0.05), OL 5.02 (0.13), WR+TE+RB 4.97 (0.09). Within
+  them, CB vs S correlate -0.78, ED vs IDL -0.74, WR vs TE -0.74: partly scheme/personnel (nickel, 3-4 fronts,
+  12 personnel), partly labels (slot CB vs box S, 3-4 DE). The OL total is all but constant, so the T/G/C
+  spread is mostly label movement.
+- Even with lag1, most of the spread stays unpredictable (errors 80-90% of the median's).
+
+Not yet applied to the simulator; ledger row room_persistence.
+
+## Incumbents' development: age and years in the league (`scripts/incumbent_development.py`, Nov 16 2026)
+
+Draft-day incumbents (as in `scripts/displacement.py`, drafts 2014-24). Target: his starter-equivalents (se)
+for the same team this season (0 if cut, retired, hurt all year). Out of sample 2017-24 (fit on earlier seasons):
+
+| Forecast of incumbents' se | RMSE per player | RMSE per team-group |
+|---|---|---|
+| Last season's se | 0.267 | 0.768 |
+| Room check rule (good 1, middling 0.6) read as a forecast | 0.285 | 0.821 |
+| Fitted: group x se + tier x se (base) | 0.234 | 0.526 |
+| base + age band | 0.229 | 0.508 |
+| base + years-in-league band | 0.229 | 0.503 |
+| base + both | 0.229 | 0.506 |
+
+- Most of the gain is attrition: incumbents keep ~70% of last season's snaps on average. Age / years add a
+  further ~4% (team-group MSE -0.021, 95% -0.027 to -0.015), largest for WR, T, CB, S, ED, G.
+- Starters (se >= 0.5) keep 82% of their snaps at age <= 24, 75% at 25-27, 69% at 28-30, 61% at 31-33, 53% at
+  34+; gone entirely 6% -> 29%. Part-timers grow when young (age <= 24 x1.14; after year 1 x1.16) and shrink
+  with age (31-33 x0.55, 34+ x0.41).
+- Quality: next season's percentile vs 25-27: <= 24 +0.035, 28-30 -0.026, 31-33 -0.037, 34+ -0.057 (q carries
+  0.86). Middling incumbents in years 1-3 move up to the top tier 22% of the time, old ones 10%.
+- Rookie side: rookie year-1 se per incumbent se, good young -0.045, good prime -0.030, good old -0.062
+  (young minus old p 0.35); middling young vs old p 0.82. Career stage doesn't change how much an incumbent
+  holds a rookie back; age works through the incumbent's own snaps.
+
+Numbers after the signing-team fix below (before it: 0.788 / 0.531 / 0.511; same conclusions). Ledger row
+incumbent_development.
+
+## Room check: projected open snaps (simulator, Nov 16 2026)
+
+The simulator's room check now shows projected open snaps per position, in starters (1 = every snap), replacing
+"% of a league-median room held by good + 0.6 x middling incumbents" (`export_simulator_artifact.room_info`):
+
+- Room: mean league median of the 4 seasons before + b x the team's deviation last season (b per group fit
+  2014-25, ~0.4-0.6; `scripts/room_persistence.py`). T / G / C share one OL room (total ~5.0 every season).
+- Incumbents: each draft-day incumbent's projected se this season from the "+both" regression
+  (`scripts/incumbent_development.py`: group x last se + tier x last se + age band x last se + years band x last se,
+  fit on 2014-25 seasons, so past drafts' projections are in sample).
+- Open = room - projected incumbents - expected season-1 share of picks made in the simulation. Gold under 0.25 open,
+  red under 0.05 (full / over). Candidates show "+their share -> open after". Information only, as before.
+
+Signing-team fix (`roster_need.departures_and_adds`): OTC lists every team a contract passed through ("LAR/DAL/MIA",
+not always in order: "PHI/CHI" for a Bears signing later traded to the Eagles). The last listed team was taken as
+the signer, so a re-signed player later traded looked like he left before the draft and joined the later team
+(Robert Quinn on the 2014 Dolphins). Now: the listed team he played for in the season signed, else the first.
+~3% of contracts. Displacement rerun: good -0.040, middling -0.024, weak +0.009 (was -0.040 / -0.025 / +0.010).
+Not rerun: `need_choice.py`, `quality_need.py`, `cross_year_need.py`, `availability_test.py`, `synergy_test.py`
+(all research tests, none adopted; the app doesn't use this function).

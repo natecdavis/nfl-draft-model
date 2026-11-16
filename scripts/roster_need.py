@@ -57,15 +57,40 @@ def load():
     return s, ps, games, dp
 
 
+_PLAYED = None
+
+
+def _played_for() -> dict:
+    """(pfr id, season) -> teams he took regular-season snaps for."""
+    global _PLAYED
+    if _PLAYED is None:
+        sc = pd.read_parquet(RAW / "snap_counts.parquet", columns=["pfr_player_id", "season", "team", "game_type"])
+        sc = sc[sc.game_type == "REG"]
+        _PLAYED = {k: {team(t) for t in g} for k, g in sc.groupby(["pfr_player_id", "season"]).team}
+    return _PLAYED
+
+
 def departures_and_adds(year):
     """pfr ids that left each team before the draft, and pfr ids each team added."""
     pl = pd.read_parquet(RAW / "players.parquet").dropna(subset=["pfr_id"])
     g2p = dict(zip(pl.gsis_id, pl.pfr_id))
     c = pd.read_parquet(RAW / "contracts.parquet")
     nick = dict(zip(*pd.read_parquet(RAW / "teams.parquet")[["team_nick", "team_abbr"]].T.values))
-    c["tm"] = c.team.map(lambda x: team(nick.get(str(x).split("/")[-1], str(x).split("/")[-1])))
     c["pfr"] = c.gsis_id.map(g2p)
-    cy = c[(c.year_signed == year) & c.pfr.notna() & (c.draft_year != year)]
+    cy = c[(c.year_signed == year) & c.pfr.notna() & (c.draft_year != year)].copy()
+    # OTC lists every team a contract passed through ("LAR/DAL/MIA"), not always in order ("PHI/CHI" for a CHI
+    # signing later traded to PHI). Signing team = the listed team he played for in the season signed, else the
+    # first listed. (Until Nov 16 2026 this took the last listed team: a re-signed player later traded looked
+    # like he left before the draft and joined the later team; ~3% of contracts.)
+    played = _played_for()
+    def signer(x, p):
+        ts = [team(nick.get(t, t)) for t in str(x).split("/")]
+        if len(ts) > 1:
+            hit = [t for t in ts if t in played.get((p, year), ())]
+            if hit:
+                return hit[0]
+        return ts[0]
+    cy["tm"] = [signer(x, p) for x, p in zip(cy.team, cy.pfr)]
     signed = cy.groupby("pfr").tm.agg(set).to_dict()  # player -> teams he signed with this year
     t = pd.read_parquet(RAW / "trades.parquet")
     t["date"] = pd.to_datetime(t.trade_date)
