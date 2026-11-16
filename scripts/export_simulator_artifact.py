@@ -202,9 +202,14 @@ def room_info(S) -> tuple[dict, dict, dict]:
     import strict_follower as sf
     rn.GROUPS = rn.GROUPS + ["QB"] if "QB" not in rn.GROUPS else rn.GROUPS
     s, ps, games, dp = rn.load()
-    # current role first (snap-count position), draft position only when the snap position is unmapped
+    # position: PFF's (players.pff_position: separates EDGE / LB, S / CB, T / G), else the snap-count position,
+    # else the draft position
+    pl = pd.read_parquet(RAW / "players.parquet").dropna(subset=["pfr_id"])
+    PFF = {"QB": "QB", "HB": "RB", "FB": "RB", "WR": "WR", "TE": "TE", "T": "T", "G": "G", "C": "C", "ED": "ED",
+           "DI": "IDL", "LB": "LB", "CB": "CB", "S": "S"}
+    ppos = {i: PFF.get(q) for i, q in zip(pl.pfr_id, pl.pff_position) if PFF.get(q)}
     dpos = dict(zip(dp.pfr_player_id, dp.position.map(rn.DRAFT_POS)))
-    s["grp"] = [rn.SNAP_POS.get(q) or dpos.get(p) for p, q in zip(s.pfr_player_id, s.position)]
+    s["grp"] = [ppos.get(p) or rn.SNAP_POS.get(q) or dpos.get(p) for p, q in zip(s.pfr_player_id, s.position)]
     ps = (s.groupby(["season", "team", "pfr_player_id"])
           .agg(pct=("pct", "sum"), grp=("grp", lambda x: x.mode().iloc[0] if x.notna().any() else None)).reset_index())
     ps["se"] = ps.pct / ps.set_index(["season", "team"]).index.map(games)
