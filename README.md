@@ -2912,3 +2912,37 @@ before (14%). Rule set before the run: equal slopes own vs new for non-QB vetera
 - Early exits: unplayed guaranteed seasons, contracts signed 2013-21 (APY >= 1%): non-QB new team 1.9% of contract
   value, own 0.6%: real but small.
 Verdict: no winner's curse in prices once franchise quality is held fixed. Nothing changes for the draft model.
+
+## Do teams pay for counting stats, and do those dollars win? (`scripts/stat_premium.py`, Nov 15 2026)
+
+Lead #2 of the contract-efficiency list. Step 1: veteran contracts signed 2014-25 with a prior season of 30%+ snaps
+(4,433): APY (% of cap) on prior-season label quality q, snap share, age and signing year, then adding that season's
+counting stats (per 17 games, standardized within group). Also: do the stats predict *next* season's q beyond this
+season's (information the grade misses) or not (noise the market pays for)?
+
+| Group | R2 quality only -> + stats | Pay per SD of stat, % of cap (95%) | Predicts next season's q? |
+|---|---|---|---|
+| WR | 0.70 -> 0.75 | rec. yards +1.86 (1.46-2.26); TDs +0.27 (0.05-0.49) | yards yes (+0.15, p < 0.01); TDs no |
+| TE | 0.52 -> 0.60 | rec. yards +0.85 (0.56-1.14); TDs +0.11 | yards yes (+0.08, p 0.01); TDs negative (p 0.05) |
+| EDGE | 0.60 -> 0.67 | sacks +0.47 (0.11-0.82); QB hits +0.89 (0.54-1.24) | sacks no (p 0.33); hits weak (p 0.16) |
+| DL | 0.60 -> 0.68 | sacks +0.52 (0.22-0.82); QB hits +0.60 (0.31-0.90) | sacks no (p 0.94); hits yes (p 0.03) |
+| LB | 0.41 -> 0.43 | tackles +0.45 (0.10-0.79); sacks +0.23 | tackles yes (p 0.01) |
+| DB | 0.37 -> 0.41 | passes defended +0.49 (0.32-0.67); INT +0.15 (-0.02-0.32) | neither (p 0.13 / 0.50) |
+| RB | 0.51 -> 0.58 | rush yards +0.48; rush TDs +0.34; rec. yards +0.48 | none significant |
+| QB | 0.66 -> 0.68 | pass TDs +2.28 (0.34-4.22); yards +0.09 | no (163 contracts) |
+
+Step 2: each contract's APY = quality part (q / share / age terms) + stat part + residual; team-seasons 2014-25,
+rating on roster sums of snap share x each part while the contract is in force (79% of non-QB veteran value covered).
+Pts per 1% of cap: quality part +0.26 (0.16-0.36), **stat part +0.01 (-0.27 to +0.29)**, residual +0.17; stat minus
+quality -0.25 (p 0.16); franchise fixed effects -0.29 (p 0.053).
+
+- Teams clearly pay for production beyond graded quality (R2 up 0.02-0.08 in every group with stats). Some of it is
+  information the grade misses (WR / TE yards, LB tackles, DL QB hits predict next season's quality), some looks like
+  noise (sacks, TDs, passes defended predict nothing beyond the grade).
+- The stat-driven dollars buy about nothing in team strength, but the gap from quality dollars misses the pre-set
+  0.05 bar (p 0.16; 0.053 within franchise). Suggestive, consistent with the lead.
+- The model's own currency is already protected: the label prices seasons on (snap share, quality) curves, so stats
+  never enter, and the stat part is centered within group, so it doesn't move position levels. What it does touch is
+  the **second-contract pay yardstick** used in choice tests: it credits stat producers (WR yards most) with pay that
+  doesn't buy points, so wins on that yardstick for WR- or EDGE-heavy choices are partly stat premium. Titles remain
+  the main yardstick. Not adopted (nothing in the engine to change).
