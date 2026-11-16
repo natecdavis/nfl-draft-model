@@ -3019,3 +3019,74 @@ hold veterans, so the room left for draftees is smaller than the room used here;
 lack stored realized values. Not adopted yet. Next: a cross-year need term (prior drafts' players at the group
 lower a pick's value, measured on rooms, not guessed) tested in the whole-draft choice test, then the
 cost of filling the positions the follower never drafts.
+
+## Cross-year need term: the room rule (`scripts/cross_year_need.py`, Nov 15 2026)
+
+Follow-up to the strict follower. **Measured first**: on real teams (drafts 2014-22, picks 1-150, seasons 1-4), a
+rookie's playing time doesn't fall as the team's own draftees from the previous 3 drafts hold more of the room
+(realized / expected 1.10, 1.16, 1.13, 1.13, 1.08 from 0 to 70% of the room; expected x load interaction +0.04,
+se 0.09; no group significant). Veterans absorb the squeeze. Real teams almost never pass ~70%, so the data
+can't say what happens beyond the room. **Rule ("room")**: draftees displace veterans freely, but a team's own
+draftees can't play more than the room. A newcomer's useful snaps each season = min(L + e, R) - min(L, R), with
+L the expected snap share of the team's own draftees at the group that season (last 4 drafts incl. this one;
+R1 option year), e his expected share, R the median room; m = useful / expected, snap-weighted over his seasons.
+Value at m: quadratic in playing time through cost-only (m = 0), the x0.88 and the x1 table values (titles are
+convex in playing time; within ~5% of exact). Within-draft step kept. QBs: p_need x m.
+
+**Test**: two sequential strict followers for all 32 teams, drafts 2014-25 (both start from the team's real
+2011-13 draftees): base (today's model) vs room. Realized titles (% of one, per team-draft, 2014-22, all
+follower picks, recommended QBs by the fair rule), with snaps beyond the room removed as in step 1:
+
+| Follower minus team's real picks | Uncapped | Capped best-first (favorable) | Capped proportional |
+|---|---|---|---|
+| Base | +0.74 (+0.10 to +1.36) | -0.29 (-0.88 to +0.28) | -1.22 (-1.79 to -0.67) |
+| Room | +0.40 (-0.24 to +1.03) | -0.13 (-0.74 to +0.46) | -0.36 (-0.97 to +0.22) |
+| Room minus base, paired | -0.34 (-0.71 to +0.02) | +0.16 (-0.16 to +0.48) | +0.86 (+0.59 to +1.12) |
+
+Picks 2014-25, base / room / teams: WR 827 / 576 / 413, G 594 / 465 / 320, CB 113 / 224 / 433, S 66 / 165 / 232,
+ED 419 / 486 / 333, TE 221 / 276 / 188, IDL 16 / 35 / 318, RB 0 / 6 / 259, LB 0 / 0 / 322; 60% of choices
+unchanged. The room follower still overfills WR (projected 2.97 vs room 2.56, 86% of team-seasons) and QB (49%):
+the rule gives earlier draftees first claim and doesn't anticipate the follower's own later picks, and a WR at
+m ~0.8 still beats the alternatives. For real teams (their own recent draftees as L) the rule rarely binds:
+m < 1 at 2.2% of picks 1-150 (C 36%, the C room may be undercounted as many C draftees play guard; QB 5%; ED 6%).
+
+Reading: once a strict follower's draftees have to share one roster, neither follower beats the teams' real
+drafts (best-first CIs straddle 0); the review's per-pick edge holds for single decisions on a real roster, not
+for following every recommendation for years. The room rule helps on the capped yardstick (clearly on the
+proportional one) but isn't enough on its own. Waivers recover ~nothing: the rookie deal costs at most the
+veteran minimum after ~pick 64, and before that the signing bonus is guaranteed. Not adopted yet.
+
+## Which veteran snaps can a rookie displace? (`scripts/displacement.py`, Nov 15 2026)
+
+Follow-up to the room rule, which let draftees push any veteran aside. Incumbents on draft day as in
+`scripts/roster_need.py` (last season's starter-equivalents, se, of players still on the team plus veterans added),
+with draft-day attributes: quality (DARKO-for-PFF talent after last season, tercile within group; known for 100%
+of incumbent snaps), pay (cap % this season, paid >= 3%), capital (own round 1-2 pick from the last 3 drafts), age.
+Drafts 2014-24, non-QB, SEs clustered by team-draft.
+
+**A. Rookie side**: rookie's year-1 se per incumbent se of each type (controls: group x log pick, group x log rank,
+earlier rookies at the group). Rookie year-1 se averages R1 0.58, R2 0.46, R3 0.32, R4 0.23.
+
+| Incumbent type | Year 1 | Years 1-2 |
+|---|---|---|
+| High quality, paid | -0.040 (0.010) | -0.029 (0.010) |
+| High quality, cheap | -0.038 (0.010) | -0.036 (0.009) |
+| Low/mid quality, paid | -0.022 (0.014) | -0.022 (0.015) |
+| Low/mid quality, cheap | -0.006 (0.006) | -0.009 (0.006) |
+| Own recent R1-2 pick, not high quality | -0.003 (0.015) | -0.011 (0.015) |
+
+By quality alone: high -0.040, mid -0.025, low +0.010 (year 1). E.g. a WR room of two high-quality starters vs two
+low-quality ones costs a rookie ~0.10 se in year 1 (a sixth of a first-rounder's, half a fourth-rounder's).
+
+**B. Incumbent side**: change in an incumbent's se per 1.0 predicted rookie se arriving at his group (controls: group,
+last season's se, type, age, age squared): low/mid cheap -0.030 (0.008), high cheap -0.029 (0.025), high paid +0.032
+(0.026), low/mid paid -0.011 (0.047), own recent R1-2 +0.001 (0.032). Summed over a room, the rookie's snaps come
+almost entirely from cheap low/mid-quality incumbents (-0.13 of -0.14 per 1.0 arriving); only 0.14 of the arrival
+shows up as identified incumbents' losses (teams draft where they expect incumbents to fade anyway, so B is
+descriptive, not causal).
+
+Reading: quality decides who plays; pay adds a little protection to lesser players (not significant); draft capital
+and recency don't protect (no sunk-cost effect detected). For the strict follower this means its earlier draftees
+who turn out well keep their snaps and the busts lose them, i.e. the best-first capped scoring in the room-rule
+test is the realistic one: base -0.29 (-0.88 to +0.28), room -0.13 (-0.74 to +0.46) vs the teams' real drafts.
+For real teams it suggests a quality-weighted roster-need term (the count-based one wasn't adopted); untested.
