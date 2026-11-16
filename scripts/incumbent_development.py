@@ -50,7 +50,26 @@ def build():
     p2g, p2pff, born, drafted, q, cap = A
     I["q_next"] = [float(np.ravel(q.get((p2pff.get(p), y), np.nan))[-1]) for p, y in zip(I.pfr_player_id, I.year)]
     I["cl"] = I.year.astype(str) + I.team
+    I = add_availability(I, s, games)
     return I, ps, dp
+
+
+def add_availability(I, s, games):
+    """Last season's availability (any team): gp_frac = games with snaps at his role / his team's games; rate =
+    median snap share in those games (robust to the game he got hurt in); miss = rate x (1 - gp_frac), the share
+    he'd have added playing every game at that rate (injuries, also benchings / healthy scratches); se2 = his
+    starter-equivalents two seasons ago (any team)."""
+    g = s[s.pct > 0].groupby(["season", "pfr_player_id"])
+    A = pd.DataFrame({"gp": g.game_id.nunique(), "rate": g.pct.median(), "pct": g.pct.sum()})
+    G = games.groupby(level="season").max()
+    A["gp_frac"] = (A.gp / A.index.get_level_values("season").map(G)).clip(upper=1)
+    A["se_all"] = A.pct / A.index.get_level_values("season").map(G)
+    key = list(zip(I.year - 1, I.pfr_player_id))
+    I["gp_frac"] = [A.gp_frac.get(k, 0.0) for k in key]
+    I["rate"] = [A.rate.get(k, 0.0) for k in key]
+    I["miss"] = I.rate * (1 - I.gp_frac)
+    I["se2"] = [A.se_all.get((y - 2, p), 0.0) for y, p in zip(I.year, I.pfr_player_id)]
+    return I
 
 
 FORMS = {
@@ -58,6 +77,12 @@ FORMS = {
     "+age": "now ~ C(grp):se + C(qt):se + C(qt) + C(ab):se + C(ab) - 1",
     "+exp": "now ~ C(grp):se + C(qt):se + C(qt) + C(eb):se + C(eb) - 1",
     "+both": "now ~ C(grp):se + C(qt):se + C(qt) + C(ab):se + C(ab) + C(eb):se + C(eb) - 1",
+    "+miss": "now ~ C(grp):se + C(qt):se + C(qt) + C(ab):se + C(ab) + C(eb):se + C(eb) + miss + C(ab):miss - 1",
+    "+se2": "now ~ C(grp):se + C(qt):se + C(qt) + C(ab):se + C(ab) + C(eb):se + C(eb) + se2 - 1",
+    "+miss+se2": "now ~ C(grp):se + C(qt):se + C(qt) + C(ab):se + C(ab) + C(eb):se + C(eb) + miss + C(ab):miss + se2 - 1",
+    # adopted for the simulator's room check (Nov 16 2026): missed time by quality tier and age, plus two seasons ago
+    "+inj": "now ~ C(grp):se + C(qt):se + C(qt) + C(ab):se + C(ab) + C(eb):se + C(eb) + miss + C(ab):miss + C(qt):miss"
+            " + se2 - 1",
 }
 
 

@@ -3176,6 +3176,21 @@ for the same team this season (0 if cut, retired, hurt all year). Out of sample 
 Numbers after the signing-team fix below (before it: 0.788 / 0.531 / 0.511; same conclusions). Ledger row
 incumbent_development.
 
+**Missed games (injuries).** A player hurt for most of last season has a low se, so he was projected low (Malik
+Nabers, 2026 Giants: 0.19 last season -> 0.30). Added: miss = his median snap share in games played x share of
+games missed (injuries, also benchings), by tier and age, plus se two seasons ago ("+inj"). Out of sample 2017-24,
+players who missed 40%+ of games while playing 60%+ of snaps when active (n 1,329):
+
+| Subset | n | Last se | Actual | base+both | +inj |
+|---|---|---|---|---|---|
+| Good tier, 70%+ when active | 251 | 0.34 | 0.46 | 0.36 | 0.49 |
+| same, age <= 27 | 102 | 0.35 | 0.55 | 0.40 | |
+| Middling / weak tier | 1,047 | 0.26 | 0.23 | 0.21 | 0.26 |
+
+Good players win much of the missed time back, weaker ones mostly don't (40% gone entirely). Team-group RMSE 0.5059
+-> 0.5071 (not different; the injured are few per room), player RMSE 0.2285 -> 0.2272. Adopted for the room
+check because it fixes the bias where it matters (Nabers -> 0.53).
+
 ## Room check: projected open snaps (simulator, Nov 16 2026)
 
 The simulator's room check now shows projected open snaps per position, in starters (1 = every snap), replacing
@@ -3183,11 +3198,13 @@ The simulator's room check now shows projected open snaps per position, in start
 
 - Room: mean league median of the 4 seasons before + b x the team's deviation last season (b per group fit
   2014-25, ~0.4-0.6; `scripts/room_persistence.py`). T / G / C share one OL room (total ~5.0 every season).
-- Incumbents: each draft-day incumbent's projected se this season from the "+both" regression
-  (`scripts/incumbent_development.py`: group x last se + tier x last se + age band x last se + years band x last se,
-  fit on 2014-25 seasons, so past drafts' projections are in sample).
+- Incumbents: each draft-day incumbent's projected se this season from the "+inj" regression
+  (`scripts/incumbent_development.py`: group x last se + tier x last se + age band x last se + years band x last se
+  + games missed by tier and age + se two seasons ago; fit on 2014-25 seasons, so past drafts are in sample).
 - Open = room - projected incumbents - expected season-1 share of picks made in the simulation. Gold under 0.25 open,
-  red under 0.05 (full / over). Candidates show "+their share -> open after". Information only, as before.
+  red under 0.05 (full / over). Information only, as before.
+- Room column per candidate: his position's room filled now (%), + his expected first-season share, -> total.
+  A green bar marks the model's highest-ranked available player at each position with 0.05+ open (OL one room).
 
 Signing-team fix (`roster_need.departures_and_adds`): OTC lists every team a contract passed through ("LAR/DAL/MIA",
 not always in order: "PHI/CHI" for a Bears signing later traded to the Eagles). The last listed team was taken as

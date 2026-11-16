@@ -202,7 +202,9 @@ def room_info(S) -> tuple[dict, dict]:
       projected    each draft-day incumbent's se for the team this season (scripts/displacement.py incumbents:
                    last season's players still on the team plus veterans added before the draft), from a
                    regression fit on 2014-25 seasons: group x last se + quality tier x last se + age band x last se
-                   + years-in-league band x last se (scripts/incumbent_development.py, "+both"). Incumbents lose
+                   + years-in-league band x last se + games missed last season (his median snap share x share of games
+                   missed) by tier and age + se two seasons ago (scripts/incumbent_development.py, "+inj": good
+                   players who missed time come back, weak ones mostly don't). Incumbents lose
                    ~30% of their snaps by the next season; young part-timers grow, older starters fade.
     Also a drafted player's expected season-1 share by consensus rank (T_GRID), for the picks made in the simulator.
     Open = R - projected incumbents - today's picks (the page)."""
@@ -241,7 +243,8 @@ def room_info(S) -> tuple[dict, dict]:
     I["age_"] = I.age.fillna(I.age.median())
     I["ab"] = pd.cut(I.age_, idv.AGE_BINS, labels=idv.AGE_LAB).astype(str)
     I["eb"] = pd.cut(I.exp.fillna(7), idv.EXP_BINS, labels=idv.EXP_LAB).astype(str)
-    m = smf.ols(idv.FORMS["+both"], I[I.now.notna()]).fit()
+    I = idv.add_availability(I, s, games)  # missed games last season (injuries), and two seasons ago
+    m = smf.ols(idv.FORMS["+inj"], I[I.now.notna()]).fit()
     I["proj"] = m.predict(I).clip(lower=0)
     I["rg"] = I.grp.where(~I.grp.isin(["T", "G", "C"]), "OL")
     sh = sf.season_shares()
