@@ -190,34 +190,39 @@ def realized_extra(S, R, night, verbose=False) -> dict:
 
 
 def room_info(S) -> tuple[dict, dict, dict]:
-    """Room check (information only; README 'Strict follower' / 'Which veteran snaps can a rookie displace?').
-    Per (year, team): {group: [[name, share], ...]} = the team's own draftees from the last 3 drafts who played
-    for it last season, with their share of the team's offensive / defensive snaps (scripts/strict_follower.py
-    shares; >= 0.05 only). Also each group's room (median total snap share per team-season, 2014-25) and a
-    drafted player's expected season-1 share by consensus rank (T_GRID), for the picks made in the simulator."""
+    """Room check (information only; README 'Which veteran snaps can a rookie displace?').
+    Per (year, team): {group: [[name, se, tier], ...]} = the team's incumbents on draft day (scripts/displacement.py:
+    last season's players still on the team plus veterans added before the draft; se = starter-equivalents, snap
+    share summed over games / games), tier = DARKO-for-PFF quality tercile within the group after last season
+    ("high" / "mid" / "low" / "unk"). Also each group's room (median total se per team-season, 2014-25) and a drafted
+    player's expected season-1 share by consensus rank (T_GRID), for the picks made in the simulator."""
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import displacement as dz
     import roster_need as rn
     import strict_follower as sf
+    rn.GROUPS = rn.GROUPS + ["QB"] if "QB" not in rn.GROUPS else rn.GROUPS
+    s, ps, games, dp = rn.load()
+    # current role first (snap-count position), draft position only when the snap position is unmapped
+    dpos = dict(zip(dp.pfr_player_id, dp.position.map(rn.DRAFT_POS)))
+    s["grp"] = [rn.SNAP_POS.get(q) or dpos.get(p) for p, q in zip(s.pfr_player_id, s.position)]
+    ps = (s.groupby(["season", "team", "pfr_player_id"])
+          .agg(pct=("pct", "sum"), grp=("grp", lambda x: x.mode().iloc[0] if x.notna().any() else None)).reset_index())
+    ps["se"] = ps.pct / ps.set_index(["season", "team"]).index.map(games)
+    A = dz.attributes()
+    tot = ps[ps.season.between(2014, 2025) & ps.grp.isin(rn.GROUPS)].groupby(["season", "team", "grp"]).se.sum()
+    room = tot.groupby("grp").median()
     sh = sf.season_shares()
-    sh["team"] = sh.team.map(rn.team)
-    sh = sh.groupby(["pfr_player_id", "season", "team", "grp"], as_index=False).share.sum()
-    rooms = sf.rooms(sh)
-    room = rooms[rooms.season.between(2014, 2025)].groupby("grp").share.median()
     f = sf.expected_curve(sf.board_players(), sh.groupby(["pfr_player_id", "season"]).share.sum())
     e1 = {g: [round(float(f(g, t)[0]), 3) for t in T_GRID] for g in GROUPS}
-    names = pd.read_parquet(RAW / "snap_counts.parquet").drop_duplicates("pfr_player_id").set_index("pfr_player_id").player
-    dp = pd.read_parquet(RAW / "draft_picks.parquet")
-    dp = dp.assign(tm=dp.team.map(rn.team))
+    names = s.drop_duplicates("pfr_player_id").set_index("pfr_player_id").player
     out = {}
-    for y, tm in zip(S.year.astype(int), S.team):
-        ids = set(dp[(dp.tm == tm) & dp.season.between(y - 3, y - 1)].pfr_player_id.dropna())
-        x = sh[(sh.season == y - 1) & (sh.team == tm) & sh.pfr_player_id.isin(ids) & (sh.share >= 0.05)]
-        g = {}
-        for r in x.sort_values("share", ascending=False).itertuples():
-            g.setdefault(r.grp, []).append([str(names.get(r.pfr_player_id, r.pfr_player_id)), round(float(r.share), 2)])
-        out[(y, tm)] = g
+    for y in sorted(S.year.astype(int).unique()):
+        I = dz.types(dz.incumbents(ps, y, A))
+        I = I[I.se >= 0.03].sort_values("se", ascending=False)
+        for r in I.itertuples():
+            out.setdefault((y, r.team), {}).setdefault(r.grp, []).append(
+                [str(names.get(r.pfr_player_id, r.pfr_player_id)), round(float(r.se), 2), r.qt])
     return out, {k: round(float(v), 2) for k, v in room.items()}, e1
-
 
 def _delta(arr) -> bytes:
     """A table (groups, 3 levels, T, K) as int16 (value x SCALE), differenced along K then T within each
