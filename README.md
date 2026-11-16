@@ -3090,3 +3090,27 @@ and recency don't protect (no sunk-cost effect detected). For the strict followe
 who turn out well keep their snaps and the busts lose them, i.e. the best-first capped scoring in the room-rule
 test is the realistic one: base -0.29 (-0.88 to +0.28), room -0.13 (-0.74 to +0.46) vs the teams' real drafts.
 For real teams it suggests a quality-weighted roster-need term (the count-based one wasn't adopted); untested.
+
+## Quality-weighted roster need (`scripts/quality_need.py`, Nov 15 2026)
+
+Follow-up to the displacement test: discount a rookie by the quality of the incumbents at his position, not by
+bodies. Measured on value (rookie's cfdarko value years 1-4, classes 2014-22, Poisson, controls group x log pick,
+group x log rank, off-board, earlier rookies at the group): per incumbent starter-equivalent, high quality -0.143
+(0.040), mid -0.051 (0.038), low -0.118 (0.040); bodies only -0.104 (0.027). On value, unlike playing time, poor
+incumbents cost about as much as good ones, so quality doesn't separate cleanly. Multiplier for a team's room
+exp(sum b (inc - group median)), clipped 0.6-1.4, refit leaving out the draft scored: p10 0.85, median 0.97, p90 1.08.
+
+Choice test on today's production model at every pick 2014-22 (team's real roster and earlier picks; current rule
+reproduces the stored review at 100% of picks). Realized titles (% of one); "adjusted" scales a recommended
+player's real career by m(this team) / m(team that drafted him).
+
+| Rule | Same choice as current | Paired vs current, all picks (adjusted) | R1 | Model minus team where they disagree (adjusted) |
+|---|---|---|---|---|
+| Current | | | | +0.07 (-0.36 to +0.52) |
+| Count (bodies) | 72% | +0.003 (-0.027 to +0.033) | -0.025 | +0.13 (-0.25 to +0.50) |
+| Quality | 71% | +0.001 (-0.029 to +0.030) | -0.056 (-0.149 to +0.022) | +0.05 (-0.39 to +0.46) |
+
+Changes 29% of choices, realized value unchanged; the position mix barely moves (R1-4: WR 535 -> 523, QB 302 -> 298,
+CB 0 -> 11). Not adopted. Note: on today's scoring (fair QB rule, units, holdout tables), the per-pick edge where
+model and team disagree is +0.07 to +0.10, not significant (R5-7 slightly negative), well below the +0.57 of the
+earlier roster-need test on older scoring.
