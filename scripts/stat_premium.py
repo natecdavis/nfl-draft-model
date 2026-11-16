@@ -26,6 +26,7 @@ import replacement_units as ru  # noqa: E402
 import age_pricing as ap  # noqa: E402
 
 RAW, OUT = ROOT / "data/raw", ROOT / "data/derived"
+NOISE = {"def_sacks", "def_interceptions", "def_pass_defended", "receiving_tds", "rushing_tds", "passing_tds"}
 STATS = {
     "EDGE": ["def_sacks", "def_qb_hits"], "DL": ["def_sacks", "def_qb_hits"],
     "LB": ["tackles", "def_sacks"], "DB": ["def_interceptions", "def_pass_defended"],
@@ -96,6 +97,8 @@ def pay_models(c):
         # decomposition (centered so parts are deviations; quality part carries the level)
         stat_part = sum(m1.params[z] * d[z] for z in zs) if zs else 0 * d.apy
         d["stat_part"] = stat_part
+        # stats that don't predict next season's quality beyond the grade (step 1b): the "noise" share
+        d["noise_part"] = sum(m1.params[z] * d[z] for z in zs if z[2:] in NOISE) if zs else 0 * d.apy
         d["resid_part"] = m1.resid
         d["qual_part"] = d.apy - d.stat_part - d.resid_part
         # info check: next season quality on q + stats
@@ -104,7 +107,7 @@ def pay_models(c):
             mi = smf.ols("q_next ~ q + share + age" + "".join(f" + {z}" for z in zs), dn).fit(cov_type="HC1")
             for z in zs:
                 rec[f"info_{z[2:]}"] = f"{mi.params[z]:+.3f} (p {mi.pvalues[z]:.2f})"
-        parts.append(d[["gsis_id", "year_signed", "g", "apy", "qual_part", "stat_part", "resid_part"]])
+        parts.append(d[["gsis_id", "year_signed", "g", "apy", "qual_part", "stat_part", "noise_part", "resid_part"]])
     return pd.DataFrame(rows), pd.concat(parts)
 
 

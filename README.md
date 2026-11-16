@@ -2946,3 +2946,34 @@ quality -0.25 (p 0.16); franchise fixed effects -0.29 (p 0.053).
   the **second-contract pay yardstick** used in choice tests: it credits stat producers (WR yards most) with pay that
   doesn't buy points, so wins on that yardstick for WR- or EDGE-heavy choices are partly stat premium. Titles remain
   the main yardstick. Not adopted (nothing in the engine to change).
+
+### Rescoring past choice tests without the stat premium (`scripts/pay_rescore.py`, Nov 15 2026)
+
+The second-contract pay yardstick (pick_outcomes.best_pay, classes 2014-21) carries the stat premium. Adjusted
+yardsticks per drafted player's best second contract: APY minus the stat part of the pay model at signing (all stats),
+or minus only the "noise" stats (sacks, INT, passes defended, TDs: no predictive value for next season's quality).
+Coverage: 38% of best contracts, 58% APY-weighted (the rest keep their APY, so the adjustment is understated).
+Average stat part on best contracts >= 3% of cap: WR 1.68% of cap, IDL 0.76, EDGE 0.73, RB 0.69, TE 0.58, CB 0.41,
+QB 0.34, LB 0.24, S 0.11, OL ~0. Recomputed raw pay matches the stored column exactly (correlation 1.0). Per
+team-draft, shared scoring (a player on n teams' paths counts 1/n; earlier README tables used raw sums, so some
+numbers differ from those sections):
+
+| Comparison | Titles | Pay as stored | Stat-adjusted | Noise-only adjusted |
+|---|---|---|---|---|
+| Single vs family units, all | +0.77 | +2.16 (1.40-2.98) | +1.77 (1.11-2.47) | +2.19 |
+| Single vs family units, round 1 | +0.29 | +0.32 (0.12-0.53) | +0.13 (-0.07-0.33) | +0.28 |
+| Model (single) vs team, all | +5.24 | -0.92 (-2.52-0.65) | -1.41 (-2.82-0.00) | -0.58 |
+| Market factors vs B | -0.06 | -0.37 | -0.36 | -0.37 |
+| Rank tilt vs B | +0.05 | +0.17 | +0.14 | +0.15 |
+| WR / OL stacking discount vs B | +0.21 | +0.53 | +0.52 | +0.54 |
+| Rollout lookahead vs B, round 1 | +0.08 | +0.46 | +0.36 | +0.43 |
+| Position pay factor vs B | -0.00 | +0.05 | +0.05 | +0.05 |
+
+- No past decision changes. Moves are -0.0 to -0.5 % of cap per team-draft, all in the same direction (the model's
+  WR-leaning choices carried more stat premium than the alternatives). The largest: single units' round-1 pay edge
+  over family units shrinks from +0.32 to +0.13 (interval now touches 0); the units choice rested mainly on titles
+  (+0.29) and holds. The model's pay deficit vs teams grows from -0.92 to -1.41: teams' own picks earned slightly
+  less stat-driven pay than the model's recommendations.
+- Removing only the noise stats changes almost nothing: most of the premium on WRs is yardage, which does carry
+  information about future quality.
+Verdict: the pay yardstick is mildly tilted toward stat producers but hasn't decided anything. No change.
