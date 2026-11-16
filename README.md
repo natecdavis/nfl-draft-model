@@ -2977,3 +2977,45 @@ numbers differ from those sections):
 - Removing only the noise stats changes almost nothing: most of the premium on WRs is yardage, which does carry
   information about future quality.
 Verdict: the pay yardstick is mildly tilted toward stat producers but hasn't decided anything. No change.
+
+## Strict follower, step 1: room capacity (`scripts/strict_follower.py`, `scripts/strict_follower_realized.py`, Nov 15 2026)
+
+Question: if a team took the simulator's top choice at every pick, year after year, would its draftees fit on
+one roster? The model has no memory across drafts for non-QBs (a WR taken last year doesn't lower this year's
+WR value) and takes the QB need from the team's real history, so a follower drafts the same mix every year.
+Follower: the top of `simulator.options` at each pick the team really made, 2014-2025, all 32 teams (other
+teams draft as they really did). Snap shares from snap counts (season snaps / team offensive or defensive
+snaps); projected = average for drafted board players at the same group, career season 1-4 and consensus rank;
+"room" = median total snap share of a group per team-season. Own draftees from the last 4 drafts (R1: 5).
+
+| Group | Room | Real teams' draftees (mean / p95) | Follower (mean / p95) | Follower seasons over room |
+|---|---|---|---|---|
+| WR | 2.56 | 1.16 / 1.82 | **4.10 / 5.63** | **93%** |
+| G | 1.97 | 1.08 / 2.26 | 2.17 / 3.79 | 53% |
+| QB | 1.00 | 0.43 / 1.10 | 0.92 / 1.82 | 47% |
+| C | 1.00 | 0.29 / 0.96 | 0.83 / 1.79 | 29% |
+| T | 2.02 | 0.73 / 1.57 | 1.49 / 2.44 | 19% |
+| CB / S / LB / RB / IDL | 2.7 / 2.1 / 2.8 / 1.1 / 1.8 | 0.8-1.4 | 0.0-0.3 | 0% |
+
+Follower picks 2014-25 (teams in brackets): WR 827 (377), G 595 (298), ED 418 (307), T 418 (155), C 241 (68),
+QB 160 (140), CB 114 (404), IDL 16 (291), LB 0 (298), RB 0 (246). The recommended WRs really played as much as
+projected (3.95 per team-season, spread over other teams), so the overflow isn't a projection artifact: one
+team couldn't play them all.
+
+Value at stake, drafts 2017-22 (model's own expected titles, % of one, per team-draft): follower 7.41 vs the
+team's real picks 3.94, claimed gain 3.47; snaps beyond the room (everyone keeps room / total) cost 1.70, half
+the claimed gain (WR 37% of WR value, QB 22%, C 16%, G 14%). Realized (follower picks matching the stored
+review recommendation, 1,139 of 2,304, real careers, per team-draft 2014-22):
+
+| Scoring | Follower minus team (95% CI) |
+|---|---|
+| As scored (each player where he really landed) | +0.87 (+0.29 to +1.44) |
+| Overflow removed, best-first on realized snaps (most favorable) | +0.34 (-0.19 to +0.89) |
+| Overflow removed, proportional on projected snaps | -0.21 (-0.72 to +0.30) |
+
+Most of the review's realized edge comes from crediting a strict follower with careers that one roster
+couldn't host, mostly WR and QB. Caveats: surplus players could be traded (some value back); real rosters also
+hold veterans, so the room left for draftees is smaller than the room used here; half the follower's picks
+lack stored realized values. Not adopted yet. Next: a cross-year need term (prior drafts' players at the group
+lower a pick's value, measured on rooms, not guessed) tested in the whole-draft choice test, then the
+cost of filling the positions the follower never drafts.
