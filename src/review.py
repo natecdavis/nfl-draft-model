@@ -234,7 +234,10 @@ class States:
             play = self._play(p.gsis_id if p is not None else None, year)
             if play is not None and play < self.qb_med.get(year - 1, 0):
                 status, qb_from = status + ", below-average play", 2
-        return {"qb": name, "status": status, "qb_from": qb_from, "shift": shift}
+        # seasons left on his deal after this one (known on draft day; review.p_need)
+        left = (int(latest.year_signed + latest.years - 1 - year)
+                if latest is not None and pd.notna(latest.years) and pd.notna(latest.year_signed) else None)
+        return {"qb": name, "status": status, "qb_from": qb_from, "shift": shift, "qb_left": left}
 
     def _play(self, gsis, year):
         """EPA per dropback last season (or the one before if he barely played), else None."""
@@ -262,7 +265,7 @@ class States:
         r = self.ratings.get(year - 1, pd.Series(dtype=float)).get(tm, 0.0)
         q = self.qb(tm, year)
         start = round(0.6 * 0.73 * r * 2) / 2  # to the nearest half point (shared value tables)
-        return {"strength_prior": r, "start": start, **q, "p_need": p_need(q["status"], q["qb_from"])}
+        return {"strength_prior": r, "start": start, **q, "p_need": p_need(q["status"], q["qb_from"], q.get("qb_left"))}
 
 
 # ---------- 3. value tables ----------
@@ -308,15 +311,24 @@ class Table:
         return at(self.v[g][level])
 
 
-def p_need(status: str, qb_from) -> float:
-    """Chance a flagged QB need is real: share of such team-years 2014-2023 whose main QB two
-    seasons later was someone else (README, 'Why the model's round-1 picks start less')."""
+QB_NEED_CONTRACT = os.environ.get("QB_NEED_CONTRACT", "split") == "split"  # "off": one rate per veteran flag
+
+
+def p_need(status: str, qb_from, left=None) -> float:
+    """Chance a flagged QB need is real: share of such team-years whose main QB the next season was someone else
+    (README, 'Why the model's round-1 picks start less'). The two veteran flags (age 36+, paid veteran after a
+    below-average season) split by his contract (`left` = seasons left after this one, known on draft day):
+    under contract next year 0.39, expiring 0.68 (2014-2024; README 'QB need while the veteran is under
+    contract', scripts/qb_need_contract.py). Contract not in the data: the old pooled rates."""
     if qb_from is None or (isinstance(qb_from, float) and np.isnan(qb_from)):
         return 1.0  # no need flagged: the tables already give a QB no playing time
     s = str(status)
     for prefix, p in [("no starter", 1.0), ("stopgap", 0.79), ("rookie deal (later", 0.62)]:
         if s.startswith(prefix):
             return p
+    vet = "below-average" in s or s.startswith("veteran, ")
+    if vet and QB_NEED_CONTRACT and left is not None and not (isinstance(left, float) and np.isnan(left)):
+        return 0.39 if left >= 1 else 0.68
     if "below-average" in s:
         return 0.54
     if s.startswith("veteran, "):

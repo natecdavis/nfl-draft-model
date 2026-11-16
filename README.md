@@ -2750,3 +2750,53 @@ Bridgewater). Verdicts recomputed (`python src/review.py verdicts`, each draft's
 review): 35% move by more than 0.05, 46 of 802 change sign, e.g. NO 2014 up to #20 for Brandin Cooks -0.51 -> +0.74,
 GB 2020 up to #26 for Love +8.1 -> +3.0. Simulator trade verdicts follow. The app's Trade offer tab still values
 picks as typical players (`trade.Pick` now takes an optional `talent` for a known target).
+
+## QB need while the veteran is under contract (`scripts/qb_need_contract.py`, `review.p_need`, Nov 15 2026)
+
+The complaint a team would make: "our veteran is signed through next year; we're not drafting his replacement in
+round 1." `review.p_need` (the chance a flagged QB need is real) was one rate per flag. For each flagged team-year
+2014-2024 (the review's draft-day states): was the team's main QB the next season (most regular-season snaps) someone
+other than the draft-day QB? Split by the draft-day QB's contract (latest deal known on draft day, as
+`review.States.qb`):
+
+| Flag | Under contract next year | Expiring | Old rate |
+|---|---|---|---|
+| Age 36+ | 0.38 (16) | 0.63 (27) | 0.52 |
+| Paid veteran after a below-average season | 0.40 (30) | 0.76 (17) | 0.54 |
+| Both pooled | 0.39 (46) | 0.68 (44) | |
+| Stopgap veteran | 0.83 (12) | 0.80 (25) | 0.79 |
+| Later-round rookie | 0.61 (23) | 0.67 (3) | 0.62 |
+
+The flag totals reproduce the old rates; the pooled veteran split is stable leaving out any one draft year (0.36-0.43
+vs 0.64-0.72) and the same excluding teams that took a QB in rounds 1-2 (under contract / expiring: age 0.38 / 0.59;
+below average 0.38 / 0.69). Stopgaps and later-round rookies don't split.
+
+Choice test (`python scripts/qb_need_contract.py choice`): the review's choices at every pick of the 80 affected
+team-drafts 2014-22 (same board, states, tables, need counts; "now" reproduces the production review at 100%) with
+the split rates, each draft's own year left out of the rates. Contract rule minus now, titles x100 per draft (95% over
+draft years), scored three ways: fair yardstick with the old p_need, with the new one, and "what happened" (the rec
+QB counts as played if the incumbent was in fact replaced the next season, else as sat; teams that took a QB in rounds
+1-2 use the new p_need, since the pick may have caused the change):
+
+| | Under contract (p down) | Expiring (p up) | All affected |
+|---|---|---|---|
+| Old p_need yardstick | +3.37 (-1.30 to +9.14) | +1.87 (-4.81 to +10.70) | +5.25 (-0.50 to +12.77) |
+| New p_need yardstick | +4.09 (+0.07 to +9.33) | +3.46 (-4.02 to +14.59) | +7.55 (+1.52 to +17.06) |
+| What happened | +5.01 (+1.45 to +10.09) | +3.95 (-3.60 to +14.55) | +8.96 (+2.59 to +17.53) |
+
+Under contract: QB recs 26% -> 15% of picks (round 1 68% -> 51%); out go Hundley (x8, 2015), Connor Cook, Paxton
+Lynch, Kizer, Drew Lock (MIN 2019); in come mostly WRs (Michael Thomas, DK Metcalf, Allen Robinson, Ja'Marr Chase);
+one loss, Watson to CAR 2017. Expiring: QB recs 26% -> 32%; Watson to NYJ 2017 and Hurts to IND 2020 vs Connor Cook
+over Michael Thomas (ARI 2016) and Davis Webb over Chris Godwin (NE 2017). The expiring side is noisy.
+
+**Adopted** (`review.p_need(status, qb_from, left)`, `left` = seasons left on his deal after this one, from
+`review.States.qb`; veteran flags 0.39 under contract next year / 0.68 expiring; contract not in the data keeps the
+old rate; `QB_NEED_CONTRACT=off` restores). Review rerun (2014-2026): 68 recommendations change. Changed picks
+2014-22, realized (fair yardstick, new p_need) new minus old: round 1 +5.35 (9 picks), rounds 2-4 +54.5 (43).
+Scorecard, model minus team where they disagree, each rec once (old -> new): round 1 averaged +0.60 -> +0.80 (+0.17 to
++1.34), first pick -0.49 -> +0.20 (-0.52 to +0.89); rounds 2-4 averaged +0.59 -> +0.43 (+0.10 to +0.81), first pick
++0.40 -> +0.20 (-0.12 to +0.55). The rounds 2-4 drop is the each-rec-once averaging, not worse picks: Hurts is now
+also recommended at IND #34/#41 and PIT #49 (+14 each over the old recs), which lowers his averaged margin from +22.2
+to +15.1, and Chris Godwin (+7.9) drops out. Round-1 QB recs 41% -> 40%. Trade verdicts unchanged (no p_need).
+2026: CLE (Watson), LA (Stafford), LV (Cousins), PIT (Rodgers) 0.52-0.54 -> 0.68; LAC (Herbert), TB (Mayfield) 0.54
+-> 0.39. The simulator shows the contract next to the chance ("39% likely, he's under contract next year").

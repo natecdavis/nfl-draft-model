@@ -253,6 +253,7 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
         teams.setdefault(str(int(r.year)), {})[r.team] = {
             "qb": r.qb, "status": r.status, "strength": num(r.strength_prior, 1),
             "qb_from": None if pd.isna(r.qb_from) else int(r.qb_from), "p_need": num(r.p_need, 2),
+            "qb_left": None if pd.isna(r.get("qb_left", np.nan)) else int(r["qb_left"]),
             "table": keys[k], "ftable": fkeys[fk], "real": None,
             "picks": [[int(p.pick), int(p["round"]), p.original_team, int(bool(p.traded_on_night)), p.player, p.grp,
                        num(p.board_rank, 0), num(p.value_actual), num(p.real_team)] for _, p in mine.iterrows()],
