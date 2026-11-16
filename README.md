@@ -2800,3 +2800,89 @@ also recommended at IND #34/#41 and PIT #49 (+14 each over the old recs), which 
 to +15.1, and Chris Godwin (+7.9) drops out. Round-1 QB recs 41% -> 40%. Trade verdicts unchanged (no p_need).
 2026: CLE (Watson), LA (Stafford), LV (Cousins), PIT (Rodgers) 0.52-0.54 -> 0.68; LAC (Herbert), TB (Mayfield) 0.54
 -> 0.39. The simulator shows the contract next to the chance ("39% likely, he's under contract next year").
+
+## Do some positions matter more against strong opponents? (`scripts/opp_strength_absence.py`, Nov 15 2026)
+
+The question: are contracts mispriced compared with titles? Contracts pay for what a player adds over a regular
+season against an average schedule, but titles are won in playoff games against good teams. If one unit's worth over
+its backup grows with opponent strength faster than others', title value per curve-dollar would differ from pay by
+position. Data: the betting-line absence data (carry-forward absences, 9 groups, 2,992 regular-season games 2013-25,
+20,781 absent starter-games), plus 155 playoff games (1,024 absent starter-games). Opponent strength = full-strength
+team-season rating from the base absence model, centered by season (sd 3.3 pts; playoff teams average +2.9).
+Decision rule set before the run: a choice test only if equal interactions across positions is rejected (p < 0.05)
+on the spread AND the actual margin points the same way.
+
+**1. Opponent rating as a continuous measure** (extra pts per absent starter per +1 pt of opponent; worth against a
+playoff-level opponent / worth against an average one):
+
+| | QB | RB | WR | TE | OL | DL | LB | CB | S |
+|---|---|---|---|---|---|---|---|---|---|
+| Spread: ratio | 1.00 | 1.02 | 0.99 | 0.74 | 1.15 | 1.02 | 1.21 | 1.12 | 0.91 |
+| Margin: ratio | 1.03 | (b ~0) | 0.54 | 0.77 | 0.70 | 2.22 | 0.75 | 0.98 | (b > 0) |
+
+Spread: all interactions 0 p 0.21, equal across groups p 0.39; only OL is individually nonzero (x1.15, interaction
+-0.024, -0.042 to -0.005). Margin: equal p 0.57; a common interaction of +0.05 (+0.015 to +0.086), so absences
+cost *less* against strong teams in actual results.
+
+**2. Strong opponent = top third of ratings** (+1.3 or better). Spread: equal p 0.026 (OL -0.40 -> -0.60, CB -0.32
+-> -0.46 vs strong; TE and S smaller). Margin: equal p 0.17, and OL goes the other way (-0.88 -> -0.13).
+
+**3. Playoffs** (regular-season ratings as an offset). Spread: non-QB absences cost 0.24 *less* in the playoffs
+(+0.08 to +0.41), TE +0.99; QB -0.35 (-0.95 to +0.26). Margin: every interval wide (QB +1.6, -0.9 to +4.0; S -2.7).
+Carry-forward counts long-gone starters as absent, which the market may already treat as part of the team by
+January, so the playoff spread result is partly mechanical.
+
+Verdict: no position's worth reliably rises against good opponents. The one spread signal (OL a little more
+against strong teams, x1.15) reverses on actual results, and on the pre-set rule this doesn't go to a choice test.
+On this measure, contracts' regular-season pricing isn't missing a title premium by position. Not adopted.
+
+### Depth vs the top player in high-leverage games (`scripts/depth_leverage.py [price|share]`, Nov 15 2026)
+
+User's lead (from a post on WR3s in the playoffs): with more preparation, defenses take away a team's best player, so
+the 2nd / 3rd option matters more in big games, and pay (set on regular-season production) would under-price depth.
+Within each team-game's regulars at a group, rank 1 = top player, 2+ = depth (WR3 / CB3: rank 3+), ranked by pre-season
+price (robustness: recent snap share). Statistic = c_depth - c_top: how much more a missing depth player costs than a
+missing top player per +1 pt of opponent rating, in playoff games, or in rematches (2nd+ meeting this season, more
+film; 562 games). The lead predicts < 0. Rule set before the run: predicted sign on spread AND margin, p < 0.05 on
+one, for WR or pooled non-QB.
+
+| c_depth - c_top (p) | Opp rating, spread | Opp, margin | Playoffs, spread | Playoffs, margin | Rematch, spread | Rematch, margin |
+|---|---|---|---|---|---|---|
+| WR, by price | +0.04 (0.35) | -0.10 (0.61) | **-1.22 (0.04)** | -2.27 (0.30) | +0.21 (0.49) | +0.15 (0.92) |
+| WR, by share | +0.02 (0.60) | -0.31 (0.07) | +0.41 (0.47) | -1.06 (0.58) | **+0.99 (0.002)** | +0.10 (0.95) |
+| WR3, by price | -0.03 (0.51) | -0.07 (0.73) | -0.89 (0.39) | -3.50 (0.22) | +0.38 (0.27) | +1.29 (0.41) |
+| CB3, by price | -0.03 (0.25) | -0.27 (0.13) | -1.15 (0.06) | -1.51 (0.52) | +0.06 (0.83) | -1.13 (0.33) |
+| Non-QB pooled, by price | -0.00 (0.78) | -0.02 (0.73) | -0.21 (0.29) | +1.92 (0.09) | **+0.22 (0.01)** | -0.39 (0.40) |
+| Non-QB pooled, by share | -0.02 (0.08) | +0.02 (0.76) | -0.52 (0.08) | -0.20 (0.86) | +0.11 (0.40) | +0.28 (0.57) |
+
+- Against stronger opponents nothing moves: top players' absences cost the same (c_top ~0), and depth's no more.
+- Playoffs: WR by price meets the rule (spread -1.22, margin same sign but n.s.), but it rests on 36 depth-WR absences in
+  155 games, comes mostly from the market pricing missing top WRs *less* in January (c_top +0.66), and flips sign when
+  roles are ranked by snap share (+0.41). One pass in 12 eligible cells, not robust: treated as noise.
+- Rematches, the cleanest "more preparation" test, go the wrong way where significant (depth absences cost *less*).
+Verdict: no support for depth mattering more in high-leverage games. Note the measure is depth player vs his backup
+among regulars (60%+ snaps); a true part-time WR3 is outside it. Not adopted.
+
+## Does the market overpay older veterans? (`scripts/age_pricing.py`, `scripts/age_pricing_tenure.py`, Nov 15 2026)
+
+Lead #3 of the contract-efficiency list. If teams pay veterans for past seasons, a dollar on an older player should buy
+fewer points of team strength. That would make rookie-contract production worth more next to the veteran
+alternative and would move pick-vs-veteran and trade advice (not which prospect to take). Bridge-style team test,
+416 team-seasons 2013-25: season-demeaned rating on roster value (snap share x pre-season price, % of cap: latest
+veteran contract signed by then, or slot-expected price on a rookie deal) split by contract type and age at
+September 1. Rule set before the run: equal slopes across non-QB veteran age buckets; the lead predicts a decline.
+
+| Pts per 1% of cap | <=26 | 27-29 | 30-32 | 33+ | Equal (p) | Trend per step |
+|---|---|---|---|---|---|---|
+| Non-QB vets, dollars that played (share x price) | 0.20 (0.13-0.28) | 0.21 (0.13-0.29) | 0.16 (0.07-0.25) | 0.35 (0.11-0.60) | 0.45 | +0.04 (-0.04 to +0.12) |
+| Non-QB vets, dollars spent (price if any snap) | 0.11 | 0.11 | 0.08 | 0.26 | 0.30 | +0.04 (-0.01 to +0.10) |
+
+- Pooled: non-QB vets under 30 0.205, 30+ 0.192 (p 0.80; ratio ~0.94, roughly 0.5 to 1.4). QB vets under 30 0.34, 30+
+  0.32. By position group 30+ vs under 30: OL 0.22 vs 0.21, DB 0.27 vs 0.29, front 0.13 vs 0.13, skill 0.14 vs 0.25
+  (skill the only gap, wide intervals).
+- Contract age: deals signed 2+ seasons earlier 0.16 vs newer 0.22 (p 0.13), a weak hint that pay set on old
+  information buys a bit less, not specific to age.
+- Players cut before playing (invisible to the team test): veteran contracts 2013-21 with APY >= 1% of cap, unplayed
+  guaranteed seasons as a share of contract value: non-QB <=26 1.3%, 27-29 2.7%, 30-32 4.4%, 33+ 2.1%. Older players
+  get shorter deals (1.6-2.1 years vs 2.7), so the hidden dead-money cost of age is ~3% of contract value at most.
+Verdict: the market prices age about right per dollar; no overpay big enough to matter. Nothing changes.
