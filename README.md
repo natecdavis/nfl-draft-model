@@ -3412,7 +3412,7 @@ hybrid +0.44 (-0.02 to +0.92); starts -0.49 -> -0.19; AV -2.7 -> -0.6; pay +0.37
   most position-neutral outside yardstick, leans its way but within noise. Starts and AV structurally credit OL
   (five starters every snap; AV shares team offense to linemen), so part of that gain is the yardstick.
 - The hybrid is its own extreme: no EDGE, DL, LB or TE in rounds 2-4. Fresh classes (2023-25) not checked (no
-  family-units review for them yet). Decision pending.
+  family-units review for them yet). Not adopted (Nov 17: see the follow-ups below; current rule kept).
 
 ## Hybrid pricing follow-ups: softer versions and the 2023-25 classes (`scripts/hybrid_variants.py`, Nov 17 2026)
 
