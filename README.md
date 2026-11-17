@@ -3242,9 +3242,9 @@ crowded rooms less (1.72 vs 2.18): each incumbent was projected on his own, but 
 Changes:
 1. Crowding. Veterans take a share k of the gap (room - projected incumbents - picks' expected share): incumbents
    playing more or less, and players added after the draft. The page shows (1 - k) x gap as open, the space left
-   for rookies; the Room column's "+" is a candidate's own expected first-season share (net of the veterans he'd push aside
-   until Nov 16 v31; changed at the user's request since the net share read ~+2% for top WRs), so totals over 100%
-   mean he'd mostly take veterans' snaps. k (fit
+   for rookies; the Room column (v33) reads "filled now +his own expected share -> effective total", the total = filled now +
+   (1 - k) x his share (veterans give back k of his snaps; hover for the split). v31 showed the net share ("+2%" for a
+   top WR), v32 the raw total (often 120-170%). k (fit
    2014-25 on all veterans' snaps): S 0.64, CB 0.70, IDL 0.75, ED 0.77, LB 0.78, TE 0.84, RB 0.88, WR 0.91, OL 0.95,
    QB 0.98. So OL, QB and WR rooms rarely show open space (2026: 141 of 320 team-rooms 0.05+ open before any pick).
 2. Roster players with no snaps last season (`displacement.missed`): two seasons ago on the team or signed / traded
