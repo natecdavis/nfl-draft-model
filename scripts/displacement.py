@@ -92,6 +92,54 @@ def incumbents(ps, year, A):
     return I
 
 
+def missed(ps, year, A, grp_of=None):
+    """Draft-day roster players with no snaps last season (any team), who incumbents() can't see (room check,
+    Nov 16 2026): out1 = "missed": snaps for the team two seasons ago, or signed by the team last season, and none
+    anywhere last season (injured all year: Derwin James, Chargers 2021; sat out: Deshaun Watson, Browns 2022);
+    also players traded for or signed this offseason with no snaps last season;
+    "red12" / "red3": drafted by the team last season in rounds 1-2 / 3+ and no snaps (J.J. McCarthy, Vikings 2025).
+    Gone if he signed with another team (roster_need.signed_by_draft) or was traded away since. se = 0; group from
+    two seasons ago, else grp_of (pfr -> group), else his draft position. Same columns as incumbents(), plus out1."""
+    p2g, p2pff, born, drafted, q, cap = A
+    played = set(ps[ps.season == year - 1].pfr_player_id)
+    two = ps[(ps.season == year - 2) & ps.grp.isin(rn.GROUPS)]
+    s1, s0 = rn.signed_by_draft(year - 1), rn.signed_by_draft(year)
+    _, away0, _ = rn.departures_and_adds(year)
+    _, away1, _ = rn.departures_and_adds(year - 1) if (year - 1) in rn.DRAFT_START else ({}, set(), set())
+    cand = {}
+    for p, tm, g in zip(two.pfr_player_id, two.team, two.grp):
+        cand[(p, tm)] = ("missed", g)
+    g2 = dict(zip(two.pfr_player_id, two.grp))
+    for p, ts in s1.items():
+        for tm in ts:
+            cand.setdefault((p, tm), ("missed", (grp_of or {}).get(p) or g2.get(p)))
+    _, _, tin0 = rn.departures_and_adds(year)
+    for p, tm in set(tin0) | {(p, tm) for p, ts in s0.items() for tm in ts}:
+        cand.setdefault((p, tm), ("missed", (grp_of or {}).get(p) or g2.get(p)))  # added this offseason
+    for p, (y, r, tm) in drafted.items():
+        if y == year - 1:
+            cand[(p, tm)] = ("red12" if r <= 2 else "red3", (grp_of or {}).get(p))
+    rows = []
+    for (p, tm), (k, g) in cand.items():
+        if p in played or g is None or g not in rn.GROUPS:
+            continue
+        if any(x != tm for x in s0.get(p, ())) or (p, tm) in away0 or (p, tm) in away1:
+            continue  # signed elsewhere before this draft, or traded away
+        if s1.get(p) and tm not in s1[p] and tm not in s0.get(p, ()) and (p, tm) not in tin0:
+            continue  # signed elsewhere last season
+        rows.append((tm, g, p, 0.0, k))
+    I = pd.DataFrame(rows, columns=["team", "grp", "pfr_player_id", "se", "out1"]).drop_duplicates(["team", "pfr_player_id"])
+    I["year"] = year
+    I["q"] = [float(np.ravel(q.get((p2pff.get(p), year - 2), np.nan))[-1]) if k == "missed" else np.nan
+              for p, k in zip(I.pfr_player_id, I.out1)]
+    I["cap"] = [cap.get((p2g.get(p), year), np.nan) for p in I.pfr_player_id]
+    d = [drafted.get(p) for p in I.pfr_player_id]
+    I["own_high"] = [bool(x and x[2] == tm and x[1] <= 2 and year - x[0] <= 3) for x, tm in zip(d, I.team)]
+    I["age"] = [(pd.Timestamp(f"{year}-09-01") - born.get(p)).days / 365.25 if pd.notna(born.get(p)) else np.nan
+                for p in I.pfr_player_id]
+    return I
+
+
 def types(I):
     I["qt"] = np.select([I.q.isna(), I.q >= 2 / 3, I.q >= 1 / 3], ["unk", "high", "mid"], "low")
     I["paid"] = (I.cap.fillna(0) >= PAID)

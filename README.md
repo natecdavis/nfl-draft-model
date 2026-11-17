@@ -3228,3 +3228,61 @@ Reruns with the fix (old -> new; no conclusion changes):
 later yardstick changes (fair QB scoring, Nov 13), not this fix; its paired comparisons are the check. Not affected:
 `strict_follower.py` / `cross_year_need.py` (rooms from snap counts only), `synergy_test.py`, `rb_passgame_test.py`,
 `stack_choice.py` (its own version counting every listed team).
+
+## Room check v2: crowding, missed-season players, contract fixes (simulator, Nov 16 2026)
+
+Spot checks of past drafts (`scripts/room_crowding.py` docstring): of 83 round 1-2 picks made into rooms the check
+called full (2015-25), many rooms weren't full (retirements and unsigned free agents still counted; signings after
+the draft counted as draft-day roster; OTC repeating a contract under the team that later traded for the player;
+known suspensions / long injuries); 12 picks were counted in the wrong room (CB who played S, EDGE vs DL). Rookies
+drafted into full rooms still played 0.40 of a starter in year 1 vs 0.49 in rooms under 70% (-0.11 per unit of fill,
+se 0.04). In rooms left thin after the draft, incumbents played more than projected (1.66 vs 1.32 starters) and in
+crowded rooms less (1.72 vs 2.18): each incumbent was projected on his own, but snaps are shared.
+
+Changes:
+1. Crowding. Veterans take a share k of the gap (room - projected incumbents - picks' expected share): incumbents
+   playing more or less, and players added after the draft. The page shows (1 - k) x gap as open, the space left
+   for rookies; the Room column's "+" is a candidate's expected share net of the veterans he'd push aside. k (fit
+   2014-25 on all veterans' snaps): S 0.64, CB 0.70, IDL 0.75, ED 0.77, LB 0.78, TE 0.84, RB 0.88, WR 0.91, OL 0.95,
+   QB 0.98. So OL, QB and WR rooms rarely show open space (2026: 141 of 320 team-rooms 0.05+ open before any pick).
+2. Roster players with no snaps last season (`displacement.missed`): two seasons ago on the team or signed / traded
+   for, none anywhere last season (Derwin James 2021, Deshaun Watson 2022), and last year's draft picks who didn't play
+   (J.J. McCarthy 2025). Projected by kind with their share two seasons ago (`incumbent_development.FORMS["+out"]`).
+   They rarely come back as regulars: good players with 0.6+ of a starter two seasons ago averaged 0.17.
+3. Contracts (`roster_need.signed_by_draft`): signings from OTC's chronological per-player contract history instead
+   of its contract rows. Drops trade copies (Stefon Diggs's 2022 Bills extension listed as a Texans signing),
+   practice-squad deals, and signings after the draft (snaps for another team first that season: Le'Veon Bell,
+   Chiefs 2020, Jaylon Smith, Packers / Giants 2021, who was counted as leaving Dallas; or a second signing that year
+   by a team he wasn't with in week 1: Antonio Brown, Patriots 2019). ~30% fewer signings per year.
+4. QB starter rule (the QB-need model's draft-day starter at least the designated starters' mean, 0.75): tested,
+   not adopted. Crowding already fills the QB room (QB RMSE 0.182 without the rule, 0.186 with).
+
+Out of sample 2017-25 (2,880 team-rooms; regression, starter rule and k fit on earlier seasons), RMSE in starters:
+
+| Projection | Incumbents' total | + crowding | All veterans' snaps | + crowding |
+|---|---|---|---|---|
+| "+inj", last season's players only (before) | 0.476 | 0.385 | 0.492 | 0.292 |
+| + players with no snaps last season (adopted) | 0.476 | 0.358 | 0.474 | 0.291 |
+| + QB starter rule | 0.483 | 0.358 | 0.479 | 0.291 |
+
+All veterans' snaps = everyone in the room but that season's draft class. By room, before -> after (veterans'
+snaps): CB 0.54 -> 0.39, ED 0.41 -> 0.29, IDL 0.44 -> 0.27, LB 0.46 -> 0.31, OL 0.91 -> 0.34, QB 0.31 -> 0.14,
+RB 0.26 -> 0.16, S 0.52 -> 0.42, TE 0.31 -> 0.18, WR 0.44 -> 0.26. With the old contract rows the same comparison
+gave 0.488 -> 0.293 (with missed players), so the contract fix is a small gain; crowding is nearly all of it.
+Not fixed (needs dated transactions): retirements and releases before the draft without a new contract (Aaron Donald
+2024, Joe Thomas 2018 still count), suspensions, fifth-year options; draft position labels (CB/S, EDGE/DL).
+
+Reruns with the contract fix (old -> new; no conclusion changes):
+
+| Test | Old | New |
+|---|---|---|
+| Roster need, +1 open spot: year-1 snap share | +1.9 pts (+0.8 to +3.0) | +1.7 (+0.5 to +2.8) |
+| same, value years 1-4 (% of cap) | +0.45 (+0.13 to +0.78) | +0.44 (+0.08 to +0.79) |
+| Need choice, paired vs current, all picks: roster | +0.013 (-0.025 to +0.052) | +0.010 (-0.027 to +0.048), same 70% |
+| same: both | -0.004 (-0.039 to +0.030) | -0.007 (-0.041 to +0.024) |
+| Quality need, paired vs current, adjusted: quality | -0.008 (-0.036 to +0.021) | -0.008 (-0.036 to +0.021) |
+| same: count | +0.006 (-0.022 to +0.034) | +0.006 (-0.022 to +0.034) |
+| Displacement, rookie yr-1 per incumbent se: good / middling / weak | -0.040 / -0.024 / +0.009 | -0.038 / -0.024 / +0.009 |
+| WR stacking A, WR incumbents when a R1-2 WR arrives | -0.76 (-1.71 to +0.20) | -0.83 (-1.78 to +0.12) |
+| Availability, needs vs truncated scatter, log loss | -0.001 | -0.001 |
+| Incumbent development A, team-group RMSE: last / base / +both | 0.768 / 0.526 / 0.506 | 0.682 / 0.497 / 0.481 |

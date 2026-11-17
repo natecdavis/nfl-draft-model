@@ -192,80 +192,35 @@ def realized_extra(S, R, night, verbose=False) -> dict:
 ROOM_GROUPS = ["QB", "RB", "WR", "TE", "OL", "ED", "IDL", "LB", "CB", "S"]  # T / G / C share one OL room
 
 
-def room_info(S) -> tuple[dict, dict]:
-    """Room check, projected open snaps (information only; README 'Room check: projected open snaps').
+def room_info(S) -> tuple[dict, dict, dict]:
+    """Room check (information only; README "Room check v2"; scripts/room_crowding.py).
     Per (year, team): {"room": {group: R}, "inc": {group: [[name, last se, projected se, tier], ...]}} where
       R            the team's room in starter-equivalents (se: snap share summed over games / games): mean league
                    median of the 4 seasons before, + b x the team's deviation from the league median last season
-                   (b per group, fit 2014-25; scripts/room_persistence.py). T / G / C are one OL room (its total is
-                   ~5.0 every season; PFF labels move players between the three).
-      projected    each draft-day incumbent's se for the team this season (scripts/displacement.py incumbents:
-                   last season's players still on the team plus veterans added before the draft), from a
-                   regression fit on 2014-25 seasons: group x last se + quality tier x last se + age band x last se
-                   + years-in-league band x last se + games missed last season (his median snap share x share of games
-                   missed) by tier and age + se two seasons ago (scripts/incumbent_development.py, "+inj": good
-                   players who missed time come back, weak ones mostly don't). Incumbents lose
-                   ~30% of their snaps by the next season; young part-timers grow, older starters fade.
-    Also a drafted player's expected season-1 share by consensus rank (T_GRID), for the picks made in the simulator.
-    Open = R - projected incumbents - today's picks (the page)."""
+                   (scripts/room_persistence.py). T / G / C are one OL room.
+      projected    each draft-day incumbent's se for the team this season ("+out" regression: last season's share by
+                   group, quality tier, age, years in the league, games missed, se two seasons ago; plus roster
+                   players with no snaps last season, by kind; scripts/incumbent_development.py, displacement.missed).
+    k per room: the share of the open space (R - projected incumbents - picks' expected share) veterans take
+    (incumbents playing more, later signings); the page shows (1 - k) x open as the space left for rookies.
+    Also a drafted player's expected season-1 share by consensus rank (T_GRID), for the picks made in the simulator."""
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    import displacement as dz
-    import incumbent_development as idv
-    import room_persistence as rp
-    import roster_need as rn
-    import statsmodels.formula.api as smf
-    import strict_follower as sf
-    rn.GROUPS = rn.GROUPS + ["QB"] if "QB" not in rn.GROUPS else rn.GROUPS
-    # team rooms
-    t = rp.features(rp.totals())
-    b = {g: float(rp.fit(d[d.season.between(2014, 2025) & d.dev1.notna()], ["dev1"])[0]) for g, d in t.groupby("grp")}
-    lg = t.groupby(["grp", "season"]).tot.median()
-    last = t.set_index(["season", "team", "grp"]).dev
-    # incumbents, positions as rp.totals (PFF's, else snap-count, else draft)
-    s, _, games, dp = rn.load()
-    pl = pd.read_parquet(RAW / "players.parquet").dropna(subset=["pfr_id"])
-    ppos = {i: rp.PFF.get(q) for i, q in zip(pl.pfr_id, pl.pff_position) if rp.PFF.get(q)}
-    dpos = dict(zip(dp.pfr_player_id, dp.position.map(rn.DRAFT_POS)))
-    s["grp"] = [ppos.get(p) or rn.SNAP_POS.get(q) or dpos.get(p) for p, q in zip(s.pfr_player_id, s.position)]
-    ps = (s.groupby(["season", "team", "pfr_player_id"])
-          .agg(pct=("pct", "sum"), grp=("grp", lambda x: x.mode().iloc[0] if x.notna().any() else None)).reset_index())
-    ps["se"] = ps.pct / ps.set_index(["season", "team"]).index.map(games)
-    A = dz.attributes()
-    years = sorted(S.year.astype(int).unique())
-    I = dz.types(pd.concat([dz.incumbents(ps, y, A) for y in years], ignore_index=True))
-    me = ps.set_index(["season", "team", "pfr_player_id"]).se
-    last_season = int(ps.season.max())
-    I["now"] = [float(me.get((y, tm, p), 0.0)) if y <= last_season else np.nan
-                for y, tm, p in zip(I.year, I.team, I.pfr_player_id)]
-    first = ps.groupby("pfr_player_id").season.min()
-    dy = dict(zip(dp.pfr_player_id, dp.season))
-    I["exp"] = I.year - np.array([dy.get(p, first.get(p, np.nan)) for p in I.pfr_player_id], float)
-    I["age_"] = I.age.fillna(I.age.median())
-    I["ab"] = pd.cut(I.age_, idv.AGE_BINS, labels=idv.AGE_LAB).astype(str)
-    I["eb"] = pd.cut(I.exp.fillna(7), idv.EXP_BINS, labels=idv.EXP_LAB).astype(str)
-    I = idv.add_availability(I, s, games)  # missed games last season (injuries), and two seasons ago
-    m = smf.ols(idv.FORMS["+inj"], I[I.now.notna()]).fit()
-    I["proj"] = m.predict(I).clip(lower=0)
-    I["rg"] = I.grp.where(~I.grp.isin(["T", "G", "C"]), "OL")
-    sh = sf.season_shares()
-    f = sf.expected_curve(sf.board_players(), sh.groupby(["pfr_player_id", "season"]).share.sum())
+    import room_crowding as rc
+    years = sorted(set(S.year.astype(int)) | set(range(2015, 2026)))
+    I, rooms, ps = rc.build(years)
+    picks, f = rc.pick_adds(years)
+    I, k = rc.final(I, rooms, ps, picks)
     e1 = {g: [round(float(f(g, x)[0]), 3) for x in T_GRID] for g in GROUPS}
-    names = s.drop_duplicates("pfr_player_id").set_index("pfr_player_id").player
     out = {}
-    for y in years:
-        for tm in S[S.year == y].team:
-            room = {}
-            for g in ROOM_GROUPS:
-                med = lg[g][[x for x in lg[g].index if y - 4 <= x < y]].mean()
-                dev = last.get((y - 1, tm, g), np.nan)
-                room[g] = round(float(med + (b[g] * dev if pd.notna(dev) else 0.0)), 2)
-            out[(y, tm)] = {"room": room, "inc": {}}
-        J = I[(I.year == y) & ((I.se >= 0.03) | (I.proj >= 0.03))].sort_values("proj", ascending=False)
-        for r in J.itertuples():
-            if (y, r.team) in out and r.rg in ROOM_GROUPS:
-                out[(y, r.team)]["inc"].setdefault(r.rg, []).append(
-                    [str(names.get(r.pfr_player_id, r.pfr_player_id)), round(float(r.se), 2), round(float(r.proj), 2), r.qt])
-    return out, e1
+    for y, tm in zip(S.year.astype(int), S.team):
+        room = rooms.get((y, tm))
+        out[(y, tm)] = {"room": {g: round(v, 2) for g, v in room.items()} if room else {}, "inc": {}}
+    J = I[I.year.isin(set(S.year.astype(int))) & ((I.se >= 0.03) | (I.proj >= 0.03))].sort_values("proj", ascending=False)
+    for r in J.itertuples():
+        if (r.year, r.team) in out and r.rg in rc.ROOM_GROUPS:
+            out[(r.year, r.team)]["inc"].setdefault(r.rg, []).append(
+                [str(r.name), round(float(r.se), 2), round(float(r.proj), 2), r.qt])
+    return out, e1, {g: round(v, 3) for g, v in k.items()}
 
 def _delta(arr) -> bytes:
     """A table (groups, 3 levels, T, K) as int16 (value x SCALE), differenced along K then T within each
@@ -303,7 +258,7 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
     real = realized_arrays(S, R, verbose)
     night = night_trades(S, verbose)
     extra = realized_extra(S, R, night, verbose)
-    rooms, e1 = room_info(S)
+    rooms, e1, room_k = room_info(S)
     keys, blobs = {}, []
     fkeys, fblobs = {}, []  # family-units tables (positions only): the "depends on position pricing" label
     teams, rblobs, roff = {}, [], 0
@@ -378,7 +333,7 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
     rounds = {str(int(y)): g.groupby("round").pick.min().astype(int).tolist() for y, g in dp.groupby("season")}
     meta = {"rounds": rounds, "groups": GROUPS + SPEC_GROUPS, "T": T_GRID.tolist(), "K": K_GRID.tolist(), "fw": FALL_WEIGHT, "off": OFF_BOARD_RANK,
             "scale": SCALE, "real_scale": REAL_SCALE, "blends": blends, "n_tables": len(blobs), "fgroups": GROUPS, "latest_av_season": int(dp.season.max()),
-            "room_groups": ROOM_GROUPS, "e1": e1}
+            "room_groups": ROOM_GROUPS, "e1": e1, "room_k": room_k}
     data = json.dumps({"meta": meta, "teams": teams, "pools": pools}, separators=(",", ":"), ensure_ascii=False)
     b64 = lambda b: base64.b64encode(gzip.compress(b, 9)).decode()
     html = TEMPLATE.read_text().replace("__DATA_GZ__", b64(data.encode())).replace("__TABLES_GZ__", b64(b"".join(blobs))) \

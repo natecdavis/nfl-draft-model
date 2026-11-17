@@ -9,7 +9,8 @@ Roster need, as known on draft day (drafts 2014-2025; weekly snap counts from 20
     added     = signed with this team that year (not a rookie of this draft), or traded for
                 before the draft: their prior-season starter-equivalents at the position.
   open spots = typical starter-equivalents at the position (league median) - (returning + added).
-  Note: contracts carry only the year signed, so a few signings after the draft leak in.
+  Contracts carry only the year signed; signings after the draft are screened out by snaps and order
+  (roster_need.signed_by_draft, Nov 16 2026).
 Position of a roster player: from his draft record (same mapping as the rookies), else his
 snap-count position.
 
@@ -58,40 +59,90 @@ def load():
 
 
 _PLAYED = None
+_FIRST = None
+_EVENTS = None
+
+
+def _snaps():
+    """(pfr id, season) -> teams he took regular-season snaps for; (pfr id, season, team) -> first week."""
+    global _PLAYED, _FIRST
+    if _PLAYED is None:
+        sc = pd.concat([pd.read_parquet(RAW / f, columns=["pfr_player_id", "season", "week", "team", "game_type"])
+                        for f in ("snap_counts.parquet", "snap_counts_2026.parquet")], ignore_index=True)
+        sc = sc[sc.game_type == "REG"].assign(team=lambda d: d.team.map(team))
+        _PLAYED = {k: set(g) for k, g in sc.groupby(["pfr_player_id", "season"]).team}
+        _FIRST = sc.groupby(["pfr_player_id", "season", "team"]).week.min().to_dict()
+    return _PLAYED, _FIRST
 
 
 def _played_for() -> dict:
-    """(pfr id, season) -> teams he took regular-season snaps for."""
-    global _PLAYED
-    if _PLAYED is None:
-        sc = pd.read_parquet(RAW / "snap_counts.parquet", columns=["pfr_player_id", "season", "team", "game_type"])
-        sc = sc[sc.game_type == "REG"]
-        _PLAYED = {k: {team(t) for t in g} for k, g in sc.groupby(["pfr_player_id", "season"]).team}
-    return _PLAYED
+    return _snaps()[0]
+
+
+def signing_events() -> pd.DataFrame:
+    """Signings (and waiver claims) from OTC's per-player contract history, in its (chronological) order:
+    pfr, year, team, order. A contract carried to a team that trades for him ("Traded" then the same deal under
+    the new team) is a trade, not a signing (trades come dated from trades.parquet); practice-squad deals and
+    rookie-year deals are dropped. Until Nov 16 2026 the contract rows were used, where OTC repeats a deal under
+    every team it passed through (Stefon Diggs's 2022 Bills extension also listed as a 2022 Texans signing)."""
+    global _EVENTS
+    if _EVENTS is not None:
+        return _EVENTS
+    pl = pd.read_parquet(RAW / "players.parquet").dropna(subset=["pfr_id"])
+    g2p = dict(zip(pl.gsis_id, pl.pfr_id))
+    c = pd.read_parquet(RAW / "contracts.parquet", columns=["gsis_id", "draft_year", "contract_history"])
+    c = c[c.gsis_id.map(g2p).notna() & c.contract_history.notna()]
+    c["n"] = c.contract_history.map(len)
+    c = c.sort_values("n").drop_duplicates("gsis_id", keep="last")
+    nick = dict(zip(*pd.read_parquet(RAW / "teams.parquet")[["team_nick", "team_abbr"]].T.values))
+    nick.update({"Washington": nick.get("Commanders", "WAS"), "Redskins": nick.get("Commanders", "WAS"),
+                 "Oilers": nick.get("Titans", "TEN")})
+    rows = []
+    for gs, dy, hist in zip(c.gsis_id, c.draft_year, c.contract_history):
+        prev = None
+        for i, x in enumerate(hist):
+            if x.get("contract_type") == "Practice" or x.get("year_signed") is None:
+                continue
+            y = int(x["year_signed"])
+            carried = (prev is not None and prev.get("status") in ("Traded", "Claimed")
+                       and prev.get("year_signed") == x.get("year_signed") and prev.get("apy") == x.get("apy"))
+            if not (carried and prev.get("status") == "Traded") and not (pd.notna(dy) and y == int(dy)):
+                rows.append((g2p[gs], y, team(nick.get(x["team"], x["team"])), i))
+            prev = x
+    _EVENTS = pd.DataFrame(rows, columns=["pfr", "year", "tm", "order"])
+    return _EVENTS
+
+
+def signed_by_draft(year) -> dict:
+    """pfr id -> teams he signed with in `year` before that year's draft. Contracts carry only the year signed;
+    dropped as after the draft (Nov 16 2026): a signing with a team he joined only after taking snaps for another
+    team that season (in-season pickups: Le'Veon Bell, Chiefs 2020), and a later signing the same year with a
+    different team when he wasn't with the new team in week 1 (Antonio Brown, Patriots 2019, after the Raiders)."""
+    played, first = _snaps()
+    E = signing_events()
+    E = E[E.year == year].sort_values(["pfr", "order"])
+    out = {}
+    for p, d in E.groupby("pfr"):
+        keep, seen = set(), []
+        for tm in d.tm:
+            f = first.get((p, year, tm))
+            if f is not None and any(w < f for (pp, yy, t2), w in ((k, first[k]) for k in
+                                     [(p, year, t2) for t2 in played.get((p, year), ()) if t2 != tm])):
+                seen.append(tm)
+                continue
+            if any(t != tm for t in seen) and (f is None or f > 1):
+                seen.append(tm)
+                continue
+            keep.add(tm)
+            seen.append(tm)
+        if keep:
+            out[p] = keep
+    return out
 
 
 def departures_and_adds(year):
     """pfr ids that left each team before the draft, and pfr ids each team added."""
-    pl = pd.read_parquet(RAW / "players.parquet").dropna(subset=["pfr_id"])
-    g2p = dict(zip(pl.gsis_id, pl.pfr_id))
-    c = pd.read_parquet(RAW / "contracts.parquet")
-    nick = dict(zip(*pd.read_parquet(RAW / "teams.parquet")[["team_nick", "team_abbr"]].T.values))
-    c["pfr"] = c.gsis_id.map(g2p)
-    cy = c[(c.year_signed == year) & c.pfr.notna() & (c.draft_year != year)].copy()
-    # OTC lists every team a contract passed through ("LAR/DAL/MIA"), not always in order ("PHI/CHI" for a CHI
-    # signing later traded to PHI). Signing team = the listed team he played for in the season signed, else the
-    # first listed. (Until Nov 16 2026 this took the last listed team: a re-signed player later traded looked
-    # like he left before the draft and joined the later team; ~3% of contracts.)
-    played = _played_for()
-    def signer(x, p):
-        ts = [team(nick.get(t, t)) for t in str(x).split("/")]
-        if len(ts) > 1:
-            hit = [t for t in ts if t in played.get((p, year), ())]
-            if hit:
-                return hit[0]
-        return ts[0]
-    cy["tm"] = [signer(x, p) for x, p in zip(cy.team, cy.pfr)]
-    signed = cy.groupby("pfr").tm.agg(set).to_dict()  # player -> teams he signed with this year
+    signed = signed_by_draft(year)  # player -> teams he signed with this year, before the draft
     t = pd.read_parquet(RAW / "trades.parquet")
     t["date"] = pd.to_datetime(t.trade_date)
     t = t[(t.date > pd.Timestamp(f"{year - 1}-08-01")) & (t.date < pd.Timestamp(DRAFT_START[year])) & t.pfr_id.notna()]

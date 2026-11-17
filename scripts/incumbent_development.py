@@ -83,6 +83,10 @@ FORMS = {
     # adopted for the simulator's room check (Nov 16 2026): missed time by quality tier and age, plus two seasons ago
     "+inj": "now ~ C(grp):se + C(qt):se + C(qt) + C(ab):se + C(ab) + C(eb):se + C(eb) + miss + C(ab):miss + C(qt):miss"
             " + se2 - 1",
+    # room check v2 (Nov 16 2026, scripts/room_crowding.py): + players with no snaps last season (out1 = missed /
+    # red12 / red3; displacement.missed), by kind and their se two seasons ago
+    "+out": "now ~ C(grp):se + C(qt):se + C(qt) + C(ab):se + C(ab) + C(eb):se + C(eb) + miss + C(ab):miss + C(qt):miss"
+            " + se2 + C(out1, Treatment('no')) + C(out1, Treatment('no')):se2 - 1",
 }
 
 
@@ -90,7 +94,7 @@ def part_a(I):
     P = []
     for y in range(2017, 2025):
         tr, te = I[I.year < y], I[I.year == y].copy()
-        for k, f in FORMS.items():
+        for k, f in ((k, f) for k, f in FORMS.items() if k != "+out"):  # +out: room_crowding.py
             te[k] = smf.ols(f, tr).fit().predict(te).clip(lower=0)
         P.append(te)
     P = pd.concat(P)
@@ -98,7 +102,7 @@ def part_a(I):
     # shown for reference as a forecast of snaps
     P["rule"] = P.se * P.qt.map({"high": 1.0, "mid": 0.6}).fillna(0.0)
     P["last"] = P.se
-    cands = ["last", "rule"] + list(FORMS)
+    cands = ["last", "rule"] + [k for k in FORMS if k != "+out"]
     pl = {c: np.sqrt(((P.now - P[c]) ** 2).mean()) for c in cands}
     G = P.groupby(["year", "team", "grp"])[["now"] + cands].sum()
     gr = {c: np.sqrt(((G.now - G[c]) ** 2).mean()) for c in cands}
