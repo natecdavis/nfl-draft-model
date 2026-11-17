@@ -3413,3 +3413,29 @@ hybrid +0.44 (-0.02 to +0.92); starts -0.49 -> -0.19; AV -2.7 -> -0.6; pay +0.37
   (five starters every snap; AV shares team offense to linemen), so part of that gain is the yardstick.
 - The hybrid is its own extreme: no EDGE, DL, LB or TE in rounds 2-4. Fresh classes (2023-25) not checked (no
   family-units review for them yet). Decision pending.
+
+## Hybrid pricing follow-ups: softer versions and the 2023-25 classes (`scripts/hybrid_variants.py`, Nov 17 2026)
+
+The hybrid above swung rounds 2-4 from WR-heavy to OL-heavy with no EDGE / DL / LB / TE. Two checks, from a rerun of the
+review loop under both pricings that saves every available player's value at every pick 2014-25 (the single-pricing
+top choice matches the stored production recommendation at 100% of picks). Rounds 2-4 only; round 1 and 5-7 unchanged.
+
+| Rule (rounds 2-4) | Picks changed | EDGE / DL / LB / TE recs | Titles single | Titles family | Starts | AV | Pay |
+|---|---|---|---|---|---|---|---|
+| production | - | 186 / 38 / 16 / 25 | | | | | |
+| hybrid (family rec wherever it differs) | 43% | 0 / 0 / 0 / 0 | -0.029 | +0.029 | **+0.16** | **+0.92** | +0.09 |
+| blend (50/50 of the two values) | 29% | 20 / 1 / 0 / 0 | +0.006 | +0.039 | +0.12 | +0.83 | +0.12 |
+| near80 (family rec if production values it within 20%) | 30% | 22 / 1 / 0 / 2 | -0.003 | +0.030 | +0.11 | +0.75 | +0.12 |
+| near90 (within 10%) | 20% | 71 / 28 / 3 / 8 | **-0.020** | -0.002 | +0.04 | +0.30 | +0.05 |
+
+Paired rule minus production over all picks 2014-22; bold = interval excludes 0 (resampling draft years).
+
+- **Every rule that keeps the gains drops EDGE and DL.** Family pricing values EDGE / IDL far below production, so any
+  mix of the two leaves almost none in rounds 2-4. The one version that keeps some (near90) loses on titles under
+  production's yardstick and gains nothing elsewhere. The starts / AV gains are the OL swap itself, and both yardsticks
+  favor OL by construction.
+- **2023-25 classes** (starts and AV to date, 1-3 seasons): differences are tiny (hybrid starts -0.007, AV +0.03 per
+  pick; blend AV +0.11). No reversal and no confirmation; too early.
+
+Verdict: not adopted. No version improves on titles; the outside-yardstick gains come with a rounds 2-4 board with
+almost no front-seven picks. Recheck with the 2023-24 classes at four seasons.
