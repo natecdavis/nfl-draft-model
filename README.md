@@ -3340,3 +3340,30 @@ to 0.35 (LB); no group's quality interaction is significant.
   starter-equivalent vs a gain of 0.13-0.18). Selection: fallers show no larger penalty for good rooms (if anything
   positive, p 0.06-0.07 over 4 seasons); their overall net gain is higher (other picks partly go where rooms were about
   to decline, which biases their gain down). No support for a quality-of-displaced-snaps term. Not adopted.
+
+## Cap side of a pick (`scripts/cap_side.py`, Nov 16 2026)
+
+Follow-up to "Net gain of a pick": does the ~80% of a rookie's own value that doesn't show up on the field come back
+as cap money? Same units, treatment E and controls (+ last season's spend at the group); cap hits from OTC season
+histories (every player carried, % of the league cap; covers ~80-84% of team caps). Per 1.0 of the rookies' expected
+own value, summed over seasons 1-4 (season 1 / 1-2 similar):
+
+| Outcome | All picks | Fallers |
+|---|---|---|
+| Room value at the group (field) | +0.18 (0.11 to 0.25) | +0.24 (0.11 to 0.37) |
+| Veteran spend at the group | -0.54 (-0.61 to -0.47) | -0.61 (-0.71 to -0.50) |
+| Rookies' own cap | +0.45 (0.43 to 0.47) | +0.45 (0.41 to 0.49) |
+| Spend at other positions | +0.14 (-0.01 to 0.28) | +0.26 (0.01 to 0.51) |
+| Room value at other positions (field) | -0.06 (-0.29 to 0.18) | -0.09 (-0.49 to 0.31) |
+| Team total spend | +0.04 (-0.08 to 0.16) | +0.10 (-0.10 to 0.30) |
+
+- Teams do cut veteran spending where they draft, by about the rookie's own salary: spending at the position is
+  nearly flat (-0.54 + 0.45 = -0.09) while the field improves +0.18. The small saving (and a bit more) goes to other
+  positions, where no value gain is detectable (CI +-0.23). Total spend unchanged.
+- The model credits a pick with surplus (own value - rookie cost, `src/value.py`): ~0.55 per 1.0 of own value. Realized
+  at the position (field + net cap saved): ~0.27, about half; nothing detectable comes back elsewhere.
+- By group (seasons 1-4; field + net cap at the group, as a share of the credited surplus): EDGE 0.57, DL 0.54, OL 0.51,
+  WR 0.50, RB 0.34, LB 0.30, DB 0.29, TE 0.10. Field CIs are +-0.15-0.25 and veteran-spend CIs +-0.15-0.30, so the
+  groups overlap; the ordering also disagrees with the betting-line test in "Replacement level by position" (which
+  found EDGE / RB / IDL over-credited). A roughly uniform shortfall doesn't change rankings; position-specific
+  rescaling has failed the choice test before. Not adopted.
