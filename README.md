@@ -3389,3 +3389,27 @@ values x r / mean r, r refit leaving out the draft chosen. Harness as `quality_n
 - Rule: the netgain rule (R1-4: QB 302 -> 234, EDGE 135 -> 214, T 48 -> 91, LB 16 -> 3, TE 17 -> 0) loses to the
   current rule on raw scoring (significantly, mostly round 1) and doesn't win even on net-gain scoring, which uses the
   same shares and so favors it. Not adopted; the position values stay.
+
+## Hybrid position pricing: family units in rounds 2-4 (`scripts/hybrid_units_choice.py`, Nov 16 2026)
+
+Rule: round 1 and rounds 5-7 as production; rounds 2-4, the family-units (OL-friendly) recommendation where it differs.
+Family review rerun with today's code (QB-need contract split), both leave-one-draft-out, 2014-22, 2,206 picks; the
+hybrid changes 426 (44% of rounds 2-4). Rounds 2-4 recommendations, production -> hybrid: WR 372 -> 177, G 177 -> 311,
+T 48 -> 239, C 1 -> 29, QB 188 -> 216, EDGE 131 -> 0, IDL 23 -> 0, LB 16 -> 0, TE 16 -> 0.
+
+| Hybrid minus production | All picks | Rounds 2-4 | The 426 switched picks |
+|---|---|---|---|
+| Titles, single-units yardstick | -0.029 (-0.094 to +0.033) | -0.066 | -0.151 (-0.481 to +0.180) |
+| Titles, family-units yardstick | +0.029 (-0.034 to +0.096) | +0.066 | +0.150 (-0.193 to +0.499) |
+| Seasons started | +0.158 (+0.020 to +0.328) | +0.359 (+0.040 to +0.738) | +0.82 |
+| AV | +0.92 (+0.10 to +1.97) | +2.09 (+0.25 to +4.46) | +4.8 |
+| Second-contract pay (% of cap) | +0.086 (-0.137 to +0.361) | +0.194 (-0.292 to +0.822) | +0.44 (-0.71 to +1.76) |
+
+Rounds 2-4, recommendation minus the team's pick where they disagree: titles (single) production +0.43 (+0.10 to +0.81),
+hybrid +0.44 (-0.02 to +0.92); starts -0.49 -> -0.19; AV -2.7 -> -0.6; pay +0.37 -> +0.43.
+
+- Titles tie (signs depend on the yardstick's own pricing); starts and AV favor the hybrid significantly; pay, the
+  most position-neutral outside yardstick, leans its way but within noise. Starts and AV structurally credit OL
+  (five starters every snap; AV shares team offense to linemen), so part of that gain is the yardstick.
+- The hybrid is its own extreme: no EDGE, DL, LB or TE in rounds 2-4. Fresh classes (2023-25) not checked (no
+  family-units review for them yet). Decision pending.
