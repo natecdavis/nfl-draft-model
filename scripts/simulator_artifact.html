@@ -400,12 +400,12 @@ function openTops(RS, o) {
 }
 // row classes: the team's real pick (gold) and the top player at each open position (green bar at the left edge)
 const rowCls = (tops, x, k) => [x.at === k ? "teampick" : "", tops.has(x.idx) ? "ropen" : ""].filter(Boolean).join(" ");
-// "76% +19% → 95%": share of his position's room projected filled now (veterans + your picks), what he would add
-// (expected first-season share at his consensus rank, less the share k veterans would otherwise have taken), and the
-// total after
+// "76% +19% → 95%": share of his position's room projected filled now (veterans, after crowding, + your picks), his
+// own expected first-season share at his consensus rank, and the total (his share mostly comes out of veterans'
+// snaps, so a total over 100% means he'd push veterans aside rather than sit)
 function roomAdd(RS, x) {
   const r = RS[roomGrp(x.g)]; if (!r) return "";
-  const f = 1 - r.open / r.R, a = (1 - r.k) * e1Of(x.g, x.rank) / r.R, after = f + a, pc = v => Math.round(v * 100) + "%";
+  const f = 1 - r.open / r.R, a = e1Of(x.g, x.rank) / r.R, after = f + a, pc = v => Math.round(v * 100) + "%";
   return `${pc(f)} +${pc(a)} → <span class="${after >= 1 ? "rfull" : after >= 0.9 ? "rnear" : ""}">${pc(after)}</span>`;
 }
 function roomNote(RS, top) {
@@ -417,7 +417,7 @@ function roomNote(RS, top) {
       (who ? `. Last season → projected: ${who}` : ". No incumbents");
     return `<span class="rcell${g === tg ? " rtop" : ""}" title="${esc(tip)}"><b>${pos(g)}</b> <span class="${openCls(r.open)}">${openTxt(r.open)}</span></span>`;
   }).join("");
-  return `<div class="room"><div class="d"><b>Room check</b> <small>(information only, the ranking ignores it)</small>: projected open snaps at each position this season, in starters (1 = every snap): the room left for rookies after the team's incumbents' projected snaps, your picks so far, and the share of any gap veterans would fill (hover for who). The Room column shows each player's position as % of its room filled now, what he would add net of the veterans he'd push aside, and the total; <span class="ropen-key"></span>marks the model's top player at each position not yet projected full.</div><div class="rgrid">${cells}</div></div>`;
+  return `<div class="room"><div class="d"><b>Room check</b> <small>(information only, the ranking ignores it)</small>: projected open snaps at each position this season, in starters (1 = every snap): the room left for rookies after the team's incumbents' projected snaps, your picks so far, and the share of any gap veterans would fill (hover for who). The Room column shows each player's position as % of its room filled now, his own expected first-season share, and the total (over 100%: he'd mostly push veterans aside); <span class="ropen-key"></span>marks the model's top player at each position not yet projected full.</div><div class="rgrid">${cells}</div></div>`;
 }
 
 function render() {
