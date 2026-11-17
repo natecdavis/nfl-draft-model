@@ -3367,3 +3367,25 @@ own value, summed over seasons 1-4 (season 1 / 1-2 similar):
   groups overlap; the ordering also disagrees with the betting-line test in "Replacement level by position" (which
   found EDGE / RB / IDL over-credited). A roughly uniform shortfall doesn't change rankings; position-specific
   rescaling has failed the choice test before. Not adopted.
+
+## Choice test with net-gain scoring (`scripts/netgain_choice.py`, Nov 16 2026)
+
+Net-gain share r per group (field + veteran spend saved - rookies' cap, over the credited surplus; `cap_side.py`,
+seasons 1-4, drafts 2014-22): DB 0.29, DL 0.54, EDGE 0.57, LB 0.30, OL 0.51, RB 0.34, TE 0.10, WR 0.50 (mean 0.40).
+Net-gain scoring = realized titles x r of the chosen player's group (QB: the mean). Rule "netgain" = non-QB table
+values x r / mean r, r refit leaving out the draft chosen. Harness as `quality_need.py`, every pick 2014-22
+(current rule = stored review at 100%).
+
+| | Raw scoring (realized titles) | Net-gain scoring |
+|---|---|---|
+| Model (current) minus team where they disagree | +0.098 (-0.335 to +0.575) | +0.090 (-0.100 to +0.293) |
+| netgain minus current, paired, all picks (same choice 66%) | -0.039 (-0.078 to -0.003) | -0.012 (-0.028 to +0.005) |
+| same, round 1 | -0.190 (-0.376 to -0.010) | -0.080 (-0.176 to +0.002) |
+| same, rounds 5-7 | -0.057 (-0.092 to -0.028) | -0.024 (-0.042 to -0.007) |
+
+- Scoring: crediting only what teams realize (about 40% of the surplus on average) leaves the model's edge over teams
+  about where it was (+0.09 vs +0.10; still not significant): its disagreements lean to positions with higher net-gain
+  shares than the teams' picks.
+- Rule: the netgain rule (R1-4: QB 302 -> 234, EDGE 135 -> 214, T 48 -> 91, LB 16 -> 3, TE 17 -> 0) loses to the
+  current rule on raw scoring (significantly, mostly round 1) and doesn't win even on net-gain scoring, which uses the
+  same shares and so favors it. Not adopted; the position values stay.
