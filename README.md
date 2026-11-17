@@ -3288,3 +3288,25 @@ Reruns with the contract fix (old -> new; no conclusion changes):
 | WR stacking A, WR incumbents when a R1-2 WR arrives | -0.76 (-1.71 to +0.20) | -0.83 (-1.78 to +0.12) |
 | Availability, needs vs truncated scatter, log loss | -0.001 | -0.001 |
 | Incumbent development A, team-group RMSE: last / base / +both | 0.768 / 0.526 / 0.506 | 0.682 / 0.497 / 0.481 |
+
+## Position labels in the room check: CB / S and EDGE / DL / LB (Nov 16 2026)
+
+`scripts/position_rooms.py`. The room check counts a pick in the room of his consensus-board label; rooms count
+veterans by PFF position. Drafted defenders 2014-25 with a PFF position (1,373): board CB -> S 44 of 348, S -> CB 18
+of 204; EDGE -> DL 14, EDGE -> LB 15 of 280; DL -> EDGE 24 of 288; LB -> EDGE 24 of 253. Can pre-draft information
+place them better? Each draft predicted from the others:
+
+| Family | Model | Accuracy (top room) | Log loss | Share of picks' expected snaps in the wrong room |
+|---|---|---|---|---|
+| CB / S | board label (current) | 0.888 | 0.776 | 0.097 |
+| | P(room given Hasan's label code) | 0.888 | 0.362 | 0.184 |
+| | + combine weight, height, 40 (multinomial logit) | 0.884 | 0.330 | 0.183 |
+| EDGE / DL / LB | board label (current) | 0.906 | 0.648 | 0.089 |
+| | P(room given label code) | 0.906 | 0.392 | 0.146 |
+| | + combine size | 0.904 | 0.271 | 0.156 |
+
+No model picks the right room more often than the label; the moves aren't predictable from size, speed or the
+label's finer code (NCB, DL5T, OB). Splitting each pick across rooms by probability is better calibrated (log loss)
+and cuts the RMSE of picks' expected snaps per team-room 0.106 -> 0.096, but raises the mean absolute error
+(0.037 -> 0.056) and is ~0.01 of a starter against a room error of ~0.29. Brugler's guide (2019-23 only) uses the
+same kinds of labels (L.J. Collier: EDGE). Not adopted: labels stay as they are.
