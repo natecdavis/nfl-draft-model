@@ -3310,3 +3310,33 @@ label's finer code (NCB, DL5T, OB). Splitting each pick across rooms by probabil
 and cuts the RMSE of picks' expected snaps per team-room 0.106 -> 0.096, but raises the mean absolute error
 (0.037 -> 0.056) and is ~0.01 of a starter against a room error of ~0.29. Brugler's guide (2019-23 only) uses the
 same kinds of labels (L.J. Collier: EDGE). Not adopted: labels stay as they are.
+
+## Net gain of a pick: room value and the quality of displaced snaps (`scripts/net_room_value.py`, Nov 16 2026)
+
+Question: with crowding (a rookie's snaps mostly come out of veterans'), should a pick be valued by its gain over the
+snaps it displaces, and does that depend on how good the incumbents are? Earlier tests used the rookie's own value
+(quality need: good and weak incumbents cost him about equally), which a team's selection could bias: teams rarely
+draft early into strength unless they know something. Outcome here: the team's whole room value (everyone at the
+position, snap share priced at quality on the veteran pay curve, % of cap), team x season x group, drafts 2014-25,
+non-QB. Treatment E = expected own value of the team's round 1-3 picks there (slot and consensus rank), interacted with
+draft-day incumbents' starter-equivalents by quality tier (centred on the average room that drafted). Controls: tiers,
+last season's room value, group x season FE; team-clustered. Fallers = top third of pick vs consensus rank (>= ~7%
+later than rank; 388 of 1,159 rookies), taken mostly because they were there.
+
+| Horizon | Room gain per 1.0 of E (all) | x 1 more good incumbent se | Fallers | Fallers x good se | Others | Others x good se |
+|---|---|---|---|---|---|---|
+| Season 1 | 0.05 (-0.07 to 0.18) | +0.03 (-0.12 to 0.17) | 0.19 (0.02 to 0.36) | +0.09 | -0.05 | -0.03 |
+| Seasons 1-2 | 0.13 (0.04 to 0.22) | -0.02 (-0.14 to 0.10) | 0.27 (0.13 to 0.40) | +0.03 | 0.04 | -0.05 |
+| Seasons 1-4 | 0.18 (0.11 to 0.26) | +0.04 (-0.08 to 0.15) | 0.24 (0.12 to 0.36) | +0.15 (-0.01 to 0.30) | 0.15 | -0.03 |
+
+Mean E per rookie: 1.7 (season 1), 4.0 (1-2), 8.1 (1-4) % of cap. By group (seasons 1-2) the gain is 0.02 (DB, OL)
+to 0.35 (LB); no group's quality interaction is significant.
+
+- Net gain: only ~5-25% of a rookie's own pay-curve value shows up as a better room on the field; the rest is snaps
+  veterans would have played at similar priced quality. This is the replacement-currency issue in "Replacement level by
+  position" seen from the team side. It ignores cap: displaced veterans' pay can be cut or never spent, which the
+  pay-curve currency counts as the rookie's value; this test measures the field only.
+- Displaced quality: no sign that a good room shrinks the net gain (interaction ~0, CI about +-0.13 per good
+  starter-equivalent vs a gain of 0.13-0.18). Selection: fallers show no larger penalty for good rooms (if anything
+  positive, p 0.06-0.07 over 4 seasons); their overall net gain is higher (other picks partly go where rooms were about
+  to decline, which biases their gain down). No support for a quality-of-displaced-snaps term. Not adopted.
