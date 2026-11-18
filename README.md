@@ -27,7 +27,7 @@ middle-of-the-pack team, rebuilding team. Real teams come later.
 - [x] M3: simulator (src/simulate.py) - real schedule + seeding + bracket. Estimated: game noise 12.6 pts, home edge 2.0, true strength sd 5.3, carryover 0.60. Playoff-game Brier 0.226 vs betting line 0.219; champion rank pattern matches history
 - [x] M3b: bridge (src/bridge.py) - points of team strength per 1% of cap in player value: QB ~0.31-0.34, everyone else ~0.19, league-wide ~0.22. Same answer with leak-free pre-season prices. Position splits beyond QB vs non-QB do not predict better out of sample
 - [x] M4: pick value in Super Bowl odds (src/pick_value.py, chart in reports/pick_value_titles.png). Assumes: the pick fills a need (his snaps would otherwise go to a min-salary player); cap is charged at 0.10 pts per 1% (was 0.19, the bridge's non-QB rate; see 'Cap cost'); situations start at +7 / +7 then -3 from season 3 / 0 / -5, drifting to average at 60% carryover
-- [x] Trade calculator (src/trade.py): evaluate(ctx, situation, give=[Pick...], get=[Pick...]) -> change in Super Bowls over 5 seasons. Future picks' slots drawn from the source team's likely finish. Scored 394 real pick-only trades 2013-2025 (`python src/trade.py --real-only`).
+- [x] Trade calculator (src/trade.py): evaluate(ctx, situation, give=[Pick...], get=[Pick...]) -> change in Super Bowls over 5 seasons. Future picks' slots drawn from the source team's likely finish. Scored 396 real pick-only trades 2013-2025 (`python src/trade.py --real-only`).
 - [x] Real teams (src/teams.py -> reports/teams_2027.md): market ratings from 2026 betting lines, QB situation from snaps/contracts/age, 2027 slots from simulating the rest of 2026. Per-team overrides in OVERRIDES. Note: QB cap hit from a rookie-deal QB's second contract now lasts every season (was fading); M4 numbers for that situation moved by <=0.2.
 - [x] Better player outlook (src/prospects.py, src/college.py, src/college_features.py). Rolling test 2016-21 vs slot-only (log loss 0.7655): age + athletic testing 0.7606 (0.6% better, borderline vs chance; gains at TE, ED, S); adding college production (free play-by-play 2008-21, 85-98% matched) 0.7615 = no extra gain. Free college play-by-play host has no 2022+ seasons as of Nov 2026.
 - [x] Board signal test: ESPN pre-draft big board 2012-21 (github.com/JackLich10/nfl-draft-data, no license stated: used for analysis only, not redistributed; file kept out of git under data/). Board-vs-pick gap has no signal (fallers: 13.4% stars vs 13.0% expected from slot; reaches: 23.3% vs 24.0%). Rolling test: slot+board 0.7647 vs slot 0.7655; age+athletic+board 0.7600 (best overall, 0.7% better than slot, 95% range of gain barely above zero).
@@ -2371,6 +2371,8 @@ slot now (slot drawn from the original owner's prior-season strength):
 - Refit after numbering future late-round picks with comp picks (below): chart exp(-0.081 (k-1)^0.747), premium
   x1.11, next 1st 0.48 (#43 now), rounds 2-7 0.64 (0.56-0.74; was 0.57 because rounds 4-7 were numbered too early):
   next 2nd ~#68, 3rd ~#103. The app uses the refit.
+- Refit again on the corrected trade log (Nov 18, 593 trades; "Trade log corrections" below): chart
+  exp(-0.078 (k-1)^0.756), premium x1.10, next 1st 0.48, rounds 2-7 0.63; equivalents unchanged (#43, #68, #103).
 
 Model (`src/trade.py`, titles over 5 seasons): equivalent pick this year for next year's 1st (middle team's / own):
 
@@ -3572,5 +3574,14 @@ and values are unchanged. Of 802 trade sides, 38 verdicts changed (mean absolute
 sign) and 4 were added (the two repaired 2025 trades); the total over all sides went from +52.6 to +50.4. The market
 chart refit on 593 trades instead of 591: lam 0.081 -> 0.078, beta 0.747 -> 0.756; the discount on picks two years
 out moved 0.02 -> 0.10 (five trades, an extrapolation as before). The simulator test now reproduces 410 of 416 real
-drafts (398 before). Artifact version 37. Old outputs in `data/derived/before_tradelog_fix/`. Not rerun:
-`future_pick_test.py` (full), `future_pick_realized.py`, `trade.py` real trades.
+drafts (398 before). Artifact version 37. Old outputs in `data/derived/before_tradelog_fix/`.
+
+Reruns with the corrected log (same day):
+- `future_pick_test.py` (full): market chart exp(-0.078 (k-1)^0.756), premium x1.10, next 1st 0.48 (0.39-0.54),
+  rounds 2-7 0.63 (0.56-0.74), two years out 0.10 (0.02-0.27). A middle team's next 1st still trades like #43
+  (#37-#53), next 2nd #68, next 3rd #103. The model table is identical (it doesn't use the log).
+- `trade.py --real-only`: 396 trades (was 394; the two repaired 2025 trades). The 42 sides of corrected trades
+  moved 0.04% of a title on average (max 0.21; two changed up/down role); the other 746 moved 0.004 (simulation
+  and Nov 17 model changes). Non-QB trade-ups: up -0.36 -> -0.37, down +0.45 -> +0.45.
+- `future_pick_realized.py`, both modes: every printed number unchanged (its trades are 2006-21; the errors are
+  2022-25).
