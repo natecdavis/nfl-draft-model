@@ -2518,7 +2518,7 @@ middle team's next 1st for #42 1.00 -> 1.02.
 
 ## Ledger of every lead tested (`reports/ledger.csv`, Nov 2026)
 
-One row per hypothesis or model change tested in this README (241 rows as of Nov 17, split where a section tests several things).
+One row per hypothesis or model change tested in this README (242 rows as of Nov 17, split where a section tests several things).
 Each row has the headline effect and p-value or 95% range copied from its section, n, significant at 5%, whether a
 fresh sample replicated it, the verdict, the section and the script. "Replicated" counts only a fresh or independent
 sample, or a held-out test; a year split inside the same sample is "not tried". Rows were extracted from this README and
@@ -2526,7 +2526,7 @@ the project notes and spot-checked against the sections. Rerun or edit by hand w
 
 | Verdict | Rows |
 |---|---|
-| Not adopted | 184 |
+| Not adopted | 185 |
 | Adopted | 23 |
 | Adopted in the simulator room check (information only) | 4 |
 | Fix applied | 15 |
@@ -3488,3 +3488,35 @@ review, 3,334 picks 2014-26:
 Also fixed in the same pass (no reruns needed): `public_board` athletic nudge had the wrong sign; `draftday.
 trade_down_scan` moved the wrong pick when the team's next pick wasn't the current one; dead code and stale
 docstrings / captions.
+
+## Team-level room test: thin vs full rooms (`scripts/room_fullness_value.py`, Nov 17 2026)
+
+Question: at equal pick quality, does a pick improve its team's position group more when the room is thin than when
+it is full? "Net gain of a pick" asked this about the quality of incumbents (no effect); this asks about the quantity
+of returning snaps. Same units, outcome (team room value on the field, % of cap), treatment E (expected own value of
+the team's round 1-3 picks at the group) and controls. Returning snaps = draft-day incumbents' starter-equivalents
+(last season's snaps by players still on the team plus veterans added before the draft) over the group's mean
+(1 = typical; sd 0.29). 3,072 team x season x group rooms 2014-25, 1,058 received a round 1-3 rookie. Teams do draft
+for need: 44% of thin-third rooms got a round 1-3 pick, 32% of typical, 27% of full.
+
+Room gain per 1.0 of E, by third of returning snaps within the group (thin 2.2 starter-equivalents returning on
+average, typical 3.1, full 4.1):
+
+| Horizon | Thin | Typical | Full | Thin - full | E x returning (per 1.0 = a whole typical room) |
+|---|---|---|---|---|---|
+| Season 1 | 0.05 | -0.03 | 0.14 | -0.09 (-0.41 to +0.23) | +0.18 (-0.35 to +0.71) |
+| Seasons 1-2 | 0.12 | 0.13 | 0.14 | -0.03 (-0.29 to +0.24) | +0.10 (-0.38 to +0.59) |
+| Seasons 1-4 | 0.17 | 0.18 | 0.19 | -0.02 (-0.25 to +0.21) | +0.15 (-0.22 to +0.53) |
+
+- No difference: a pick into a thin room adds the same to the room as a pick into a full one (0.17 vs 0.19 over four
+  seasons). Fallers (taken mostly because they were there): thin - full +0.02 (-0.43 to +0.47) over four seasons, -0.04
+  over two. No group's interaction is significant (seasons 1-2).
+- The rookies' own realized value per 1.0 of E: thin 0.95, typical 1.00, full 1.04 over four seasons (thin - full
+  -0.08, -0.27 to +0.10); season 1 thin 1.03 vs full 0.98 (+0.05, -0.13 to +0.23). A full room doesn't cut what the
+  rookie himself plays and earns either.
+- Power: the thin - full interval is about +-0.25 on a gain of ~0.18, so thin rooms gaining twice as much can't be
+  ruled out; but the estimate is zero or the wrong sign at every horizon and in both splits.
+
+Reading: consistent with the room check (veterans absorb most of any gap, in either direction) and with the earlier
+nulls (roster need, quality need, net gain). No support for a need term from the team side. Not adopted. The room
+matters only as a cap across several picks at one position ("Strict follower").
