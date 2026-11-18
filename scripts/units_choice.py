@@ -33,7 +33,6 @@ import pandas as pd  # noqa: E402
 from need_choice import TDIR, YEARS, NTable, _key, build_table  # noqa: E402
 from outlook import OUT, RAW  # noqa: E402
 from review import OFF_BOARD_RANK, board, draft_night  # noqa: E402
-from review import team as _team  # noqa: E402
 
 RULES = ["family", "single"]
 
@@ -124,7 +123,7 @@ def report(D):
         dis = D[D[f"{who}_player"] != D.player].drop_duplicates(["year", f"{who}_player"])
         print(f"== {who} units model")
         for col, lab in ys:
-            a = f"{col}_{who}" if not col.startswith("t_") else f"{col}_{who}"
+            a = f"{col}_{who}"
             tcol = f"{col}_team"
             parts = [f"{rn}: {boot(g[a] - g[tcol], g.cl)}" for rn, g in [("All", dis)] + list(dis.groupby("rnd", observed=True))]
             print(f"  {lab:38s} " + " | ".join(parts))

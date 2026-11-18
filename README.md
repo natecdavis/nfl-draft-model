@@ -49,16 +49,19 @@ Runs locally in the browser; the board never leaves the machine.
 Engine: src/draftday.py. A player ranked r on our board gets the outcome odds of a typical r-th pick at his position; his cost is the contract of the pick where we take him. After we take a player at a position, later picks there count at a lower need (after one QB, the QB need is filled). Values from several picks are added, not simulated jointly.
 Replay test: scripts/replay_2021.py (49ers 2021 with ESPN's board). App test: scripts/test_app.py.
 - [x] Hasan consensus check (scripts/hasan_check.py; board from ~/cfdarko/hasan.csv, 2014-2024, not committed). Availability model recalibrated to it: actual picks scatter widely around consensus, most at the top (sd 0.67 in log(pick+10) for top-10 ranks, 0.29-0.48 elsewhere; players go ~10-30% later than rank on average). Reaches (taken 1+ round before consensus) became stars less often than their slot implies in-sample (19% vs 27%, p 0.01), but neither reaches nor falls improve year-by-year forecasts (2016-21), so no adjustment is applied.
-- [x] Fall shading (scripts/fall_weight.py): players who fell past consensus turned out ~80-87% like the pick where they went (Hasan 2014-21; ~/cfdarko's 01f draft-slide experiment found the same with a rookie-value label). The app shades a falling player's talent toward the pick, weight 0.8 by default (Advanced setting).
+- [x] Fall shading (scripts/fall_weight.py): players who fell past consensus turned out ~80-87% like the pick where they went (Hasan 2014-21; ~/cfdarko's 01f draft-slide experiment found the same with a rookie-value label). The app shades a falling player's talent toward the pick, weight 0.85 by default (Advanced setting; 0.8 at first, 0.85 since undrafted fallers were included).
 - Relation to ~/cfdarko (the user's college prospect pipeline): its board-player values come from consensus rank + position; its own features didn't beat the board either. Reused here: Hasan consensus boards (calibration only), the draft-slide finding. Not used: its PFF / PFR-scraped inputs.
 - [x] Past drafts review (src/review.py -> app page "Past drafts"): drafts 2014-2024 pick by pick, owner at start of draft night vs team that picked, each team's state on draft day (prior-season strength; QB on hand incl. March moves, his contract known by draft day, age, and prior-season EPA vs median), the model's recommendation from Hasan's board, draft-night trades scored for both sides. Scorecard on realized value (2014-21): round 1 model's choices +4.49 vs teams +2.40 (mostly QB picks for QB-needy teams); rounds 2-4 tie; rounds 5-7 model worse (candidates limited to Hasan's board; 60% of late recs went undrafted) -> don't use recommendations in rounds 5-7. By star rate (independent of the model's QB valuation) teams' picks did better.
 - [x] Model changes adopted (Nov 2026), review and simulator rebuilt: (1) outcome units "single":
   cfdarko's within-position pricing with one overall factor (1.10), replacing per-family factors that
   discounted rotational positions and favored OL (`outcomes_v2.UNITS`, override with OUTCOME_UNITS=family);
   this also changes the draft-day app and trade calculator, which compute outcomes live (reports/
-  teams_2027.md and the pick-value chart were built before and need a rerun); (2) fall shading applied
+  teams_2027.md and the pick-value chart were rebuilt afterwards, last on Nov 9 2026 with the darko label); (2) fall shading applied
   once (`review.Table` shaded twice before); (3) QB need as a probability (`review.p_need`: no starter
-  1.0, stopgap 0.79, later-round rookie 0.62, below-median paid veteran 0.54, age 36+ 0.52).
+  1.0, stopgap 0.79, later-round rookie 0.62, below-median paid veteran 0.54, age 36+ 0.52; since Nov 15 the two veteran
+  rates are split by his contract: 0.39 under contract next year, 0.68 expiring, see 'QB need while the veteran
+  is under contract'). Review and simulator only: the draft-day app, trade calculator and 2027 team report
+  still treat a flagged QB need as certain.
   Not adopted: roster need, lookahead (rollout / position drop-off). Past drafts scorecard, model
   minus team where they disagree (each rec once, 2014-2022), titles in each version's own units:
   round 1 +1.24 -> +1.16, rounds 2-4 +0.42 -> +0.48, rounds 5-7 -0.18 -> -0.11 (none outside noise);
@@ -94,15 +97,17 @@ the team's own earlier picks you passed on; players you took are gone at your la
 choices set your position needs. Same values as the Past drafts review (choosing the team's own
 picks reproduces its numbers exactly); drafts through 2022 also show what your players actually
 delivered vs the team's (`review.RealizedV2`). Value tables per team situation (current model: units, shading, QB-need probability) are cached in
-`data/derived/sim_tables/` (`python src/simulator.py build` builds all 105, ~6 min on 6 workers;
+`data/derived/sim_tables/` (`python src/simulator.py build` builds all 336: 105 situations x draft years, each past draft with its
+leave-one-draft-out engine; run it again with OUTCOME_UNITS=family for the tables behind the 'firm / depends on
+position pricing' label;
 otherwise ~20s the first time a situation is opened). Test: `scripts/test_simulator_page.py`.
 
-The main "Draft simulator" page is a self-contained HTML page (`scripts/simulator_artifact.html`, packed
-by `scripts/export_simulator_artifact.build_html` from the current review data and tables, rebuilt when
-they change): the model's top 25 beside a searchable list of everyone available, and your draft vs the
+The main "Draft simulator" page is a self-contained HTML page (template `scripts/simulator_artifact.html`, filled
+by `build_html()` in `scripts/export_simulator_artifact.py` from the current review data and tables and written to
+data/derived/artifact/draft_simulator.html, rebuilt when they change): the model's top 25 beside a searchable list of everyone available, and your draft vs the
 team's across the full width, including what each pick actually delivered over the rookie contract
 (every available player precomputed at every pick of every team with
-`review.RealizedV2.titles_many`, cached in data/derived/sim_realized_v2.npz; drafts since 2023 count the
+`review.RealizedV2.titles_many`, cached in data/derived/sim_realized_v4.npz; drafts since 2023 count the
 seasons played so far, value and cost alike). Its lookups match the Python
 ones to rounding. "Draft simulator classic" keeps the Streamlit version. The same page, exported
 with `python scripts/export_simulator_artifact.py`, is published as a private Claude artifact (it embeds
@@ -1553,7 +1558,7 @@ pricing group), vs what the current rule credits him in the rookie currency:
   so the edge result isn't from unusually good backups.
 The x0.42 flat factor over-penalizes good edge rushers; a position-specific replacement level fits better.
 
-### Position replacement levels fit to the market, and choice test (`scripts/replacement_market.py`, `scripts/repl_label.py`, `CHOICE_VARIANT=repl scripts/market_choice.py`)
+### Position replacement levels fit to the market, and choice test (`scripts/replacement_market.py`, `scripts/repl_label.py`, `CHOICE_VARIANT=repl python scripts/market_choice.py`)
 
 Fit: each absent starter's worth over replacement = current credit (rookie currency, prior-season quality)
 - rate x r_g x snap share; spread + credit difference on team-season ratings and share-weighted absences.
@@ -1610,7 +1615,7 @@ pooled = 1.46 for every non-QB. QB keeps 2.45 in both.
 Not adopted yet; the pooled version is a candidate (one parameter, fit from betting lines rather than
 the choice outcomes).
 
-### Fresh classes: pooled replacement level on 2023-24 (`CHOICE_YEARS=2023,2024 CHOICE_VARIANT=repl_pooled scripts/market_choice.py choose`)
+### Fresh classes: pooled replacement level on 2023-24 (`CHOICE_YEARS=2023,2024 CHOICE_VARIANT=repl_pooled python scripts/market_choice.py choose`)
 
 Same test on the 2023 class (3 seasons played) and 2024 (2 seasons), scored on seasons played so far
 (`RealizedV2.titles_many(partial=True)`); no second contracts yet. Pooled minus today's model, per
@@ -2475,7 +2480,7 @@ non-QB; ranked 1-32 but 16+ spots below the pick -> note that teams know more ab
 ## App: market price in the Trade offer tab (`src/market.py`, Nov 2026)
 
 Under the model's verdict, the Trade offer tab now shows what the trade market would charge. Each side is priced
-on the chart fitted to 593 pick-only draft-window trades, 2002-2025 (`scripts/future_pick_test.py chart` ->
+on the chart fitted to 591 pick-only draft-window trades, 2002-2025 (`scripts/future_pick_test.py chart` ->
 `data/derived/market_chart.json`). Pick k this year is worth exp(-0.081 (k-1)^0.747). Next year's 1st is worth
 0.48x the expected value of its slot, and rounds 2-7 0.64x (refit with comp-pick numbering, below); the slot comes from the original owner's likely finish.
 Picks two or more years out are extrapolated as delta^years, since only 5 such trades exist.
@@ -2513,7 +2518,7 @@ middle team's next 1st for #42 1.00 -> 1.02.
 
 ## Ledger of every lead tested (`reports/ledger.csv`, Nov 2026)
 
-One row per hypothesis or model change tested in this README (205 rows, split where a section tests several things).
+One row per hypothesis or model change tested in this README (241 rows as of Nov 17, split where a section tests several things).
 Each row has the headline effect and p-value or 95% range copied from its section, n, significant at 5%, whether a
 fresh sample replicated it, the verdict, the section and the script. "Replicated" counts only a fresh or independent
 sample, or a held-out test; a year split inside the same sample is "not tried". Rows were extracted from this README and
@@ -2521,11 +2526,13 @@ the project notes and spot-checked against the sections. Rerun or edit by hand w
 
 | Verdict | Rows |
 |---|---|
-| Not adopted | 165 |
-| Adopted | 17 |
-| Fix applied | 10 |
+| Not adopted | 184 |
+| Adopted | 23 |
+| Adopted in the simulator room check (information only) | 4 |
+| Fix applied | 15 |
 | Information only (shown in the app) | 7 |
 | Parked | 6 |
+| No change | 2 |
 
 **Leads for information the board misses** (90 rows: scouting text, multi-sport, coaching contact, visits, growth,
 size, transcripts, literature biases, injuries, team skill, ...):
@@ -3146,7 +3153,8 @@ season (lag1); + two seasons (lag12); lag1 with a separate b after a head-coach 
   spread is mostly label movement.
 - Even with lag1, most of the spread stays unpredictable (errors 80-90% of the median's).
 
-Not yet applied to the simulator; ledger row room_persistence.
+Not applied to the simulator at this point; applied the same day in 'Room check: projected open snaps' below.
+Ledger row room_persistence.
 
 ## Incumbents' development: age and years in the league (`scripts/incumbent_development.py`, Nov 16 2026)
 
@@ -3439,3 +3447,44 @@ Paired rule minus production over all picks 2014-22; bold = interval excludes 0 
 
 Verdict: not adopted. No version improves on titles; the outside-yardstick gains come with a rounds 2-4 board with
 almost no front-seven picks. Recheck with the 2023-24 classes at four seasons.
+
+## Audit fixes: off-board values, OL snaps, QB-need wording (Nov 17 2026)
+
+Three items from a full read of the project. Value tables (both pricings), the review 2014-26 and the simulator
+artifact (v34) were rebuilt. Pre-fix tables and review outputs: `data/derived/before_nov17_fixes/`.
+
+**1. OL snaps missing in 2020 and 2025** (`scripts/strict_follower.py`, `SNAP_POS`, `season_shares`). The snap file
+labels most linemen plain "OL" in those two seasons (946 and 1,457 player-games, 186 players), plus a few combined
+labels ("G/T", "DE/L", ...), and the position map dropped them. Median OL room: 3.92 starters in 2020 and 4.26 in
+2025, vs 5.01-5.05 in every other season. Fix: combined labels mapped; a plain "OL" takes his PFF position, else his
+draft position, else guard. Now 5.02 and 5.04. Affects the simulator's room check (OL incumbents' 2020 and 2025
+snaps feed the 2021 and 2026 projections) and every script built on `season_shares`. Those scripts' recorded numbers
+(strict_follower, cross_year_need, room_crowding, room_persistence, quality_need, position_rooms) predate the fix and
+were not rerun; the room-check coefficients are refit each time the artifact is built, so the page is current.
+
+**2. QB need when the veteran's deal has already ended** (`review.p_need`). No number changes. The docstring said
+"expiring" meant one season left; the code also counts a veteran whose latest deal in the data ended before the
+season (seasons left < 0, 12 team-years). Checked whether those belong with "contract not in data" (0.52-0.54)
+instead: no. Their team changed its main QB the next season in 10 of 12, vs 20 of 32 with a known expiring deal
+(pooled 30 of 44 = 0.68, the adopted rate) and 18 of 46 under contract (0.39). Kept as is; docstring and
+`scripts/qb_need_contract.py` now say so.
+
+**3. Talent clipped at rank 262** (`trade.py`, `draftday.py`). The engine values players out to rank 330 (off the
+board) and gives off-board drafted players their own value (see "Board-less draft classes and monotone value":
+they did better than board players ranked 251-300, 0.93x of actual). But `trade.pick_effect` and
+`DraftEngine._sample` clipped talent to 262 before calling it, so every rank past 262, on or off the board, was
+valued as rank 262. Fix: clip removed (the engine caps at 330; the v1 engine keeps its 262 cap). Effect on the
+review, 3,334 picks 2014-26:
+
+- Model value of the team's own pick changed at 697 picks, all late-ranked or off-board players (mean +0.004 titles
+  %, largest +0.36: off-board centers and guards drafted in rounds 6-7, about 0.3 -> 0.6).
+- Recommendations changed at 6 picks, all in round 7 (one in 2014-22: 2017 #245). No off-board player is a top
+  recommendation in any draft, as before.
+- Realized values unchanged, so the scorecard (round 1 and rounds 2-4) is unchanged; mean modeled gap in rounds 5-7
+  0.166 -> 0.156.
+- Trades: 25 of 802 trade sides moved (largest 0.29), 2 changed sign; the model's choice changed in 5 of 860
+  trade decisions (one from "don't trade" to "same trade": CLE 2021 #113).
+
+Also fixed in the same pass (no reruns needed): `public_board` athletic nudge had the wrong sign; `draftday.
+trade_down_scan` moved the wrong pick when the team's next pick wasn't the current one; dead code and stale
+docstrings / captions.

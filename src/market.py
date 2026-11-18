@@ -2,7 +2,7 @@
 
 Chart (scripts/future_pick_test.py, README 'Future picks'): pick-only trades 2002-2025, pick k this year worth
 v(k) = exp(-lam (k-1)^beta) (v(1) = 1); next year's pick worth delta x E[v(its slot)], delta 0.48 for a 1st and
-0.57 for rounds 2-7, the slot drawn from the original owner's likely finish (same rule as the model). Picks two or
+0.64 for rounds 2-7, the slot drawn from the original owner's likely finish (same rule as the model). Picks two or
 more years out: almost no trades to fit (5), so delta^years, an extrapolation. The team moving up (getting the best
 pick this year) typically pays ~11% over the chart.
 
@@ -16,7 +16,7 @@ import numpy as np
 
 from outlook import OUT
 from pick_value import baseline_paths
-from trade import Pick, _slots
+from trade import _slots
 
 
 @lru_cache(maxsize=1)

@@ -17,7 +17,6 @@ Secondary features (added after the literature review, before outcomes were seen
   hedge  hedges and fillers per 1,000 words ("you know", "i mean", "kind of", "i guess", "probably", ...;
          cf. Larcker & Zakolyukina 2012 on earnings calls)
 """
-import re
 import sys
 
 import numpy as np
@@ -124,8 +123,6 @@ def main():
     uni = pm.load()
     R = expectations(uni, SLOT_CLASSES)
     R["player_id"] = R.player_id.astype(str)
-    if "grp" not in R:
-        R = R.merge(uni[["player_id", "cls", "grp"]].assign(player_id=lambda x: x.player_id.astype(str)), on=["player_id", "cls"])
     d = R.merge(f, on=["player_id", "cls"], how="inner")
     dr = d[d.drafted.astype(bool) & d.exp_slot.notna()]
     bd = d[(d.on_board == 1) & d.exp_cons.notna()]

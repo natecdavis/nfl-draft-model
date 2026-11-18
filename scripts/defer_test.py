@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
-from outlook import OUT, RAW  # noqa: E402
+from outlook import OUT  # noqa: E402
 from positions import weights  # noqa: E402
 from simulator import get_table, options, pool, situation  # noqa: E402
 

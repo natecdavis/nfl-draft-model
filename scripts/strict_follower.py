@@ -21,7 +21,6 @@ Run:  python scripts/strict_follower.py draft      (follower picks -> data/deriv
       python scripts/strict_follower.py capacity
 """
 import sys
-from pathlib import Path
 
 sys.path.insert(0, "src")
 import numpy as np  # noqa: E402
@@ -33,7 +32,13 @@ YEARS = list(range(2014, 2026))
 FOLLOW = OUT / "strict_follower.parquet"
 SNAP_POS = {"QB": "QB", "RB": "RB", "FB": "RB", "WR": "WR", "TE": "TE", "T": "T", "OT": "T", "G": "G", "OG": "G",
             "C": "C", "DE": "ED", "OLB": "ED", "DT": "IDL", "NT": "IDL", "DL": "IDL", "LB": "LB", "ILB": "LB",
-            "MLB": "LB", "CB": "CB", "DB": "CB", "S": "S", "FS": "S", "SS": "S", "SAF": "S"}
+            "MLB": "LB", "CB": "CB", "DB": "CB", "S": "S", "FS": "S", "SS": "S", "SAF": "S",
+            # combined labels (as roster_need.SNAP_POS). nflverse lists about a third of 2020 and 2025 line snaps
+            # as "OL" or "G/T" etc.; these were dropped until Nov 17 2026.
+            "HB": "RB", "FB/D": "RB", "FB/R": "RB", "FB/T": "RB", "RB/F": "RB", "RB/W": "RB", "WR/R": "WR",
+            "G/T": "T", "T/G": "T", "G/OT": "T", "G/C": "G", "C/G": "C", "DE/L": "ED", "DE/D": "ED", "DT/D": "IDL",
+            "LB/F": "LB", "LB/S": "LB", "CB/R": "CB", "DB/L": "CB"}
+PFF_OL = {"T": "T", "G": "G", "C": "C"}
 OFFENSE = {"QB", "RB", "WR", "TE", "T", "G", "C"}
 
 
@@ -69,6 +74,14 @@ def season_shares() -> pd.DataFrame:
     """pfr_player_id, season -> snap share (summed over teams), team, group from snap position."""
     s = pd.read_parquet(RAW / "snap_counts.parquet")
     s["grp"] = s.position.map(SNAP_POS)
+    # plain "OL": his PFF position, else his draft position, else guard
+    ol = s.position == "OL"
+    pl = pd.read_parquet(RAW / "players.parquet").dropna(subset=["pfr_id"])
+    ppos = dict(zip(pl.pfr_id, pl.pff_position.map(PFF_OL)))
+    dp = pd.read_parquet(RAW / "draft_picks.parquet")
+    dpos = dict(zip(dp.pfr_player_id, dp.position.map({"T": "T", "OT": "T", "G": "G", "OG": "G", "OL": "G", "C": "C"})))
+    s.loc[ol, "grp"] = [ppos.get(p) if isinstance(ppos.get(p), str) else dpos.get(p) if isinstance(dpos.get(p), str) else "G"
+                        for p in s.pfr_player_id[ol]]
     s = s[s.grp.notna()]
     off = s.grp.isin(OFFENSE)
     s["snaps"] = np.where(off, s.offense_snaps, s.defense_snaps)

@@ -2,7 +2,7 @@
 
 The review scores a recommended QB "as played" (review.REALIZED_QB): his real career, which happened at the team
 that actually drafted him, usually one that started him. But the model recommended him to a team whose flagged QB
-need was real only with probability p_need (review.p_need: 0.52-0.79); otherwise its incumbent kept the job and the
+need was real only with probability p_need (review.p_need: 0.52-0.79 when this was run; 0.39-0.79 since the contract split); otherwise its incumbent kept the job and the
 rookie sat. The model's own prediction already discounts by p_need; the yardstick didn't. Fair score for a QB
 recommendation: p_need x (as played) + (1 - p_need) x (sat through the window: seasons count zero, cost charged).
 Team picks are unchanged (what happened is what happened). Drafts 2014-22, production review (leave-one-draft-out).

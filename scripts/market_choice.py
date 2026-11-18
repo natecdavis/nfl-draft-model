@@ -49,7 +49,6 @@ TAG = f"_{YEARS_ENV.replace(',', '_')}" if YEARS_ENV else ""
 
 def _init():
     pc.VERSIONS = VERSIONS
-    pc.YEARS = pc.YEARS
     pc.TABLE_DIR["single_narrow"] = OUT / "units_tables_narrow"
     pc.TABLE_DIR["single_market"] = OUT / ALT_DIR
 

@@ -14,7 +14,6 @@ Inputs added on top of the slot-only model (log pick + position):
 Every version is scored the honest way: each draft 2016-2021 predicted from
 earlier drafts only. The slot-only model from outlook.py is the bar to beat.
 """
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -167,7 +166,6 @@ def main():
 
     # Paired check: is the gain bigger than chance? Bootstrap over draft classes x players.
     a = results[("slot only", 0.0)][1]; b = results[best][1]
-    ya = a.score.to_numpy()
     def ll3(r):
         p = np.column_stack([r.p_bust, 1 - r.p_bust - r.p_star, r.p_star])
         return -np.log(np.clip(p[np.arange(len(r)), r.score.to_numpy()], 1e-4, 1))

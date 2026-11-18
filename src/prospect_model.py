@@ -46,7 +46,9 @@ LABEL_FILE = {"stored": CF / "data/processed/rookie_value_labels.parquet",
               "repl_eb": Path("data/derived/labels_pickadj_narrow_repl_eb.parquet"),
               "repl_pooled": Path("data/derived/labels_pickadj_narrow_repl_pooled.parquet"),
               # narrow label with season-talent-model quality (scripts/darko_pff.py, darko_label.py)
-              "darko": Path("data/derived/labels_pickadj_narrow_darko.parquet")}[LABEL]
+              "darko": Path("data/derived/labels_pickadj_narrow_darko.parquet"),
+              # test: darko with the context-adjusted talent column (scripts/darko_label.py talent_win_ctx)
+              "darko_ctx": Path("data/derived/labels_pickadj_narrow_darko_ctx.parquet")}[LABEL]
 if not LABEL_FILE.exists():
     raise FileNotFoundError(f"{LABEL_FILE} missing: run `python scripts/pickadj_label.py narrow`"
                             + (" (for darko: python scripts/darko_pff.py, then python scripts/darko_label.py)"

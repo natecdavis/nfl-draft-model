@@ -32,7 +32,6 @@ import numpy as np
 import pandas as pd
 from scipy.special import ndtr, ndtri
 
-from outlook import GROUPS
 from pick_value import baseline_paths, pick_effect, sample_outcomes
 from trade import Context, Pick, package_points
 
@@ -94,9 +93,11 @@ class DraftEngine:
         self._value = lru_cache(maxsize=None)(self._player_value)
 
     def _sample(self, grp, talent):
+        # talent runs to prospect_model.OFF_BOARD (330 = off the board); the engine caps it there. It was
+        # clipped to 262 here until Nov 17 2026, which valued off-board players as board rank 262.
         # stable seed (Python's hash() changes between runs, which made results drift)
         rng = np.random.default_rng(zlib.crc32(f"{grp}|{talent}|{self.seed}".encode()))
-        return sample_outcomes(self.ctx.lib, self.ctx.curves, grp, int(np.clip(talent, 1, 262)), rng, n=self.n)
+        return sample_outcomes(self.ctx.lib, self.ctx.curves, grp, max(1, int(talent)), rng, n=self.n)
 
     def player_points(self, grp: str, talent: int, pick: int, level: str | None = None,
                       qb_filled: bool = False, nth: int = 0) -> np.ndarray:
@@ -341,12 +342,16 @@ class DraftEngine:
         return {"before": before * 100, "after": after * 100, "change": (after - before) * 100}
 
     def trade_down_scan(self, board, picks, now, targets, sims=1500) -> pd.DataFrame:
-        """For moving from `now` to each target pick: titles lost by moving down, and
-        how that compares with the value of an extra pick at a few slots."""
+        """For moving our next pick (the first of `picks` at or after `now`) down to each target
+        pick: titles lost by moving down, and how that compares with the value of an extra pick
+        at a few slots. Targets we already hold are skipped (that would be giving the pick away)."""
         base = sum(self.simulate(board, picks, now, sims)["exp_value"])
+        frm = min(p for p in picks if p >= now)
         rows = []
         for t in targets:
-            moved = sorted(set(picks) - {now} | {t})
+            if t in picks:
+                continue
+            moved = sorted(set(picks) - {frm} | {t})
             v = sum(self.simulate(board, moved, now, sims)["exp_value"])
             rows.append({"move_to": t, "titles_lost": (base - v) * 100})
         return pd.DataFrame(rows)

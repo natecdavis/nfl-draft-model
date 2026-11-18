@@ -13,7 +13,6 @@ Tables: one small (2 positions x 3 levels x T x K) array per team situation, cac
 tables as spec_<key>.npz, on the same grid (the "talent" axis = draft slot; off board = undrafted).
 """
 import json
-import zlib
 from pathlib import Path
 
 import numpy as np

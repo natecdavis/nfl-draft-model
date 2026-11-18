@@ -251,10 +251,12 @@ def main():
     cand = d.drop_duplicates(["coach", "school", "title"])[["coach", "school", "title"]].assign(k=lambda x: x.coach.map(lambda n: base(n)[0]))
     hired = cand.merge(st[["k", "team", "role"]], on="k")
     print("college position coaches of top prospects who were on a 2026 NFL staff:")
+    to_pfr = {v: k for k, v in rv.PFR_TEAM.items() if k in co.TEAMS}
     for _, r in hired.iterrows():
         dp = nr_picks[nr_picks.team.map(co.franchise) == r.team]  # nflverse codes match the staff side (TAM, NWE)
         dr = dp
-        own = d[(d.coach == r.coach) & (d.team == r.team)].drop_duplicates("prospect")
+        # d.team uses review codes (GB, KC, TB...), the staff side PFR codes (GNB, KAN, TAM...)
+        own = d[(d.coach == r.coach) & (d.team.map(to_pfr).fillna(d.team) == r.team)].drop_duplicates("prospect")
         took = [p for p in own.prospect if base(p)[0] in set(dr.pfr_player_name.map(lambda n: base(n)[0]))]
         sch = r.school.replace("Miami (FL)", "Miami").split(" (")[0]
         same = dr[dr.college.str.startswith(sch.replace("State", "St."))][["pick", "pfr_player_name", "position"]].values.tolist()

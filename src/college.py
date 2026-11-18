@@ -8,8 +8,8 @@ One row per player, team and season:
   games:     games with any recorded involvement
 Plus team totals per season, so production can be expressed as a share of the team's.
 
-Players are identified by name only (no IDs in this data); prospects.py matches
-them to draft picks by name and school.
+Players are identified by name only (no IDs in this data); college_features.py
+matches them to draft picks by name and school.
 
 Run:  python src/college.py [first_season last_season]
 """

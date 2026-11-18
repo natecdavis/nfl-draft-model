@@ -27,7 +27,6 @@ import sys
 
 import numpy as np
 import pandas as pd
-import statsmodels.api as sm
 
 sys.path.insert(0, "src")
 sys.path.insert(0, "scripts")

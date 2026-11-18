@@ -1,7 +1,7 @@
 """Replay the 2021 draft from the 49ers' seat, with ESPN's board as the team's board."""
 import sys, time
 sys.path.insert(0, "src")
-import numpy as np, pandas as pd
+import pandas as pd
 from draftday import DraftEngine
 from simulate import league_params, load_schedules
 from trade import Pick

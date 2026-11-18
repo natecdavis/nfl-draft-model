@@ -23,7 +23,7 @@ sys.path.insert(0, "src")
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
-from outlook import OUT, RAW  # noqa: E402
+from outlook import OUT  # noqa: E402
 
 import os  # noqa: E402
 

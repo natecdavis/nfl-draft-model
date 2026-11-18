@@ -26,7 +26,7 @@ are known: slightly optimistic for all variants alike). For every board player s
 with consensus rank <= next pick + 32, predict P(still available at the team's next pick) by simulating
 the intervening picks; score log loss / Brier against what happened.
 
-Run:  python scripts/availability_test.py [fit|test]       (default: both)
+Run:  python scripts/availability_test.py [fit|test|score]  (default: fit and test)
 """
 import sys
 from pathlib import Path

@@ -12,7 +12,7 @@ PART A, draft (same harness as scripts/lit_bias_test.py): RBs only.
     3. PFF college pass-block grade, best season
   Pricing: drafted board RBs 2014-24, log((board rank + 10) / (pick + 10)).
   Value: drafted 2016-22 vs slot, board 2018-22 vs consensus (Poisson, class fixed effects), label = the
-  current default (narrow). 3 traits x 2 yardsticks: p < 0.008 survives Bonferroni.
+  default when this was run (narrow; now darko). 3 traits x 2 yardsticks: p < 0.008 survives Bonferroni.
   Transfer check: do the college traits predict NFL pass-play RAPM and NFL receiving / pass-block grades
   (years 1-4 averages, drafted RBs 2016-22 with NFL data)?
 PART B, NFL mechanism (2016-25):

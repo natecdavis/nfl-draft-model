@@ -42,7 +42,7 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
 from draftday import drift, spread  # noqa: E402
-from need_choice import FW, NTable, _key  # noqa: E402
+from need_choice import NTable, _key  # noqa: E402
 from outlook import GROUPS, OUT, RAW  # noqa: E402
 from review import OFF_BOARD_RANK, board, draft_night  # noqa: E402
 

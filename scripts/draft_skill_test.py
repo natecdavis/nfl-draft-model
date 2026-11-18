@@ -118,7 +118,7 @@ def players():
     d = d.dropna(subset=["team"])
     d["resid"] = (d.actual - d.exp_slot) * 100
     d["resid"] -= d.groupby("cls").resid.transform("mean")
-    # outside yardsticks: residual vs pick within class (log-linear fit), demeaned
+    # outside yardsticks: residual vs pick within class (quadratic in log pick), demeaned
     for y in ("gs", "av"):
         d[y] = d[y].fillna(0.0)
         r = []

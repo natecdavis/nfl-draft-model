@@ -8,7 +8,6 @@
 2. Other sports in high school / college, from the BACKGROUND text of Brugler's guides (2019-2023).
 """
 import json
-import re
 import sys
 from pathlib import Path
 

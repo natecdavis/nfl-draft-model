@@ -88,7 +88,7 @@ def multipliers(B, C, med):
 def main():
     from cross_year_need import cost_only, quad
     from positions import blended, weights
-    from review import OFF_BOARD_RANK, RealizedV2, board, draft_night
+    from review import RealizedV2, board, draft_night
     from simulator import get_table, situation
     R = fit_data()
     full = coefs(R)

@@ -233,6 +233,7 @@ def report():
     print("Picks by group 2014-25 (follower base / room / teams):")
     allp = pd.read_parquet(PICKS_OUT)
     tp = pd.read_parquet(OUT / "review_picks.parquet")
+    tp = tp[tp.year.between(2014, 2025)]  # same drafts as the follower columns
     print(pd.DataFrame({"base": allp[allp.version == "base"].grp.value_counts(),
                         "room": allp[allp.version == "room"].grp.value_counts(),
                         "teams": tp[tp.grp.isin(GROUPS)].grp.value_counts()}).fillna(0).astype(int).to_string(), "\n")

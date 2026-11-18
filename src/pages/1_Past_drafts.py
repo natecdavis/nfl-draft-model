@@ -108,8 +108,7 @@ with tab1:
     agree = (P.player == P.rec_player).mean()
     st.caption(f"The model agreed with the team on {agree:.0%} of these picks. 'Titles left on table' is how much "
                "more the model's choice was worth to that team, in its situation, at that moment. The 'actually "
-               "delivered' columns are blank for drafts after 2022 (too soon to know) and for players who never "
-               "reached the NFL before 2016 (not tracked).")
+               "delivered' columns are blank for drafts after 2022 (too soon to know).")
     if tm != "All teams":
         st.caption("Trade rows (one team selected): the trade is the team's decision. The model's alternative is the "
                    "better of not trading (shown as the player it would take with the team's own pick; its value "

@@ -7,7 +7,7 @@ A. Which NFL jobs do college-linked coaches hold? Coach-seasons with a college l
 B. Can connected coaches help avoid players?
    B1 near passes: for each drafted player at a linked school, connected teams' picks of other players in the W picks
       just before his (W = 10, 32), when he was closest to his market price. Value vs slot per near pass,
-      controlling # linked teams and class; placebo: the same count for random teams (same number as linked), 500 draws.
+      controlling # linked teams and class; placebo: the same count for random teams (same number as linked), 300 draws.
    B2 accuracy: connected vs unconnected picks (fair group): bust rate (actual < 25% of expected), star rate (> 2x),
       spread of log((actual + 0.01) / (expected + 0.01)).
    B3 picking among teammates: school-class groups with 2+ drafted players including a connected pick: the connected
@@ -30,7 +30,7 @@ import statsmodels.api as sm
 sys.path.insert(0, "src")
 sys.path.insert(0, "scripts")
 import coaching as co
-from contact_value import CAP_2025, role_kind
+from contact_value import role_kind
 from multisport_test import compare
 from outlook import OUT
 

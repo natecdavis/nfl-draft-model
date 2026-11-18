@@ -122,9 +122,10 @@ def athletic_nudge(board: pd.DataFrame, year: int) -> tuple[pd.DataFrame, str]:
                 delta += coef[f"z_{t}"] * (-z if t in {"forty", "cone", "shuttle"} else z)
         if pd.isna(c.get("forty")) and "no_forty" in coef:
             delta += coef["no_forty"]
-        # change in log(rank+10) worth the same star odds; capped at about +-20% because the
-        # evidence behind it is weak (0.6% better forecasts than consensus alone)
-        shift = float(np.clip(-delta / lp_coef, -0.2, 0.2))
+        # change in log(rank+10) worth the same odds of starter-or-better (the model fit_predict returns);
+        # capped at about +-20% because the evidence behind it is weak (0.6% better forecasts than
+        # consensus alone). lp_coef is negative, so better odds (delta > 0) move the rank up the board.
+        shift = float(np.clip(delta / lp_coef, -0.2, 0.2))
         board.loc[i, "talent_rank"] = max(1.0, np.exp(np.log(r["rank"] + 10) + shift) - 10)
         board.loc[i, "nudge"] = f"{board.loc[i, 'talent_rank'] - r['rank']:+.0f}"
         moved += 1

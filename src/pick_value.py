@@ -13,7 +13,7 @@ Team strength without the pick (points per game vs average):
 The pick adds, in season t (bridge.py rates):
   + position rate (QB 0.34, others 0.19) x snap share x (market price - veteran min)
       the player's value over a minimum-salary replacement
-  - 0.19 x (rookie cost - veteran min)
+  - COST_RATE (0.10; was 0.19, the non-QB bridge rate) x (rookie cost - veteran min)
       what the cap space would otherwise buy in free agency: non-QB veterans at
       market rates (QBs are rarely available in free agency, so the QB rate and the
       league-wide 0.22, which includes QBs, would overstate it)
@@ -23,15 +23,15 @@ worth much less. This matters most for QBs.
 Season 5: round 1 picks are kept on the fifth-year option if worth it; others are
 on market-rate deals or gone, so they add nothing.
 
-Each pick's outcome is sampled, not averaged: tier from outlook.py chances for that
-pick and position, then a real historical player's season-by-season playing time
-and market price from the same position and tier (same pick range when possible).
+Each pick's outcome is sampled, not averaged: careers of similar past players from
+outcomes_v2.py (OUTCOMES = "v2", the default). The older v1 engine (tier from outlook.py
+chances, then a real historical player's playing time and market price from the same
+position and tier) is kept behind OUTCOMES = "v1".
 Title odds come from the simulator's strength-to-title curve. With and without the
 pick share the same random draws, so differences aren't swamped by noise.
 """
 import json
 import os
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -53,10 +53,6 @@ SITUATIONS = {
     "Contender, rookie-deal QB": {"start": 7, "shift": {3: -3.0}, "qb_from": None},
     "Middle of the pack": {"start": 0, "shift": {}, "qb_from": 1},
     "Rebuilding": {"start": -5, "shift": {}, "qb_from": 1},
-}
-NOTES = {
-    "Contender, veteran QB": "QB ages out after season 2; a drafted QB can start from season 3",
-    "Contender, rookie-deal QB": "QB's big second contract arrives in season 3 (-3 pts: ~15% of cap moved to him)",
 }
 PICKS = [1, 2, 3, 5, 8, 10, 11, 13, 16, 20, 24, 28, 32, 33, 40, 48, 56, 64, 65, 80, 96, 112, 128, 160, 192, 224, 256]
 
@@ -129,7 +125,7 @@ def sample_outcomes(lib, curves, grp, pick, rng, bw=0.4, n=N):
     if OUTCOMES == "v2":
         from outcomes_v2 import model
         return model().sample(grp, int(pick), rng, n)
-    return sample_outcomes_v1(lib, curves, grp, pick, rng, bw, n)
+    return sample_outcomes_v1(lib, curves, grp, min(int(pick), 262), rng, bw, n)  # v1 curves stop at 262
 
 
 # Points of team strength charged per 1% of cap a contract uses. 0.10, not the bridge's non-QB rate

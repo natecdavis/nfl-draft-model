@@ -20,13 +20,12 @@ tier is worth: E[value] = sum over tiers of P(tier | pick, pos) x average value 
 that tier (market price by tier and position; playing-time pattern by tier and
 pick range). This keeps the tier mix, which the title-odds simulator will need.
 """
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import polars as pl
 
-from outlook import GROUPS, OUT, RAW, TIERS, pos_group, season_shares, star_thresholds
+from outlook import GROUPS, OUT, RAW, TIERS, season_shares, star_thresholds
 
 LIB_DRAFTS = list(range(2013, 2022))
 VET_MIN = 0.005

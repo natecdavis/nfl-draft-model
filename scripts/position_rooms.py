@@ -26,7 +26,6 @@ from sklearn.linear_model import LogisticRegression
 
 sys.path[:0] = [str(Path(__file__).resolve().parent), str(Path(__file__).resolve().parents[1] / "src")]
 from outlook import RAW  # noqa: E402
-from review import HASAN_POS  # noqa: E402
 
 PFF = {"ED": "ED", "DI": "IDL", "LB": "LB", "CB": "CB", "S": "S"}
 FAMILY = {"CB": "DB", "S": "DB", "ED": "FRONT", "IDL": "FRONT", "LB": "FRONT"}

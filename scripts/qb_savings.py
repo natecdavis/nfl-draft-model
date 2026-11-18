@@ -16,7 +16,6 @@ Run:  python scripts/qb_savings.py
 import sys
 
 sys.path.insert(0, "src")
-import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 import polars as pl  # noqa: E402
 import statsmodels.formula.api as smf  # noqa: E402

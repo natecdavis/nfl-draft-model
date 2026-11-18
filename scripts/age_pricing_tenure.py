@@ -26,7 +26,7 @@ s = pd.read_parquet(RAW / "snap_counts.parquet")
 s = s[s.game_type == "REG"]
 s["team"] = s.team.replace(RELOCATED)
 played = s.groupby(["pfr_player_id", "season"]).team.agg(lambda x: set(x)).to_dict()
-# OTC team names -> abbreviations via the most common snap team in the signing season or the next
+# OTC team names -> abbreviations via a snap team (first alphabetically if several) in the signing season or the next
 rows = []
 for r in c.itertuples():
     if pd.isna(r.pfr_id) or pd.isna(r.age):
@@ -38,7 +38,7 @@ for r in c.itertuples():
     if not first:
         rows.append((r.age, r.position, r.apy_cap_pct, yrs, r.guaranteed / r.value if r.value else np.nan, 0))
         continue
-    tm = next(iter(first))
+    tm = sorted(first)[0]  # deterministic (set order changes between runs)
     n = sum(1 for k in range(yrs) if tm in played.get((r.pfr_id, int(r.year_signed) + k), set()))
     rows.append((r.age, r.position, r.apy_cap_pct, yrs, r.guaranteed / r.value if r.value else np.nan, n))
 T = pd.DataFrame(rows, columns=["age", "pos", "apy", "years", "gtd_share", "played"])

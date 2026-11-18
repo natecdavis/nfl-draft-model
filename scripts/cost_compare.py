@@ -3,7 +3,7 @@
 Versions: 0.19 (the charge before Nov 2026; review_picks.parquet saved as holdout/
 review_picks_lodo_cost0.19.parquet), 0.10 and 0 (holdout/review_picks_lodo_cost*.parquet, from
 COST_RATE=... scripts/holdout_review.py). 0.10 is now the default (pick_value.COST_RATE). Each version's
-recommendations are scored on common yardsticks: realized titles with the current charge and with no
+recommendations are scored on common yardsticks: realized titles with the old 0.19 charge and with no
 charge (RealizedV2 recomputed in this process for both), seasons started, PFR AV and second-contract
 pay (% of cap), model minus team where they disagree, each recommendation once per draft, 2014-2022.
 

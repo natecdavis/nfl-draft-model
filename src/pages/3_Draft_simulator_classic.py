@@ -134,8 +134,8 @@ if len(choices) < len(mine):
     if len(o):
         b.metric("Model's top choice for you", f"{o.iloc[0]['name']} ({pos(o.iloc[0].grp)})",
                  f"{o.iloc[0].titles:+.2f}% of a title", delta_color="off")
-        if int(r["round"]) > 1:
-            b.caption("No tested edge after round 1: in past drafts (2014-2022) the model's picks here did no better than teams'.")
+        if int(r["round"]) >= 5:
+            b.caption("No tested edge in rounds 5-7: in past drafts (2014-2022) the model's picks here did no better than teams'.")
 
     top = o.head(TOP_N).assign(
         pos=lambda d: d.grp.map(pos),
@@ -190,6 +190,6 @@ if hist:
                "its own earlier picks), as on the Past drafts page. "
                + ("'Actually delivered' = each player's real first four seasons (with the team that really drafted "
                   "him), at the cost of this pick, as titles for this team; players who never reached the NFL count "
-                  "zero (undrafted players are tracked from 2016)." if show_real else
+                  "zero." if show_real else
                   ("Too soon to score how these players turned out (needs four seasons; drafts through 2022)."
                    if year > 2022 else "")))

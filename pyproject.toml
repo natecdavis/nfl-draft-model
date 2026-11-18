@@ -1,7 +1,7 @@
 [project]
 name = "nfl-draft-model"
 version = "0.1.0"
-description = "Add your description here"
+description = "NFL draft picks valued in Super Bowl odds"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

@@ -111,7 +111,7 @@ def package_points(ctx: Context, sit: dict, picks: list[Pick], base: np.ndarray,
         keys = pd.DataFrame({"g": grps, "k": numbers})
         for (g, k), idx in keys.groupby(["g", "k"]).groups.items():
             idx = np.asarray(idx)
-            t = int(k) if p.talent is None or p.year else int(np.clip(round(p.talent), 1, 262))
+            t = int(k) if p.talent is None or p.year else max(1, int(round(p.talent)))  # engine caps at off-board (330)
             shares, price = sample_outcomes(ctx.lib, ctx.curves, g, t, rng, n=len(idx))
             pts = pick_effect(shares, price, int(k), g, s, ctx.cost, ctx.bar, ctx.rates)
             if p.year:
@@ -195,7 +195,6 @@ def real_trades(ctx, n=4000):
             continue
         up = cur.loc[cur.pick_number.idxmin(), "received"]  # team getting the best current pick
         for team in teams:
-            other = [x for x in teams if x != team][0]
 
             def to_picks(rows_, receiving):
                 out = []

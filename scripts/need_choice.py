@@ -4,7 +4,7 @@ At every pick, for the team on the clock, the model picks the available board pl
 most title value under four need rules (same board, team states, candidates and realized-value
 scoring as the Past drafts review):
 
-  current   the model's rule today: each earlier pick at the group this draft (team's actual
+  current   the model's rule when this was run (Nov 5; since replaced by draftday.NEED_STEP): each earlier pick at the group this draft (team's actual
             picks) cuts years 1-2 playing time to x0.6, then x0.3; roster ignored
   within    measured within-draft effect only: playing time in all seasons x(1 + b_w[k]) for k
             earlier rookies at the group
@@ -16,8 +16,8 @@ b_r, b_w are measured on rookies' 4-season value (scripts/roster_need.py regress
 position x pick, position x consensus rank, team strength, year), leaving out the draft being
 scored. QB values use the current rule (QB need from the QB rules; filled after one QB).
 
-Value tables are rebuilt with the fall shading applied once (review.Table applies it twice:
-see README), on a grid of playing-time multipliers; cached in data/derived/need_tables/.
+Value tables are rebuilt with the fall shading applied once (review.Table applied it twice
+at the time; fixed since, see README), on a grid of playing-time multipliers; cached in data/derived/need_tables/.
 
 Scoring (same as the review): realized titles for this team, from each player's actual first
 four seasons at the cost of this pick (review.RealizedV2). Model's player minus team's player,
@@ -30,7 +30,6 @@ Run:  python scripts/need_choice.py [workers=6]
 import os
 import sys
 import time
-from pathlib import Path
 
 os.environ.setdefault("OUTCOME_UNITS", "family")  # its tables (need_tables) were built in family units
 

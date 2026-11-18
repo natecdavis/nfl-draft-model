@@ -140,7 +140,7 @@ def model_side(ctx):
         cur = np.array([evaluate(ctx, sit, [], [Pick(k)], n=6000, seed=k)["trade"] for k in ks])
         cur = np.maximum.accumulate(cur[::-1])[::-1]  # monotone in pick (noise)
         for rnd in (1, 2, 3):
-            for src in ("middle", "own"):
+            for src in ("Middle of the pack", "own"):
                 v = evaluate(ctx, sit, [], [Pick(rnd=rnd, year=1, src=src)], n=6000, seed=100 + rnd)["trade"]
                 vnow = evaluate(ctx, sit, [], [Pick(rnd=rnd, year=0, src=src, number=16 + 32 * (rnd - 1))], n=6000,
                                 seed=200 + rnd)["trade"]
@@ -175,7 +175,7 @@ def main():
     base = np.zeros((20000, 5))
     print("\nMarket: equivalent pick this year for next year's pick from a middle team (95% range):")
     for rnd in (1, 2, 3):
-        sl = _slots(Pick(rnd=rnd, year=1, src="middle"), {}, base, np.random.default_rng(rnd))
+        sl = _slots(Pick(rnd=rnd, year=1, src="Middle of the pack"), {}, base, np.random.default_rng(rnd))
         def eq(t):
             d = t[3] if rnd == 1 else t[4]
             return equivalent(d * chart(sl, t[0], t[1]).mean(), t[0], t[1])

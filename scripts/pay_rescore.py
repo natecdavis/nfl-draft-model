@@ -54,7 +54,6 @@ def adjusted_pay():
           f"(APY-weighted {np.average(best.covered, weights=best.pay):.0%})")
     pos_ = pd.read_parquet(RAW / "contracts.parquet")[["gsis_id", "position"]].drop_duplicates("gsis_id")
     best = best.drop(columns="position", errors="ignore").merge(pos_, on="gsis_id", how="left")
-    g = best.groupby(best.position.map(lambda x: {"OLB": "ED", "ED": "ED"}.get(x, x)))
     print("mean adjustment (pay - pay_adj) by position, % of cap, best contracts >= 3% of cap:")
     b3 = best[best.pay >= 3]
     print((b3.groupby("position").apply(lambda d: pd.Series({"n": len(d), "stat": d.stat.mean(), "noise": d.noise.mean()})))

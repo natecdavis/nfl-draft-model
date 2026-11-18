@@ -9,7 +9,7 @@ the table lookups in JavaScript (same interpolation as review.Table.lookup).
 "Actually delivered" (drafts through 2022): what each available player really did in his first four
 seasons, at the cost of each of the team's picks, as titles for that team (review.RealizedV2, same as
 the Past drafts page), precomputed for every player at every pick of every team and cached in
-data/derived/sim_realized.npz (rebuilt when the review changes).
+data/derived/sim_realized_v4.npz (REAL_CACHE; rebuilt when the review changes).
 
 The output embeds Arif Hasan's consensus boards: keep it private (data/ is not in git).
 Run:  python scripts/export_simulator_artifact.py  -> data/derived/artifact/draft_simulator.html

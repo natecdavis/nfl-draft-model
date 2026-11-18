@@ -9,7 +9,7 @@ data/derived/bracket_<label>_{pick_value,trades}.parquet.
 Decision rule (fixed before running): leave the labels alone if (1) no real trade verdict flips, a flip being a
 team-side whose title change has opposite signs under the two labels with both more than 2 se from zero, and
 (2) pick values relative to pick 32 move by less than ~10%. Otherwise build the pick-attributable correction.
-Usage: python scripts/label_bracket.py [stored|grade] (default both)
+Usage: python scripts/label_bracket.py [stored|narrow|pickadj|grade] (default all four)
 """
 import sys
 
@@ -65,9 +65,10 @@ def compare():
     have = [n for n in LABELS if (pm.OUT / f"bracket_{n}_pick_value.parquet").exists()]
     G = {n: pd.read_parquet(pm.OUT / f"bracket_{n}_pick_value.parquet") for n in have}
     live = pd.read_parquet(pm.OUT / "pick_value_titles.parquet")
-    chk = G[pm.LABEL].merge(live, on=["situation", "grp", "pick"], suffixes=("", "_live"))
-    print(f"{pm.LABEL}-label rerun vs live pick_value_titles: max abs diff "
-          f"{(chk.titles_added - chk.titles_added_live).abs().max() * 100:.4f} (% of a title)\n")
+    if pm.LABEL in G:  # the live table is on the default label (darko), which isn't one of the bracket labels
+        chk = G[pm.LABEL].merge(live, on=["situation", "grp", "pick"], suffixes=("", "_live"))
+        print(f"{pm.LABEL}-label rerun vs live pick_value_titles: max abs diff "
+              f"{(chk.titles_added - chk.titles_added_live).abs().max() * 100:.4f} (% of a title)\n")
     for grp in ["nonqb", "QB"]:
         print(f"{'Typical non-QB' if grp == 'nonqb' else 'QB'} pick, titles added (% of one Super Bowl); "
               f"'rel' rows = change in value relative to pick 32, vs stored")

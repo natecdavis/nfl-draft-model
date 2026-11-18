@@ -25,7 +25,6 @@ in nflverse yet, so 2026's come from Wikipedia's draft page via src/wiki_trades.
 Run:  python src/review.py [first_year last_year]   -> data/derived/review_picks.parquet etc.
 """
 import sys
-from pathlib import Path
 
 import os
 
@@ -235,6 +234,8 @@ class States:
             if play is not None and play < self.qb_med.get(year - 1, 0):
                 status, qb_from = status + ", below-average play", 2
         # seasons left on his deal after this one (known on draft day; review.p_need)
+        # Negative = his latest deal in the data ended before this season (current deal missing, usually an old
+        # QB going year to year: Brady 2022, Rivers 2019). p_need counts these with "expiring" on purpose.
         left = (int(latest.year_signed + latest.years - 1 - year)
                 if latest is not None and pd.notna(latest.years) and pd.notna(latest.year_signed) else None)
         return {"qb": name, "status": status, "qb_from": qb_from, "shift": shift, "qb_left": left}
@@ -280,7 +281,7 @@ class Table:
     x1 / x0.95 / x0.88 all seasons; "early" = starter/rotation/depth); for QBs 0 = fills the need, 1-2 = filled.
     The grid is over talent already shaded for a fall; lookup() applies the shading once (the grid
     used to be built with player_value(), which shades again: fixed Nov 2026)."""
-    def __init__(self, sit: dict, ctx: Context, fall_weight=0.8):
+    def __init__(self, sit: dict, ctx: Context, fall_weight=0.85):  # same default as FALL_W below
         self.eng = DraftEngine(sit, ctx=ctx, fall_weight=fall_weight)
         e = self.eng
         self.v = {}
@@ -318,8 +319,11 @@ def p_need(status: str, qb_from, left=None) -> float:
     """Chance a flagged QB need is real: share of such team-years whose main QB the next season was someone else
     (README, 'Why the model's round-1 picks start less'). The two veteran flags (age 36+, paid veteran after a
     below-average season) split by his contract (`left` = seasons left after this one, known on draft day):
-    under contract next year 0.39, expiring 0.68 (2014-2024; README 'QB need while the veteran is under
-    contract', scripts/qb_need_contract.py). Contract not in the data: the old pooled rates."""
+    under contract next year 0.39 (18 of 46), expiring 0.68 (30 of 44; 2014-2024; README 'QB need while the
+    veteran is under contract', scripts/qb_need_contract.py). "Expiring" includes the 12 team-years whose latest
+    deal in the data had already ended (left < 0: current deal missing); 10 of those 12 changed QB, against 20
+    of 32 with a deal known to expire, so they are kept with expiring rather than split off (checked Nov 17
+    2026). No deal in the data at all (left is None): the old pooled rates."""
     if qb_from is None or (isinstance(qb_from, float) and np.isnan(qb_from)):
         return 1.0  # no need flagged: the tables already give a QB no playing time
     s = str(status)
@@ -473,42 +477,6 @@ def add_outcomes(df):
     return df
 
 
-def add_realized(df, states, ctx, n=2000):
-    """What each candidate actually delivered, in the model's own currency: his real
-    snap shares and market price (value_library.py), at the cost of THIS pick, turned
-    into titles for THIS team's situation. Drafts through 2021; undrafted players = 0."""
-    from pick_value import baseline_paths, pick_effect
-    lib = pd.read_parquet(OUT / "value_library.parquet").set_index(["draft_year", "pick"])
-    shares_cols = [f"share_{t}" for t in range(1, 6)]
-    sits = {(r.year, r.team): {"start": r.start, "shift": r.shift if isinstance(r.shift, dict) else eval(r.shift),
-                               "qb_from": None if pd.isna(r.qb_from) else int(r.qb_from)}
-            for r in states.itertuples()}
-    base_cache = {}
-
-    def titles(sit, grp, year, drafted_at, pick):
-        if grp is None or grp == "SPEC" or year > 2021:
-            return np.nan
-        if pd.isna(drafted_at) or (year, int(drafted_at)) not in lib.index:
-            sh, pr = np.zeros((1, 5)), np.array([0.005])
-        else:
-            row = lib.loc[(year, int(drafted_at))]
-            sh, pr = row[shares_cols].to_numpy(float)[None, :], np.array([row.price])
-        key = (sit["start"], sit["qb_from"], tuple(sorted(sit["shift"].items())))
-        if key not in base_cache:
-            b = baseline_paths(sit, np.random.default_rng(0), n)
-            base_cache[key] = (b, ctx.sb(b).sum(axis=1).mean())
-        b, b0 = base_cache[key]
-        s2 = dict(sit); s2["qb_from"] = 99 if sit["qb_from"] is None else sit["qb_from"]
-        pts = pick_effect(sh, pr, int(pick), grp, s2, ctx.cost, ctx.bar, ctx.rates)
-        return (ctx.sb(b + pts).sum(axis=1).mean() - b0) * 100
-
-    for col, g, at, nm in [("real_team", "grp", "pick", "player"), ("real_model", "rec_grp", "rec_drafted_at", "rec_player"),
-                           ("real_consensus", "best_available_grp", "best_available_drafted_at", "best_available")]:
-        df[col] = [titles(sits[(y, tm)], gg, y, a, k, n_) for y, tm, gg, a, k, n_ in
-                   zip(df.year, df.team, df[g], df[at], df.pick, df[nm])]
-    return df
-
-
 def main(first=YEARS[0], last=YEARS[-1]):
     import time
     ctx, states, tables = Context(), States(), {}
@@ -655,7 +623,6 @@ class RealizedV2:
     for classes with all four seasons played (through 2022); undrafted players of 2014-2015 from
     udfa_pre2016_labels. Players who never played in the NFL count as zero."""
     def __init__(self, ctx, n=2000, units=None, pos_pay=None):
-        from pathlib import Path as _P
         # units: see outcomes_v2.unit_factor; pos_pay: outcomes_v2.pay_factor (None = its default)
         self.ctx, self.n, self.units, self.pos_pay = ctx, n, units, pos_pay
         import prospect_model as pm
@@ -956,4 +923,4 @@ if __name__ == "__main__":
     else:
         a = [int(x) for x in sys.argv[1:]]
         main(*a)
-        build_trade_decisions(range(a[0], a[-1] + 1) if a else YEARS)
+        build_trade_decisions(range(a[0], (a[1] if len(a) > 1 else YEARS[-1]) + 1) if a else YEARS)

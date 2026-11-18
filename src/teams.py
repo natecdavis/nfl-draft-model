@@ -13,7 +13,7 @@ For each of the 32 teams:
        veteran paid more      -> no QB need, unless he played below the league median
                                  last season -> upgrade wanted; a drafted QB starts in season 2
   3. 2027 draft slot: the rest of the 2026 season simulated from actual results so
-     far and the market ratings. Draft order is by record (playoff teams last).
+     far and the market ratings. Draft order is by wins only (playoff results aren't used).
      2027 firsts already traded (per the trade data, which ends April 2026) move
      with their new owners.
 Then for each team: its first-round picks' value in Super Bowl odds, and verdicts
@@ -29,7 +29,6 @@ import pandas as pd
 import polars as pl
 
 from outlook import OUT, RAW
-from pick_value import START_SD
 from simulate import RELOCATED, load_schedules
 from trade import Context, Pick, evaluate
 

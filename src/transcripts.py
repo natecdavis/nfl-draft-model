@@ -7,7 +7,6 @@ after the event year) are fetched. Polite: one request every 2 s, every page cac
 (no robots.txt on the site; generic research User-Agent).
 """
 import html
-import json
 import re
 import time
 import urllib.request

@@ -9,7 +9,6 @@ the cfdarko universe (four NFL seasons played). Three questions, all out of samp
 Text features: (a) Brugler's round grade, (b) hand-picked word groups, (c) a bag-of-words
 ridge model fit leave-one-class-out.
 """
-import re
 import sys
 
 import numpy as np
@@ -151,7 +150,7 @@ def main():
     from scipy.stats import spearmanr
     print(f"   rank correlation with actual value (board players, n={len(on)}): consensus "
           f"{spearmanr(-on.log_rank, on.actual)[0]:.3f}, Brugler grade {spearmanr(-on.grade, on.actual)[0]:.3f}, "
-          f"both (consensus model + grade) {spearmanr(on.expected - 0.0 * on.grade, on.actual)[0]:.3f}")
+          f"consensus model's expected value {spearmanr(on.expected, on.actual)[0]:.3f}")
 
     # ---- 2. spread: at the same expected value, do boom/bust words predict bigger misses?
     print("\n2. SPREAD: at the same expected value, does the text predict how far outcomes land from it?")

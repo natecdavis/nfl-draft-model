@@ -1,12 +1,13 @@
 """QB need while the veteran is under contract (open idea from complaint #1).
 
-review.p_need: chance a flagged QB need is real, by status only (stopgap 0.79, later-round rookie 0.62,
+review.p_need before this test: chance a flagged QB need is real, by status only (stopgap 0.79, later-round rookie 0.62,
 below-average paid vet 0.54, age 36+ 0.52, no starter 1.0), measured as the share of flagged team-years whose
 main QB later was someone else. Does the draft-day QB's remaining contract (known on draft day) split this?
 
 Team-years: the review's draft-day states (data/derived/review_states.parquet), drafts 2014-2024.
 Incumbent's contract: as review.States.qb (latest deal known on draft day); end = year_signed + years - 1;
-left = end - draft year (0: expires after this season). Outcome: main QB (most regular-season offensive snaps
+left = end - draft year (0: expires after this season; negative: the latest deal in the data had already
+ended, i.e. his current deal is missing; counted as expiring, 10 of those 12 changed QB). Outcome: main QB (most regular-season offensive snaps
 for the team) in seasons year+1 and year+2 is not the draft-day QB. Also shown excluding team-years where the
 team took a QB in rounds 1-2 that draft (the pick itself can cause the change).
 

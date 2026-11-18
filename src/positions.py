@@ -12,7 +12,6 @@ position a player's team listed when it drafted him.
 The need level of a blended player is that of his board-label position.
 """
 from functools import lru_cache
-from pathlib import Path
 
 import numpy as np
 import pandas as pd

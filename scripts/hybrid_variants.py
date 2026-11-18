@@ -21,7 +21,6 @@ Usage: OUTCOME_UNITS=single python scripts/hybrid_variants.py dump
        OUTCOME_UNITS=family python scripts/hybrid_variants.py dump
        python scripts/hybrid_variants.py report
 """
-import os
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
