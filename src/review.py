@@ -35,7 +35,7 @@ from draftday import LEVELS, NEED_STEP, DraftEngine
 from outlook import GROUPS, OUT, RAW
 from public_board import _norm
 from simulate import league_params, load_schedules
-from trade import Context, Pick, evaluate
+from trade import Context, Pick, evaluate, trade_log
 
 YEARS = list(range(2014, 2027))
 # nflverse's trade log ends 2026-04-17, before the 2026 draft: those draft-night trades come
@@ -63,7 +63,7 @@ team = lambda s: PFR_TEAM.get(s, s)
 def load_trades() -> pd.DataFrame:
     """nflverse's trade log, plus Wikipedia-parsed draft-night trades for any draft it
     doesn't cover yet (no trades dated draft week)."""
-    t = pd.read_parquet(RAW / "trades.parquet")
+    t = trade_log()
     dates = pd.to_datetime(t.trade_date)
     for f in sorted(RAW.glob("trades_wiki_*.parquet")):
         y = int(f.stem.split("_")[-1])
@@ -95,10 +95,13 @@ def draft_night(year: int) -> pd.DataFrame:
     # owner when the draft began = the root of the pick's draft-night chain: a team that gave it and never received
     # it that night. The first giver by date can be a later link when a pick moves twice the same day (trade ids
     # aren't in time order within a day): 66 picks 2014-2026 were mislabeled until Nov 2026 (63 chains, 3 loops).
-    # A pick that went round in a loop (A -> B -> A) has no such root: then the team that made the pick.
+    # A pick that went round in a loop (A -> B -> A) has no such root: then the only giver on the first day it
+    # moved, and failing that the team that made the pick.
     root = {}
     for k, g in moved.groupby("pick_number"):
         r = set(g.gave) - set(g.received)
+        if len(r) != 1:
+            r = set(g.gave[g.date == g.date.min()])
         if len(r) == 1:
             root[k] = r.pop()
     d["original_team"] = [root.get(p, tm) for p, tm in zip(d.pick, d.team)]

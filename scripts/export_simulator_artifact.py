@@ -192,7 +192,7 @@ def realized_extra(S, R, night, verbose=False) -> dict:
 ROOM_GROUPS = ["QB", "RB", "WR", "TE", "OL", "ED", "IDL", "LB", "CB", "S"]  # T / G / C share one OL room
 
 
-def room_info(S) -> tuple[dict, dict, dict]:
+def room_info(S) -> tuple[dict, dict, dict, dict, dict]:
     """Room check (information only; README "Room check v2"; scripts/room_crowding.py).
     Per (year, team): {"room": {group: R}, "inc": {group: [[name, last se, projected se, tier], ...]}} where
       R            the team's room in starter-equivalents (se: snap share summed over games / games): mean league
@@ -220,7 +220,40 @@ def room_info(S) -> tuple[dict, dict, dict]:
         if (r.year, r.team) in out and r.rg in rc.ROOM_GROUPS:
             out[(r.year, r.team)]["inc"].setdefault(r.rg, []).append(
                 [str(r.name), round(float(r.se), 2), round(float(r.proj), 2), r.qt])
-    return out, e1, {g: round(v, 3) for g, v in k.items()}
+    # Stacking check (README "Room column: rookie-deal players vs the room"): players on the roster still inside
+    # their rookie deal (drafted in the last 3 drafts, round 1: 4), each with the expected snap share of a drafted
+    # player at his consensus rank and career season (strict_follower.expected_curve), for this season and the
+    # next three; e4 = the same curve for candidates; med = league median room per position (T / G / C separate),
+    # as in the room rule (scripts/cross_year_need.py).
+    import strict_follower as sf
+    from draftday import POS
+    med = sf.rooms(sf.season_shares())
+    med = med[med.season.between(2014, 2025)].groupby("grp").share.median()
+    bp = sf.board_players()
+    brk = {(int(y), int(p)): (float(r), g) for y, p, r, g in zip(bp.year, bp.pick, bp["rank"], bp.grp)}
+    board_years = set(bp.year.astype(int))
+    dp = pd.read_parquet(RAW / "draft_picks.parquet").dropna(subset=["pfr_player_id"])
+    drafted = {i: (int(y), int(p), str(q).upper()) for i, y, p, q in zip(dp.pfr_player_id, dp.season, dp.pick, dp.position)}
+    for r in I[I.year.isin(set(S.year.astype(int)))].drop_duplicates(["year", "team", "pfr_player_id"]).itertuples():
+        d = drafted.get(r.pfr_player_id)
+        if d is None or (r.year, r.team) not in out:
+            continue
+        dy, pick, dpos = d
+        n = 5 if pick <= 32 else 4
+        if not (1 <= r.year - dy < n):
+            continue
+        rank, g = brk.get((dy, pick), (float(pick) if dy not in board_years else 300.0, POS.get(dpos)))
+        if g not in GROUPS:
+            continue
+        e = f(g, rank)
+        arr = [round(float(e[min(c, 4) - 1]), 3) if c <= n else 0.0 for c in range(r.year - dy + 1, r.year - dy + 5)]
+        if max(arr) >= 0.03:
+            out[(r.year, r.team)].setdefault("own", {}).setdefault(g, []).append([str(r.name), dy, pick, arr])
+    for v in out.values():
+        for lst in v.get("own", {}).values():
+            lst.sort(key=lambda x: -max(x[3]))
+    e4 = {g: [[round(float(x), 3) for x in f(g, t)] for t in T_GRID] for g in GROUPS}
+    return out, e1, {g: round(v, 3) for g, v in k.items()}, e4, {g: round(float(med[g]), 2) for g in GROUPS if g in med.index}
 
 def _delta(arr) -> bytes:
     """A table (groups, 3 levels, T, K) as int16 (value x SCALE), differenced along K then T within each
@@ -258,7 +291,7 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
     real = realized_arrays(S, R, verbose)
     night = night_trades(S, verbose)
     extra = realized_extra(S, R, night, verbose)
-    rooms, e1, room_k = room_info(S)
+    rooms, e1, room_k, e4, room_med = room_info(S)
     keys, blobs = {}, []
     fkeys, fblobs = {}, []  # family-units tables (positions only): the "depends on position pricing" label
     teams, rblobs, roff = {}, [], 0
@@ -333,7 +366,7 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
     rounds = {str(int(y)): g.groupby("round").pick.min().astype(int).tolist() for y, g in dp.groupby("season")}
     meta = {"rounds": rounds, "groups": GROUPS + SPEC_GROUPS, "T": T_GRID.tolist(), "K": K_GRID.tolist(), "fw": FALL_WEIGHT, "off": OFF_BOARD_RANK,
             "scale": SCALE, "real_scale": REAL_SCALE, "blends": blends, "n_tables": len(blobs), "fgroups": GROUPS, "latest_av_season": int(dp.season.max()),
-            "room_groups": ROOM_GROUPS, "e1": e1, "room_k": room_k}
+            "room_groups": ROOM_GROUPS, "e1": e1, "room_k": room_k, "e4": e4, "room_med": room_med}
     data = json.dumps({"meta": meta, "teams": teams, "pools": pools}, separators=(",", ":"), ensure_ascii=False)
     b64 = lambda b: base64.b64encode(gzip.compress(b, 9)).decode()
     html = TEMPLATE.read_text().replace("__DATA_GZ__", b64(data.encode())).replace("__TABLES_GZ__", b64(b"".join(blobs))) \

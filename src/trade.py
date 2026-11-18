@@ -169,11 +169,47 @@ def run_examples(ctx):
     df.to_csv(OUT / "trade_examples.csv", index=False)
 
 
+# ---------- the trade log ----------
+
+# nflverse's log has errors in 2022-25: when a team sent two picks the same way, the first often carries the
+# second's number (23 trades). Where the row names the player later drafted with the pick, his real pick number
+# replaces it; the five trades with no names are fixed by hand, as are two 2025 trades with wrong or missing rows.
+_DUP_FIX = {1649: (166, 162), 1656: (59, 53), 1660: (124, 108), 1759: (168, 139), 1773: (248, 230)}  # id: (listed twice, first is really)
+
+
+def trade_log() -> pd.DataFrame:
+    """nflverse's trade log (data/raw/trades.parquet) with its known errors corrected."""
+    t = pd.read_parquet(RAW / "trades.parquet")
+    dp = pd.read_parquet(RAW / "draft_picks.parquet")
+    at = {(s_, i): (k, r) for s_, i, k, r in zip(dp.season, dp.pfr_player_id, dp.pick, dp["round"]) if i}
+    rnd = dict(zip(zip(dp.season, dp.pick), dp["round"]))
+    for i, r in t[t.pick_number.notna() & t.pfr_id.notna() & (t.pfr_id != "")].iterrows():
+        k = at.get((r.pick_season, r.pfr_id))
+        if k and k[0] != r.pick_number:
+            t.loc[i, ["pick_number", "pick_round"]] = k
+    for tid, (dup, real) in _DUP_FIX.items():
+        rows = t.index[(t.trade_id == tid) & (t.pick_number == dup)]
+        assert len(rows) == 2, (tid, len(rows))
+        t.loc[rows[0], ["pick_number", "pick_round"]] = real, rnd[(t.at[rows[0], "pick_season"], real)]
+    # 2025 Rams-Colts: the Rams gave #127 and #190 for #117 (the log has all three going to the Rams)
+    m = (t.trade_id == 1938) & t.pick_number.isin([127, 190]) & (t.gave == "IND")
+    t.loc[m, ["gave", "received"]] = ["LA", "IND"]
+    # 2025 Eagles-Chiefs: the Eagles gave #32 and #164 for #31 (the log has only #31)
+    m = t.trade_id == 1922
+    if m.sum() == 1:
+        base = t[m].iloc[0]
+        add = [base.copy(), base.copy()]
+        for a, (k, r_) in zip(add, [(32, 1), (164, 5)]):
+            a["gave"], a["received"], a["pick_number"], a["pick_round"], a["pfr_id"], a["pfr_name"] = "PHI", "KC", k, r_, "", ""
+        t = pd.concat([t, pd.DataFrame(add)], ignore_index=True)
+    return t
+
+
 # ---------- real trades ----------
 
 def real_trades(ctx, n=4000):
     """Pick-only trades made before or during the 2013-2025 drafts, scored for both teams."""
-    t = pl.read_parquet(RAW / "trades.parquet").to_pandas()
+    t = trade_log()
     for col in ["gave", "received"]:
         t[col] = t[col].replace({"STL": "LA", "SD": "LAC", "OAK": "LV"})
     t = t[t.season.between(2013, 2025)]

@@ -26,14 +26,14 @@ sys.path.insert(0, "src")
 import prospect_model as pm  # noqa: E402
 from outlook import OUT, RAW  # noqa: E402
 from pick_value import baseline_paths, pick_effect  # noqa: E402
-from trade import CARRY, Context, Pick, _slots, evaluate  # noqa: E402
+from trade import CARRY, Context, Pick, _slots, evaluate, trade_log  # noqa: E402
 
 TEAM = {"STL": "LA", "SD": "LAC", "OAK": "LV"}
 MARKET_EQ = {1: 42, 2: 74}
 
 
 def trades():
-    t = pd.read_parquet(RAW / "trades.parquet")
+    t = trade_log()
     for c in ("gave", "received"):
         t[c] = t[c].replace(TEAM)
     t["date"] = pd.to_datetime(t.trade_date)

@@ -23,13 +23,13 @@ from scipy.optimize import least_squares
 
 sys.path.insert(0, "src")
 from outlook import OUT, RAW  # noqa: E402
-from trade import CARRY, SITUATIONS, Context, Pick, _slots, evaluate  # noqa: E402
+from trade import CARRY, SITUATIONS, Context, Pick, _slots, evaluate, trade_log  # noqa: E402
 
 TEAM = {"STL": "LA", "SD": "LAC", "OAK": "LV"}
 
 
 def load_trades(ctx):
-    t = pd.read_parquet(RAW / "trades.parquet")
+    t = trade_log()
     for c in ("gave", "received"):
         t[c] = t[c].replace(TEAM)
     t["date"] = pd.to_datetime(t.trade_date)

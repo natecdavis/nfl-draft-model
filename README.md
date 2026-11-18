@@ -3212,7 +3212,7 @@ The simulator's room check now shows projected open snaps per position, in start
 - Open = room - projected incumbents - expected season-1 share of picks made in the simulation. Gold under 0.25 open,
   red under 0.05 (full / over). Information only, as before.
 - Room column per candidate: his position's room filled now (%), + his expected first-season share, -> total.
-  A green bar marks the model's highest-ranked available player at each position with 0.05+ open (OL one room).
+  A green bar marks the model's highest-ranked available player at each position with 0.05+ open (OL one room; removed in v36, see "Room column: rookie-deal players vs the room").
 
 Signing-team fix (`roster_need.departures_and_adds`): OTC lists every team a contract passed through ("LAR/DAL/MIA",
 not always in order: "PHI/CHI" for a Bears signing later traded to the Eagles). The last listed team was taken as
@@ -3520,3 +3520,57 @@ average, typical 3.1, full 4.1):
 Reading: consistent with the room check (veterans absorb most of any gap, in either direction) and with the earlier
 nulls (roster need, quality need, net gain). No support for a need term from the team side. Not adopted. The room
 matters only as a cap across several picks at one position ("Strict follower").
+
+## Room column: rookie-deal players vs the room (simulator, Nov 18 2026)
+
+The tests agree on one practical rule: take the best player, and use the room only as a cap against stacking a
+position ("Team-level room test", "Strict follower", "Cross-year need term"). The Room column (v33: room filled now,
+his season-1 share, effective total after veterans give back) didn't show that: veterans give back 91-98% of a WR,
+OL or QB pick's snaps, so a second or third pick at the positions a follower overfills barely moved it; it counted
+veterans, who yield; and it covered season 1 only.
+
+v35: the column is "Young / room", the quantity in the room rule (`scripts/cross_year_need.py`):
+
+- Load = expected snap share, in starters, of the roster's players still on rookie deals at the candidate's position
+  (drafted in the last 3 drafts, round 1: 4; on the draft-day roster per the room check's incumbents, whoever
+  drafted them) plus the picks made so far in the simulation. Each by consensus rank and career season
+  (`strict_follower.expected_curve`; classes before 2014 have no board, so pick number stands in for rank).
+- Room = league median total snap share at the position, 2014-25 (T 2.03, G 1.99, C 1.00 separately; WR 2.56,
+  QB 1.00, CB 2.67, ED 1.84, ...).
+- Shown as "1.2 → 1.8 of 2.6": load before and after taking him, in the fullest of his first four seasons. Red when
+  part of his expected snaps over the four seasons doesn't fit (the rule's m < 1), gold from 85% of the room; hover
+  for the players and the share that fits.
+
+The ranking ignores it (the room rule wasn't adopted). On draft day the load alone is over the room in 63 of 4,992
+team x year x position rooms 2014-26 (22 of them C: center draftees often play guard) and over 85% in 157, so red
+mostly appears when the user stacks a position: NYG 2026 at WR reads 1.2 → 1.8 of 2.6 at the first pick and
+2.7 → 3.1 (49% of his snaps fit) for a fourth WR after taking three. The open-snaps room check stays in the note
+under the tiles (`export_simulator_artifact.room_info` exports both).
+
+v36: the green bar on the top player at each "open" position is removed. It came from the open-snaps check, which
+the tests say doesn't help a single pick, and it could sit on a row the stacking check marks red. Rows are now marked
+only for the team's real pick (gold).
+
+## Trade log corrections (Nov 18 2026)
+
+The simulator showed the Rams' 2025 trade with the Colts as "we give nothing, we get #127, #127, #190". The
+public trade log (`data/raw/trades.parquet`) has errors in 2022-25: when a team sent two picks the same way, the
+first often carries the second's number (23 trades, 21 on draft night). `trade.trade_log()` now corrects them and
+is the loader for the review, the real-trade scoring and the two future-pick scripts:
+
+- 17 trades: the row names the player later drafted with the pick, so his real pick number replaces the listed one.
+- 5 trades with no names (ids 1649, 1656, 1660, 1759, 1773): fixed by hand.
+- 2025 Rams-Colts (1938): the Rams gave #127 and #190 for #117; the log had all three going to the Rams.
+- 2025 Eagles-Chiefs (1922): the Eagles gave #32 and #164 for #31; the log had only #31.
+- Left as is: a 2024 Eagles-Steelers trade listing two 2025 seventh-rounders at one number, six one-sided 2005 trades.
+
+`review.draft_night` also handles a pick that went round in a loop on draft night (A -> B -> A -> C): the owner at
+the start is the only giver on the first day it moved (2023 #230).
+
+Effect: 20 picks had the wrong owner at the start of the draft (2022: 7, 2024: 3, 2025: 10). Pick recommendations
+and values are unchanged. Of 802 trade sides, 38 verdicts changed (mean absolute change 0.04% of a title, 3 changed
+sign) and 4 were added (the two repaired 2025 trades); the total over all sides went from +52.6 to +50.4. The market
+chart refit on 593 trades instead of 591: lam 0.081 -> 0.078, beta 0.747 -> 0.756; the discount on picks two years
+out moved 0.02 -> 0.10 (five trades, an extrapolation as before). The simulator test now reproduces 410 of 416 real
+drafts (398 before). Artifact version 37. Old outputs in `data/derived/before_tradelog_fix/`. Not rerun:
+`future_pick_test.py` (full), `future_pick_realized.py`, `trade.py` real trades.

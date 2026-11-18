@@ -87,8 +87,6 @@ td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space:
 td.name { font-weight: 600; }
 td.name small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
 tr.teampick td { background: var(--gold-soft); }
-tr.ropen td:first-child { box-shadow: inset 4px 0 0 var(--turf); }
-.ropen-key { display: inline-block; width: 4px; height: 12px; background: var(--turf); vertical-align: -1px; margin-right: 4px; }
 .pos { font-family: var(--display); font-weight: 600; font-size: 15px; }
 .pos-col { width: 1%; white-space: nowrap; }
 button { font: inherit; font-weight: 600; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); padding: 7px 12px; cursor: pointer; }
@@ -143,7 +141,7 @@ button.take { padding: 4px 10px; font-size: 13px; }
     <section class="card" id="history"></section>
   </div>
 
-  <p class="note">How it works: at each pick, everyone really taken before it is gone (including this team's own earlier picks, even if you passed on them), and anyone you took is gone at your later picks. Each player you take at a position lowers the value of the next one there; after one QB the QB need is filled, and a flagged QB need counts with its measured chance of being real (for a veteran flagged for age or a below-average season: 39% if he is under contract next year, 68% if his deal expires). Candidates are Arif Hasan's consensus board plus drafted players who weren't on it (valued as ranked just past it, #330). Positions are the consensus board's own labels; a label that often changes position in the NFL (a 5-technique, an edge rusher who becomes an off-ball linebacker, a safety who moves to linebacker) is valued as a blend of those positions and shown like "DL/EDGE". Position pricing: the model prices each season at what veterans at that position earn for that role; the other defensible choice prices each position family to match its own later pay, which marks down rotational positions (RB, TE, EDGE, DL) and favors OL. The model's top choice is labeled firm when it is also the top choice under that pricing, and "depends on position pricing" when the position changes (17% of round-1 picks, about 40% later, 2014-2022, mostly EDGE / WR / TE vs OL). Room check (information only; the ranking ignores it): projected open snaps at each position this season, in starters (1 = every snap). The team's room is the league median for the position plus about half of how far the team was from it last season (team styles carry over about half from one season to the next; tackles, guards and centers share one offensive-line room, since the line always totals about five starters). From it come the incumbents' projected snaps (last season's players still on the team plus veterans added before the draft, and roster players with no snaps last season; each projected from last season's snap share, quality tier, age and years in the league: incumbents keep about 70% of their snaps on average, young part-timers grow and older starters fade; a good player who missed games is expected to win back much of that time, a weaker one less; a player who missed the whole season rarely comes back as a regular) and the expected first-season share of players you take here. Snaps are shared, so veterans fill most of any gap: incumbents play more in a thin room and less in a crowded one, and teams sign players after the draft. What's left for rookies is the gap times the share veterans don't take (30% at CB, about 25% at EDGE, DL and LB, 37% at S, under 10% at OL, QB and WR), so offensive line, quarterback and receiver rooms rarely show open space. Gold under a quarter of a starter open, red when full or over; the model's highest-ranked available player at each position not yet projected full (at least 0.05 of a starter open) has a green bar at the left of his row. Each candidate's Room column shows his position's room filled now (%), his expected first-season share at his consensus rank, and the effective total after taking him: veterans give back the same share of his snaps they would take in a thin room, so the room grows by only the rest (a QB or WR barely moves it). Rookies' playing time depends mostly on draft slot, and using room to discount picks didn't improve past drafts (README "Quality-weighted roster need"); releases and retirements without a new contract can't be detected (an unsigned free agent still counts for his old team), so treat it as approximate. Kickers and punters are valued by where they were actually drafted (the board rarely ranks them): the gain of a drafted specialist over an undrafted one, measured in points 2006-2022, and only the first at each position counts; long snappers aren't valued. Draft-night trades: only the trades the team really made can be offered (declined offers aren't public); each comes up before the first pick it involves, with the trade calculator's verdict (the pick on the clock is valued, for the team that gets it, as the player really taken there: his board rank and position were known when the deal was made) and the market price, and one you can no longer make after an earlier choice is skipped. If you nix a trade, the partner's slot is filled by the rule at the top: by default, whoever was really picked there (the board is then exactly what it really was at every later pick); or, as the other end of the range, the partner makes the choices it really made with our picks, and the player really taken at that slot goes back on the board. "Delivered" columns count each player's first four seasons; drafts since 2023 count the seasons played so far (through 2025).</p>
+  <p class="note">How it works: at each pick, everyone really taken before it is gone (including this team's own earlier picks, even if you passed on them), and anyone you took is gone at your later picks. Each player you take at a position lowers the value of the next one there; after one QB the QB need is filled, and a flagged QB need counts with its measured chance of being real (for a veteran flagged for age or a below-average season: 39% if he is under contract next year, 68% if his deal expires). Candidates are Arif Hasan's consensus board plus drafted players who weren't on it (valued as ranked just past it, #330). Positions are the consensus board's own labels; a label that often changes position in the NFL (a 5-technique, an edge rusher who becomes an off-ball linebacker, a safety who moves to linebacker) is valued as a blend of those positions and shown like "DL/EDGE". Position pricing: the model prices each season at what veterans at that position earn for that role; the other defensible choice prices each position family to match its own later pay, which marks down rotational positions (RB, TE, EDGE, DL) and favors OL. The model's top choice is labeled firm when it is also the top choice under that pricing, and "depends on position pricing" when the position changes (17% of round-1 picks, about 40% later, 2014-2022, mostly EDGE / WR / TE vs OL). Room check (information only; the ranking ignores it): projected open snaps at each position this season, in starters (1 = every snap). The team's room is the league median for the position plus about half of how far the team was from it last season (team styles carry over about half from one season to the next; tackles, guards and centers share one offensive-line room, since the line always totals about five starters). From it come the incumbents' projected snaps (last season's players still on the team plus veterans added before the draft, and roster players with no snaps last season; each projected from last season's snap share, quality tier, age and years in the league: incumbents keep about 70% of their snaps on average, young part-timers grow and older starters fade; a good player who missed games is expected to win back much of that time, a weaker one less; a player who missed the whole season rarely comes back as a regular) and the expected first-season share of players you take here. Snaps are shared, so veterans fill most of any gap: incumbents play more in a thin room and less in a crowded one, and teams sign players after the draft. What's left for rookies is the gap times the share veterans don't take (30% at CB, about 25% at EDGE, DL and LB, 37% at S, under 10% at OL, QB and WR), so offensive line, quarterback and receiver rooms rarely show open space. Gold under a quarter of a starter open, red when full or over. Each candidate's Young / room column is a separate stacking check: veterans give way to draft picks, but a team's own young drafted players can't all play. It adds up the expected snaps (by consensus rank and career season, in starters) of the roster's players still on rookie deals at his position (drafted in the last three drafts, four for first-rounders) and your picks so far, and shows that total before and after taking him, against the league's median room at the position (tackle, guard and center separately), in the fullest of his first four seasons; red when part of his expected snaps wouldn't fit, gold from 85% of the room. Real teams rarely reach the room (about 2% of picks in the top 150), so red mostly means you are stacking a position. The ranking ignores it: a rule that discounted such picks helped a strict multi-year follower of the model but wasn't enough to adopt. Rookies' playing time depends mostly on draft slot, and using room to discount picks didn't improve past drafts (README "Quality-weighted roster need"); releases and retirements without a new contract can't be detected (an unsigned free agent still counts for his old team), so treat it as approximate. Kickers and punters are valued by where they were actually drafted (the board rarely ranks them): the gain of a drafted specialist over an undrafted one, measured in points 2006-2022, and only the first at each position counts; long snappers aren't valued. Draft-night trades: only the trades the team really made can be offered (declined offers aren't public); each comes up before the first pick it involves, with the trade calculator's verdict (the pick on the clock is valued, for the team that gets it, as the player really taken there: his board rank and position were known when the deal was made) and the market price, and one you can no longer make after an earlier choice is skipped. If you nix a trade, the partner's slot is filled by the rule at the top: by default, whoever was really picked there (the board is then exactly what it really was at every later pick); or, as the other end of the range, the partner makes the choices it really made with our picks, and the player really taken at that slot goes back on the board. "Delivered" columns count each player's first four seasons; drafts since 2023 count the seasons played so far (through 2025).</p>
 </div>
 
 <script>
@@ -387,27 +385,40 @@ function roomState(T, P, S) {
 }
 const openTxt = o => o >= 0.05 ? `${o.toFixed(1)} open` : o > -0.05 ? "full" : `${(-o).toFixed(1)} over`;
 const openCls = o => o < 0.05 ? "rfull" : o < 0.25 ? "rnear" : "";
-// the model's highest-ranked available player at each position not yet projected full (T / G / C: one OL room)
-function openTops(RS, o) {
-  const seen = new Set(), tops = new Set();
-  for (const x of o) {
-    const g = roomGrp(x.g);
-    if (seen.has(g)) continue;
-    seen.add(g);
-    if ((RS[g]?.open ?? -1) >= 0.05) tops.add(x.idx);
-  }
-  return tops;
+const rowCls = (x, k) => x.at === k ? "teampick" : "";
+// Room column: stacking check (README "Room column: rookie-deal players vs the room"). The room rule: veterans
+// yield snaps freely, but the team's own young drafted players can't all play. Load = expected snap share (by
+// consensus rank and career season) of the roster's players still on rookie deals + your picks so far, in each of
+// the candidate's first four seasons; R = league median room at his position (T / G / C separate).
+// "1.9 → 2.5 of 2.6": the load before and after taking him in the fullest of those seasons; red when part of his
+// expected snaps doesn't fit (load + his share > R), gold from 85% of the room.
+function e4Of(g, rank) {
+  const c = META.e4?.[g]; if (!c) return null;
+  const x = Math.log((rank ?? META.off) + 10), xs = META.T.map(t => Math.log(t + 10));
+  if (x <= xs[0]) return c[0];
+  if (x >= xs[xs.length - 1]) return c[c.length - 1];
+  const i = searchLeft(xs, x) - 1, f = (x - xs[i]) / (xs[i + 1] - xs[i]);
+  return c[i].map((v, t) => v * (1 - f) + c[i + 1][t] * f);
 }
-// row classes: the team's real pick (gold) and the top player at each open position (green bar at the left edge)
-const rowCls = (tops, x, k) => [x.at === k ? "teampick" : "", tops.has(x.idx) ? "ropen" : ""].filter(Boolean).join(" ");
-// "99% +41% → 103%": share of his position's room projected filled now (veterans, after crowding, + your picks), his
-// own expected first-season share at his consensus rank, and the effective total after taking him: veterans give
-// back the share k of his snaps they'd otherwise take, so the room grows by only (1 - k) x his share (hover)
-function roomAdd(RS, x) {
-  const r = RS[roomGrp(x.g)]; if (!r) return "";
-  const f = 1 - r.open / r.R, a = e1Of(x.g, x.rank) / r.R, after = f + (1 - r.k) * a, pc = v => Math.round(v * 100) + "%";
-  const tip = `His expected share ${pc(a)} of the room; veterans would give back ${pc(r.k * a)} (${Math.round(r.k * 100)}% of it), so the room ends ${pc(after)} full`;
-  return `<span title="${esc(tip)}">${pc(f)} +${pc(a)} → <span class="${after >= 1 ? "rfull" : after >= 0.9 ? "rnear" : ""}">${pc(after)}</span></span>`;
+function stackState(T, P, S) {
+  const out = {};
+  const at = g => out[g] || (out[g] = { L: [0, 0, 0, 0], who: [] });
+  for (const [g, lst] of Object.entries((T.room && T.room.own) || {}))
+    for (const [name, dy, pick, arr] of lst) { const o = at(g); arr.forEach((v, t) => o.L[t] += v); o.who.push([`${name} (${dy} #${pick})`, arr]); }
+  S.made.forEach(m => { const p = P[m.idx], e = e4Of(p[1], p[2]); if (!e) return; const o = at(p[1]); e.forEach((v, t) => o.L[t] += v); o.who.push([`${p[0]} (your pick)`, e]); });
+  return out;
+}
+function roomAdd(SS, x) {
+  const R = META.room_med?.[x.g], e = e4Of(x.g, x.rank); if (!R || !e) return "";
+  const st = SS[x.g] || { L: [0, 0, 0, 0], who: [] };
+  let t = 0, fit = 0, tot = 0;
+  e.forEach((v, i) => { if (st.L[i] + v > st.L[t] + e[t]) t = i; fit += Math.min(st.L[i] + v, R) - Math.min(st.L[i], R); tot += v; });
+  const before = st.L[t], after = before + e[t], m = tot > 1e-9 ? fit / tot : 1;
+  const who = st.who.filter(w => w[1][t] >= 0.03).sort((p, q) => q[1][t] - p[1][t]).slice(0, 6).map(w => `${w[0]} ${w[1][t].toFixed(2)}`).join(", ");
+  const tip = `Season ${+year + t}, the fullest of his first four: players on rookie deals at ${x.g} expect ${before.toFixed(2)} starters` +
+    (who ? ` (${who})` : "") + `; he expects ${e[t].toFixed(2)}, total ${after.toFixed(2)} of a ${R.toFixed(2)} room. ` +
+    (m < 0.995 ? `Only ${Math.round(m * 100)}% of his expected snaps over four seasons fit.` : "All his expected snaps fit.");
+  return `<span title="${esc(tip)}">${before.toFixed(1)} → <span class="${m < 0.995 ? "rfull" : after >= 0.85 * R ? "rnear" : ""}">${after.toFixed(1)}</span> of ${R.toFixed(1)}</span>`;
 }
 function roomNote(RS, top) {
   const tg = roomGrp(top.g);
@@ -418,7 +429,7 @@ function roomNote(RS, top) {
       (who ? `. Last season → projected: ${who}` : ". No incumbents");
     return `<span class="rcell${g === tg ? " rtop" : ""}" title="${esc(tip)}"><b>${pos(g)}</b> <span class="${openCls(r.open)}">${openTxt(r.open)}</span></span>`;
   }).join("");
-  return `<div class="room"><div class="d"><b>Room check</b> <small>(information only, the ranking ignores it)</small>: projected open snaps at each position this season, in starters (1 = every snap): the room left for rookies after the team's incumbents' projected snaps, your picks so far, and the share of any gap veterans would fill (hover for who). The Room column shows each player's position as % of its room filled now, his own expected first-season share, and the effective total after taking him (veterans give back most of his snaps, so the room grows by much less than his share; hover for the split); <span class="ropen-key"></span>marks the model's top player at each position not yet projected full.</div><div class="rgrid">${cells}</div></div>`;
+  return `<div class="room"><div class="d"><b>Room check</b> <small>(information only, the ranking ignores it)</small>: projected open snaps at each position this season, in starters (1 = every snap): the room left for rookies after the team's incumbents' projected snaps, your picks so far, and the share of any gap veterans would fill (hover for who).</div><div class="rgrid">${cells}</div></div>`;
 }
 
 function render() {
@@ -446,15 +457,15 @@ function render() {
       ? `<div class="k">${esc(team)} actually took</div><div class="v">${esc(tp.name)} <span class="pos">${posOf(tp.g, tp.label)}</span></div><div class="d">${fmt(tp.v)} · model #${tp.mr} · consensus ${rankTxt(tp.rank)}</div>`
       : `<div class="k">${esc(team)} actually took</div><div class="v">${esc(real[4])} <span class="pos">${pos(real[5])}</span></div><div class="d">${(real[5] in GI) ? "you already drafted him" : "not valued (long snapper or unmapped position)"}</div>`;
     else teamTile = `<div class="k">In reality this pick was another team's</div><div class="v">${atk >= 0 ? esc(P[atk][0]) : "–"}</div><div class="d">${atk >= 0 ? `taken by ${esc(P[atk][5])}` : ""} · ${esc(team)} didn't pick here</div>`;
-    const top = o[0], ft = familyTop(T, P, o, k, S.counts || {}), RS = roomState(T, P, S), tops = openTops(RS, o);
-    const row = x => `<tr class="${rowCls(tops, x, k)}">
+    const top = o[0], ft = familyTop(T, P, o, k, S.counts || {}), RS = roomState(T, P, S), SS = stackState(T, P, S);
+    const row = x => `<tr class="${rowCls(x, k)}">
         <td class="n">${x.mr}</td>
         <td class="name">${esc(x.name)}<small>${esc(x.school)}${x.at === k ? " · really taken here" : ""}</small></td>
         <td class="pos-col"><span class="pos">${posOf(x.g, x.label)}</span></td>
         <td class="n">${rankTxt(x.rank)}</td>
         <td class="hide-sm">${esc(went(x))}</td>
         <td class="n">${fmt(x.v)}</td>
-        <td class="n room-col">${roomAdd(RS, x)}</td>
+        <td class="n room-col">${roomAdd(SS, x)}</td>
         <td><button class="take" type="button" data-idx="${x.idx}">Draft</button></td></tr>`;
     const nMade = S.made.length;
     C.innerHTML = `
@@ -472,19 +483,19 @@ function render() {
       </div>
       <div class="board">
         <div class="panel"><h3>Model's top 25</h3><div class="scroll"><table>
-          <thead><tr><th class="n">Model</th><th>Player</th><th>Pos</th><th class="n">Consensus</th><th class="hide-sm">Actually went</th><th class="n">Titles %</th><th class="n room-col">Room</th><th></th></tr></thead>
+          <thead><tr><th class="n">Model</th><th>Player</th><th>Pos</th><th class="n">Consensus</th><th class="hide-sm">Actually went</th><th class="n">Titles %</th><th class="n room-col" title="Expected starters among players on rookie deals at his position, before → after taking him, of the room (hover a row)">Young / room</th><th></th></tr></thead>
           <tbody>${o.slice(0, 25).map(row).join("")}</tbody></table></div></div>
         <div class="panel"><label for="search">More players: #26 on, or search all ${o.length} available<input type="search" id="search" placeholder="Name, school or position" autocomplete="off"></label>
           <div class="results" id="results"></div></div>
       </div>
-      <p class="note">Model = order by titles added for this team at this pick, given your draft so far.</p>`;
+      <p class="note">Model = order by titles added for this team at this pick, given your draft so far. Young / room = the stacking check: expected starters among the roster's players on rookie deals at his position (plus your picks so far), before → after taking him, against the room, in the fullest of his first four seasons. Red: part of his expected snaps wouldn't fit. Take the best player unless it turns red.</p>`;
     $("takeTop").onclick = () => act({ t: "pick", idx: top.idx });
     if (tp) $("takeTeam").onclick = () => act({ t: "pick", idx: tp.idx });
     C.querySelectorAll("button.take").forEach(b => b.onclick = () => act({ t: "pick", idx: +b.dataset.idx }));
-    const srow = x => `<tr class="${rowCls(tops, x, k)}"><td class="n">${x.mr}</td>
+    const srow = x => `<tr class="${rowCls(x, k)}"><td class="n">${x.mr}</td>
         <td class="name">${esc(x.name)}<small>${esc(x.school)} · ${rankTxt(x.rank)} · went ${esc(went(x))}</small></td>
         <td class="pos-col"><span class="pos">${posOf(x.g, x.label)}</span></td><td class="n">${fmt(x.v)}</td>
-        <td class="n room-col">${roomAdd(RS, x)}</td>
+        <td class="n room-col">${roomAdd(SS, x)}</td>
         <td><button class="take" type="button" data-idx="${x.idx}">Draft</button></td></tr>`;
     const showResults = q => {
       const R = $("results");
