@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from draftday import DraftEngine  # noqa: E402
 from outlook import GROUPS, OUT  # noqa: E402
 from positions import blended  # noqa: E402
-from review import K_GRID, OFF_BOARD_RANK, T_GRID, Table, board, draft_night  # noqa: E402
+from review import K_GRID, OFF_BOARD_RANK, T_GRID, Table, board, draft_night, monotone_titles  # noqa: E402
 from specialists import POS_TO_GROUP, SPEC_GROUPS, get_tables as spec_tables, is_spec, signal  # noqa: E402
 
 TABLE_DIR = OUT / "sim_tables"
@@ -81,7 +81,7 @@ def get_table(sit, ctx=None, year=None) -> Table:
     if f.exists():
         z = np.load(f)
         t = Table.__new__(Table)
-        t.eng, t.v = _Talent(FALL_WEIGHT), {g: z[g] for g in z.files}
+        t.eng, t.v = _Talent(FALL_WEIGHT), monotone_titles({g: z[g] for g in z.files})
         t.v.update(_spec(sit, year, ctx))
         return t
     from review import engine_for
@@ -97,7 +97,7 @@ def get_table(sit, ctx=None, year=None) -> Table:
             o.HOLDOUT, o._MODEL = prev, None
     TABLE_DIR.mkdir(parents=True, exist_ok=True)
     tmp = f.with_suffix(".tmp.npz")
-    np.savez(tmp, **t.v)
+    np.savez(tmp, **t.raw)  # raw values: TITLE_MONOTONE is applied when a table is loaded or built
     tmp.replace(f)
     t.v.update(_spec(sit, year, ctx))
     return t

@@ -35,6 +35,15 @@ from scipy.special import ndtr, ndtri
 from pick_value import baseline_paths, pick_effect, sample_outcomes
 from trade import Context, Pick, package_points
 
+# Titles at a fixed pick can't rise as consensus rank gets worse. The engine already makes mean value
+# non-increasing in rank (outcomes_v2.MONOTONE), but titles also reward the spread of outcomes: QBs ranked 15-22
+# drew more boom-or-bust careers than QBs ranked 5-10 with the same mean, and were worth ~0.4-1.1% of a title more
+# at the same pick (same contract). "min" (adopted Nov 18 2026): a value is capped at the lowest value of any
+# better-ranked player of his position at that pick (board ranks only; off-board keeps its own value, as in the
+# engine). Applied to the review's and simulator's tables (review.monotone_titles) and to value_matrix below.
+# "off": none. README "Titles non-increasing in rank". Environment variable TITLE_MONOTONE overrides it.
+TITLE_MONOTONE = os.environ.get("TITLE_MONOTONE", "min")
+
 # board position labels -> model position groups
 POS = {"QB": "QB", "RB": "RB", "HB": "RB", "FB": "RB", "WR": "WR", "TE": "TE",
        "OT": "T", "T": "T", "OL": "G", "OG": "G", "G": "G", "IOL": "G", "C": "C",
@@ -172,6 +181,13 @@ class DraftEngine:
                     V[i, j] = [v0, v1, v1]
                 else:
                     V[i, j] = [self.step_value(g, r, k, m) for m in range(3)]
+        if TITLE_MONOTONE == "min":
+            from prospect_model import OFF_BOARD
+            rk = board["rank"].to_numpy(float)
+            for g in set(board.grp) - {"SPEC"}:
+                idx = np.flatnonzero((board.grp == g).to_numpy() & (rk < OFF_BOARD))
+                idx = idx[np.argsort(rk[idx], kind="stable")]
+                V[idx] = np.minimum.accumulate(V[idx], axis=0)
         return V
 
     def simulate(self, board: pd.DataFrame, picks: list[int], now: int, sims: int = 2000, seed: int = 1) -> dict:

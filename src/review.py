@@ -31,7 +31,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from draftday import LEVELS, NEED_STEP, DraftEngine
+from draftday import LEVELS, NEED_STEP, TITLE_MONOTONE, DraftEngine
 from outlook import GROUPS, OUT, RAW
 from public_board import _norm
 from simulate import league_params, load_schedules
@@ -278,6 +278,18 @@ T_GRID = np.unique(np.round(np.exp(np.linspace(np.log(11), np.log(OFF_BOARD_RANK
 K_GRID = np.unique(np.round(np.exp(np.linspace(np.log(11), np.log(272), 22)) - 10).astype(int))
 
 
+def monotone_titles(v: dict) -> dict:
+    """Apply draftday.TITLE_MONOTONE to a table's {group: (level, talent, pick) array}, in place: each grid
+    value capped at the lowest value of any better rank at that pick (board ranks; off-board keeps its own)."""
+    if TITLE_MONOTONE != "min":
+        return v
+    n = len(T_GRID) - (T_GRID[-1] >= OFF_BOARD_RANK)
+    for g in GROUPS:
+        if g in v and v[g].shape[1] == len(T_GRID):
+            v[g][:, :n, :] = np.minimum.accumulate(v[g][:, :n, :], axis=1)
+    return v
+
+
 class Table:
     """Titles for (position, need level, effective talent, pick) on a grid, for one situation.
     Level 0-2 = players the team already took at the position this draft (draftday.NEED_STEP: measured
@@ -298,6 +310,8 @@ class Table:
                                else e.player_points(g, t, k, LEVELS[li]))
                         arr[li, a, b] = e.titles(pts)
             self.v[g] = arr
+        self.raw = {g: a.copy() for g, a in self.v.items()}  # before TITLE_MONOTONE (what the simulator caches)
+        monotone_titles(self.v)
 
     def lookup(self, g, level, rank, pick, p_need=1.0) -> float:
         """p_need: chance the team's QB need is real (QBs at level 0 only): the value is

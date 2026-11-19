@@ -3585,3 +3585,45 @@ Reruns with the corrected log (same day):
   and Nov 17 model changes). Non-QB trade-ups: up -0.36 -> -0.37, down +0.45 -> +0.45.
 - `future_pick_realized.py`, both modes: every printed number unchanged (its trades are 2006-21; the errors are
   2022-25).
+
+## Titles non-increasing in rank (`draftday.TITLE_MONOTONE`, Nov 18 2026)
+
+Drafting as Miami in 2020, the simulator ranked Justin Herbert (consensus #15) above Tua Tagovailoa (#5) at pick 5.
+At a fixed pick the contract is the same, so a worse-ranked player should never be worth more. The cause
+(`scripts/qb_rank_bump.py`; a team starting at -5 with a QB need, QB taken at #5, % of a title):
+
+| QB rank | 5 | 10 | 15 | 20 | 25 | 32 |
+|---|---|---|---|---|---|---|
+| All classes | 5.6 | 5.4 | 6.0 | 6.4 | 4.7 | 3.2 |
+| Without 2020 | 4.7 | 4.6 | 5.8 | 5.7 | 5.1 | 3.3 |
+
+- Not Herbert's own career: the bump is larger without the 2020 class (the review and simulator already leave
+  each draft's class out).
+- Not the mean: the engine already caps mean 4-season value to be non-increasing in rank (0.29 of cap from rank 5
+  to 22). It is the spread: comparison careers at rank 5 are 32% big hits (over 0.40 of cap) and 10% near zero; at
+  ranks 15-20, 37-45% and about 21%. Titles are convex in QB value, so the same mean with more spread scores higher.
+  Since 2014, 8 of 20 QBs ranked 11-30 returned over 0.47 of cap in four seasons, against 2 of 19 ranked 1-10.
+
+Fix: `TITLE_MONOTONE = "min"`: each value is capped at the lowest value of any better rank at the same pick (board
+ranks only; off-board keeps its own value, as in the engine). Applied to the review's and simulator's tables when
+built or loaded (`review.monotone_titles`; the cached simulator tables stay raw, no rebuild) and to the draft-day
+app's `value_matrix`. Along pick = rank the cheaper contract still raises value (rank-15 QB at #15 above rank-5 QB
+at #5). Not applied: a named player in a trade valuation (`trade.package_points`). Largest cut in any table cell:
+QB 5.8% of a title, other positions 0.1-0.4.
+
+Test (`scripts/title_monotone_compare.py`; full review 2014-26, off vs min):
+
+| Scorecard, model minus team, each rec once | off | min |
+|---|---|---|
+| R1 | +0.80 (-0.21 to +1.98) n=49 | +0.98 (-0.09 to +2.13) n=45 |
+| R2-4 | +0.43 (+0.02 to +0.97) n=93 | +0.44 (-0.02 to +1.03) n=86 |
+| R5-7 | -0.09 (-0.25 to +0.07) n=59 | -0.04 (-0.19 to +0.10) n=55 |
+| All | +0.37 (+0.03 to +0.73) n=201 | +0.43 (+0.07 to +0.80) n=186 |
+
+- 268 of 3,334 recommendations changed (R1 23; most in rounds 4 and 6, small non-QB bumps). Where both outcomes
+  are known, new minus old realized +0.48 (+0.08 to +0.92; 73 distinct swaps).
+- QB recs 391 -> 387. The model no longer takes Bortles / Manziel (#14-15) over Bridgewater (#6) in 2014, Lynch over
+  Wentz in 2016, Lance over Fields in 2021, Sanders over Ward in 2025; it loses Herbert over Burrow / Tua in 2020
+  (-3.6, -4.7), the one case where the worse-ranked QB was right.
+- Adopted. Review outputs before / after in `data/derived/before_title_monotone/` and `title_monotone_min/`.
+  Artifact version 38.

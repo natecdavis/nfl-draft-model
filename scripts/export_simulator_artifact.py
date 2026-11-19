@@ -25,6 +25,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from review import OFF_BOARD_RANK, K_GRID, T_GRID  # noqa: E402
+from review import monotone_titles  # noqa: E402
 from simulator import FALL_WEIGHT, TABLE_DIR, _key, _spec, get_table, pool, situation  # noqa: E402
 from specialists import POS_TO_GROUP, SPEC_GROUPS  # noqa: E402
 from outlook import GROUPS, OUT, RAW  # noqa: E402
@@ -299,14 +300,14 @@ def build_html(theme: str | None = None, verbose: bool = False) -> str:
         sit = situation(r)
         k = _key(sit, r.year)
         if k not in keys:
-            z = np.load(TABLE_DIR / f"{k}.npz")
+            z = monotone_titles({g: np.load(TABLE_DIR / f"{k}.npz")[g] for g in GROUPS})  # draftday.TITLE_MONOTONE
             sp = _spec(sit, r.year)  # kickers / punters (src/specialists.py)
             arr = np.stack([z[g] for g in GROUPS] + [sp[g] for g in SPEC_GROUPS])  # (groups, 3 levels, T, K)
             keys[k] = len(blobs)
             blobs.append(_delta(arr))
         fk = _family_key(sit, r.year)
         if fk not in fkeys:
-            z = np.load(TABLE_DIR / f"{fk}.npz")
+            z = monotone_titles({g: np.load(TABLE_DIR / f"{fk}.npz")[g] for g in GROUPS})
             fkeys[fk] = len(fblobs)
             fblobs.append(_delta(np.stack([z[g] for g in GROUPS])))
         mine = R[(R.year == r.year) & (R.team == r.team)].sort_values("pick").copy()
