@@ -3627,3 +3627,31 @@ Test (`scripts/title_monotone_compare.py`; full review 2014-26, off vs min):
   (-3.6, -4.7), the one case where the worse-ranked QB was right.
 - Adopted. Review outputs before / after in `data/derived/before_title_monotone/` and `title_monotone_min/`.
   Artifact version 38.
+
+## Class-size test: late picks in big draft classes (`scripts/class_size_test.py`, Nov 19 2026)
+
+Question: the model values each pick on its own, but a team keeps only so many rookies (90 in camp, 53 on the
+roster, about 8-10 rookies kept). Does a late pick return less when the team makes more picks in that draft?
+Team-drafts 2014-22 had 3 to 15 picks (60 of 288 with 10 or more; class size vs prior strength corr -0.15).
+
+| Rounds 5-7, by class size | <=7 picks | 8-9 | 10+ |
+|---|---|---|---|
+| Model's predicted titles per pick (% of one) | 0.25 | 0.24 | 0.22 |
+| Realized | 0.26 | 0.33 | 0.21 |
+| Realized / predicted | 1.08 | 1.38 | 0.97 |
+| Played as a rookie | 73% | 71% | 67% |
+| Seasons 1-4 value vs slot (% of cap) | +0.06 | +0.11 | -0.21 |
+
+- Realized minus predicted titles per extra pick in the class: -0.002 (-0.018 to +0.016; 947 picks), +0.002 with
+  prior strength controlled; per extra round 5-7 pick +0.009 (-0.017 to +0.045). Rounds 4-7: -0.003 (-0.019 to +0.013).
+- Played as a rookie, vs slot: -1.7 points per extra pick (-3.3 to 0.0; rounds 4-7 -1.5, -2.7 to -0.2). Seasons 1-4
+  value vs slot: -0.02% of cap per extra pick (-0.13 to +0.09), not different from zero.
+- Whole class per team-draft: predicted 3.6 / 3.9 / 4.7 titles (% of one) for <=7 / 8-9 / 10+ picks, realized
+  4.6 / 5.3 / 5.5: bigger classes still delivered more in total.
+- Long history, drafts 2000-2021 (2,616 round 5-7 picks): career AV vs slot per extra pick +0.02 (-0.22 to +0.28);
+  ever played a game -0.2 points (-0.9 to +0.5). By his order among the team's round 5-7 picks, AV vs slot
+  +0.1 / -0.1 / -0.3 / +0.3 / +0.2 for the 1st to 5th+: no decline.
+
+Late picks in big classes are a little less likely to play as rookies, but their four-season value, titles and
+career AV are not lower. Not adopted: no class-size term. Limit: real classes rarely go past 12 picks (2 of 288),
+so this says nothing about a follower who trades down into 13 or more.
