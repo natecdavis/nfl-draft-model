@@ -3756,3 +3756,21 @@ most of it is in the guarantee, but the visit is known before the draft and the 
 counted by teams, still says nothing: it's specifically the top-30 invitation. Not yet used: the model's
 candidates are the board plus drafted players, so using it needs off-board visited players in the late-round pool
 and a choice test against the model's round 6-7 picks.
+
+**Late-round choice test** (`scripts/visits_late_choice.py`, Nov 20 2026): would taking an off-board player with a
+top-30 visit (by a team other than the one that got him) beat the model's round 5-7 pick? 2016-2022 (outcomes
+complete), 801 picks; 222 such players in the pool (5 in 2021), a median of 30 still available at each pick.
+Realized titles at the pick's cost for the team on the clock (review.RealizedV2, the review's yardstick).
+
+| Rule (realized, % of a title) | Rule | Model's pick | Team's pick | Rule minus model |
+|---|---|---|---|---|
+| Visited, random among those available (801 picks) | 0.073 | 0.281 | 0.276 | -0.198 (-0.236 to -0.160) |
+| Visited, best public-model expectation (once per draft) | 0.191 | 0.276 | | -0.085 (-0.291 to +0.131), n=12 |
+| Placebo: unvisited, best public model (once per draft) | 0.102 | 0.145 | | -0.043 (-0.229 to +0.104), n=10 |
+
+No. Visited off-board players beat what the public model expects of them, but from a very low base: on average
+they deliver about a quarter of what a round 5-7 pick does, the model's or the team's (minus the team's pick
+-0.20, -0.29 to -0.14). By year they beat the model's pick in 2016-18 and 2020, when its late picks happened to
+miss, and lose badly in 2021-22. The "best by public model" rules collapse to about one player per draft (the
+same top undrafted player stays available all draft), too few to read. The visit marks undrafted players worth
+signing, not players worth a pick. Not adopted.
