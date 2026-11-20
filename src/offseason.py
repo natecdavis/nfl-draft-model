@@ -170,6 +170,11 @@ def roster_moves(team, sit, cap0, n=4000, seed=0):
     sb = lambda x: np.interp(x, curve.strength, curve.super_bowl)  # noqa: E731
     R = vtr.roster()
     ours = R[R.team == team]
+    # CBA: a drafted player's rookie contract can't be renegotiated (extended or restructured) until after his third
+    # regular season - for SIGN_SEASON, draft classes up to SIGN_SEASON - 3 (2024 for 2027). Undrafted players aren't
+    # restricted here (the rule is written for drafted rookie contracts; not verified for undrafted deals).
+    dy = pd.read_parquet(vt.RAW / "players.parquet").dropna(subset=["pfr_id"]).drop_duplicates("pfr_id").set_index("pfr_id").draft_year
+    too_early = {p for p in ours.pfr_id if pd.notna(dy.get(p)) and dy.get(p) > SIGN_SEASON - 3}
     EXT = fm.predict_extension(ours.pfr_id) if len(ours) else pd.DataFrame()
     rows, arrays = [], {}
     for r in ours.itertuples():
@@ -177,7 +182,7 @@ def roster_moves(team, sit, cap0, n=4000, seed=0):
         if pl is None or c is None or not c["years"]:
             continue
         yrs = len(c["years"])
-        ext = EXT.loc[r.pfr_id] if r.pfr_id in EXT.index else None
+        ext = EXT.loc[r.pfr_id] if r.pfr_id in EXT.index and r.pfr_id not in too_early else None
         n_new = int(np.clip(ext.yrs_pred, 1, 4)) if ext is not None else 0
         n_tot = min(yrs + n_new, 5)  # seasons inside the 5-season window
         # one set of comp futures, long enough for the extension, so keep / cut / restructure / extend are paired
@@ -195,7 +200,7 @@ def roster_moves(team, sit, cap0, n=4000, seed=0):
         cut = np.zeros_like(keep)
         cut[:, 0] = -COST_RATE * dead * 100
         restr, amount, per = None, 0.0, 0.0
-        if yrs >= 2:
+        if yrs >= 2 and r.pfr_id not in too_early:
             amount = max(float(c["base"][0]) - FILL_SHARE, 0.0)
             per = amount / yrs
             cost_y = c["keep_cost"].copy()
@@ -228,7 +233,7 @@ def roster_moves(team, sit, cap0, n=4000, seed=0):
         arrays[r.pfr_id] = {"keep": keep, "cut": cut, "restr": restr, "ext": extp}
         rows.append({"pfr_id": r.pfr_id, "player": r.player, "grp": pl["grp"], "age": pl["age"] + SKIP,
                      "years_left": yrs, "cap_now": c["keep_cost"][0] * cap0, "dead_cut": dead * cap0,
-                     "saved_cut": (c["keep_cost"][0] - dead) * cap0, "titles_cut": alone(cut),
+                     "saved_cut": (c["keep_cost"][0] - dead) * cap0, "titles_cut": alone(cut), "renegotiable": r.pfr_id not in too_early,
                      "restr_amount": amount * cap0, "saved_restr": (amount - per) * cap0, "later_restr": per * cap0,
                      "titles_restr": alone(restr) if restr is not None else np.nan,
                      "ext_years": n_new if extp is not None else 0, "ext_apy": e_apy * cap0, "ext_gtd": e_gtd * cap0,

@@ -4183,3 +4183,9 @@ free agents and its validation is unchanged): a player still playing is now cut 
 money below his cap hit). Before, the rule ignored dead money and "cut" players right after big guarantees (an
 extension's $39M of new guarantees landed as 2028 dead money in the bad futures). Workbench suggestions moved (KC: 5
 restructures instead of a cut + restructures; MIA: no suggested cut; NE unchanged). Untested against history.
+**Renegotiation eligibility** (Nov 20 2026): the workbench offered extensions and restructures to rookies who can't sign
+them yet. A drafted player's rookie contract can't be renegotiated until after his third regular season, so for 2027
+only draft classes through 2024 qualify (Drake Maye, 2024, is eligible this offseason; NE's 2025 draftees Reed, Woodson,
+Henderson, Kyle Williams, Farmer are not). Enforced in `offseason.roster_moves` (no extension or restructure option;
+listed under the Extensions table). Undrafted players aren't restricted here: the rule is written for drafted rookie
+contracts, not verified for undrafted deals.

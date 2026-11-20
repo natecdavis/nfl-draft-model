@@ -331,6 +331,10 @@ if view == "Offseason plan":
                       {"Titles (%)": st.column_config.NumberColumn(format="%+.2f",
                        help="Adding the new seasons at the predicted price vs letting his deal run out (seasons "
                             "inside the 5-season window only)")})
+    if "renegotiable" in T and (~T.renegotiable).any():
+        st.caption(f"Not eligible to extend or restructure before {SIGN_SEASON} (drafted after {SIGN_SEASON - 3}: a "
+                   "rookie contract can't be renegotiated until after his third season): "
+                   + ", ".join(T[~T.renegotiable].player) + ".")
     st.caption("Predicted extension (new years, APY, guarantees) from past extensions: typical miss ~20% (704 "
                f"extensions, out of sample). His {SIGN_SEASON} base above the minimum becomes a bonus spread over the "
                "whole contract, as extensions usually lower the current cap hit. Nothing pre-checked: the model "
