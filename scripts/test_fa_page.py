@@ -19,6 +19,12 @@ at.sidebar.selectbox[0].set_value("KC").run()
 assert not at.exception, at.exception
 df = at.dataframe[0].value
 print("KC top 5:", list(zip(df.Player[:5], df["Titles added (%)"][:5].round(2))))
+print("KC depth:", [(m.label, m.value) for m in at.metric][:9])
+at.sidebar.checkbox[2].check().run()  # experimental depth factor
+assert not at.exception, at.exception
+df = at.dataframe[0].value
+print("KC with depth factor, top 5:", list(zip(df.Player[:5], df["Our depth"][:5], df["Titles added (%)"][:5].round(2))))
+at.sidebar.checkbox[2].uncheck().run()
 at.segmented_control[1].set_value("Value gap ($)").run()
 assert not at.exception, at.exception
 print("KC by gap:", list(at.dataframe[0].value.Player[:3]))
@@ -30,6 +36,7 @@ search = [s for s in at.selectbox if s.label == "Search"][0]
 search.set_value([o for o in search.options if o.startswith("George Pickens")][0]).run()
 assert not at.exception, at.exception
 print("Pickens info:", [i.value[:90] for i in at.info])
+print("depth caption:", [c.value[:120] for c in at.caption if "depth" in c.value])
 print("signing:", [(m.label, m.value, m.delta) for m in at.metric])
 at.sidebar.checkbox[1].check().run()
 assert not at.exception, at.exception

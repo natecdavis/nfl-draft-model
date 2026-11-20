@@ -38,9 +38,9 @@ def load_free_agents():
 
 @st.cache_data(show_spinner="Ranking every free agent for this team (about 30 seconds, once per team setup)...",
                max_entries=20)
-def ranked(start, shift_key, qb_from, cap_price):
+def ranked(start, shift_key, qb_from, cap_price, team, need):
     s = {"start": start, "shift": dict(shift_key), "qb_from": qb_from}
-    R = fm.rank(load_free_agents(), s, cap_price=cap_price)
+    R = fm.rank(load_free_agents(), s, cap_price=cap_price, team=team, need=need)
     R["note"] = [fm.notes(r) for r in R.itertuples()]
     return R
 
@@ -82,6 +82,13 @@ rollover = st.sidebar.checkbox("Scenario: cap we don't spend rolls over and is s
                                     "average don't re-spend saved cap (scripts/cap_rollover_test.py), so this is a "
                                     "plan you'd have to carry out, not the default.")
 cap_price = "rollover" if rollover else "model"
+need_on = st.sidebar.checkbox("Experimental: adjust for our depth at his position", value=False,
+                              disabled=(team == "Custom"),
+                              help="Scales a signee's value by how full our room at his position is (strongest at "
+                                   "OL and LB). It did NOT improve forecasts of past signings "
+                                   "(scripts/fa_need_check.py), so it's off by default.")
+rooms_full, rooms_players = fm.rooms(SIGN_SEASON)
+room_row = rooms_full.loc[team] if team in rooms_full.index else None
 
 warm()
 st.title("Free agency: what a signing does to our Super Bowl odds")
@@ -95,7 +102,18 @@ fa = load_free_agents()
 
 # ---------------- ranked free agents ----------------
 if view == "Ranked free agents":
-    R = ranked(start, tuple(sorted(sit["shift"].items())), sit["qb_from"], cap_price)
+    if room_row is not None:
+        with st.container(border=True):
+            st.markdown(f"**{team}'s depth for {SIGN_SEASON}**: players under contract, by their {SIGN_SEASON - 1} "
+                        "snaps per game so far, vs the other teams (1.00 = typical today).")
+            cols = st.columns(len(room_row))
+            for col, (g, v) in zip(cols, room_row.items()):
+                col.metric(g, f"{v:.2f}", "open" if v < 0.75 else ("full" if v > 1.25 else None),
+                           delta_color="off", border=False)
+            st.caption("Information. Past free agents didn't deliver less in full rooms once the forecast is "
+                       "accounted for, except that OL and LB rooms have fixed starting spots.")
+    R = ranked(start, tuple(sorted(sit["shift"].items())), sit["qb_from"], cap_price,
+               team if team != "Custom" else None, need_on and team != "Custom")
     f1, f2, f3 = st.columns([3, 2, 2], vertical_alignment="bottom")
     pos = f1.pills("Positions", GROUPS, selection_mode="multi", default=[g for g in GROUPS if g != "QB" or qb_need])
     sort = f2.segmented_control("Rank by", ["Titles added", "Value gap ($)"], default="Titles added", required=True)
@@ -112,6 +130,7 @@ if view == "Ranked free agents":
         f"Value {vt.LAST} ($M)": D.v1 * cap_m,
         "Predicted APY ($M)": D.apy_pred * cap_m, "Yrs": D.yrs_pred,
         "Worth to us up to ($M / yr)": D.break_even * cap_m, "Gap ($M / yr)": D.gap * cap_m,
+        "Our depth": [None if room_row is None or g not in room_row else round(float(room_row[g]), 2) for g in D.grp],
         "Titles added (%)": D.titles * 100, "Notes": D.note})
     st.caption(f"{len(D)} of {len(R)} players out of contract after {SIGN_SEASON - 1} (no {SIGN_SEASON} salary in the "
                "contract data). Each is priced at his predicted market contract (years and guarantees too). "
@@ -204,8 +223,18 @@ if grp == "QB" and not qb_need:
     st.warning("We have our QB: the model assumes a signed QB plays, so this overstates a backup's value.")
 
 paths = vt.comps().paths(player, int(years), exclude=False, skip=SKIP)
+if room_row is not None and grp in room_row:
+    depth = float(room_row[grp])
+    who = rooms_players[(rooms_players.team == team) & (rooms_players.g == grp)].sort_values("se", ascending=False)
+    names = players.set_index("pfr_id").display_name
+    listed = ", ".join(f"{names.get(p_, p_)} {s_:.2f}" for p_, s_ in zip(who.pfr_id[:5], who.se[:5]))
+    nf = fm.need_factor(grp, depth) if need_on else 1.0
+    st.caption(f"Our {grp} depth for {SIGN_SEASON}: {depth:.2f} x typical (under contract, {SIGN_SEASON - 1} starter "
+               f"share so far: {listed or 'nobody'})." + (f" Experimental depth factor on his value: x{nf:.2f}." if need_on else ""))
+    if nf != 1.0:
+        paths = (paths[0] * nf, paths[1])
 r = vt.evaluate(sit, player, int(years), apy, gtd, cap_price=cap_price, paths=paths)
-be = vt.break_even(sit, player, int(years), gtd / max(apy * years, 1e-9), skip=SKIP, cap_price=cap_price)
+be = vt.break_even(sit, player, int(years), gtd / max(apy * years, 1e-9), skip=SKIP, cap_price=cap_price, paths=paths)
 
 m1, m2, m3 = st.columns(3)
 m1.metric("Super Bowls added over 5 seasons", f"{r['titles_added'] * 100:+.2f}% of one title")
@@ -245,6 +274,10 @@ if st.button("Add this signing to the comparison"):
         "worth up to $M/yr": be * cap_m, "cap price": cap_price})
 if st.session_state.fa_compare:
     C = pd.DataFrame(st.session_state.fa_compare)
+    dup = C.pos.value_counts()
+    if (dup > 1).any():
+        st.warning(f"More than one option at {', '.join(dup[dup > 1].index)}: each is valued as if he alone fills the "
+                   "position. Signing two would give each fewer snaps than shown.")
     st.dataframe(C.round(2), width="stretch", hide_index=True)
     st.caption("Options at the same cost compare cleanly whatever the cap price; 'per $10M' ranks uses of the same "
                "money. Clear the list by reloading the page.")

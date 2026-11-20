@@ -3942,3 +3942,22 @@ Reading: free agents work like picks - ~15% of their value is net field gain, ab
 the position's other players - so the model's own-value accounting is as consistent for them as for picks. Need shows
 up mainly in the signee's own playing time: a full room cuts it ~15% vs thin (borderline), strongly at OL and LB.
 Not yet in the tool.
+
+**Adoption check for a depth factor** (`scripts/fa_need_check.py`). Factor from the room test (signees' own value,
+seasons 1-2): value x (1 + slope x (fullness - 0.93)), slope OL -0.57, LB -0.37, other -0.17 per 1.0 of fullness,
+clipped 0.6-1.25, fit leaving the signing year out; applied to the bargain check's 1,402 contracts with a known room
+(re-signings: fullness excludes the player). Pre-set: default only if the value-per-$ spread and correlation improve and
+the full-room bias shrinks. Result - all three worse:
+- realized / forecast by fullness: thin 1.07 -> 0.97, typical 1.01 -> 1.00, full **1.15 -> 1.24** (outside signings
+  alone: 1.11 / 0.99 / 1.06 without the factor, no fullness pattern; re-signings into full rooms 1.50)
+- value per $1, high - low tercile +0.353 -> +0.331; corr(score, value per $) 0.325 -> 0.317
+- forecast MSE +0.035e-4 (+0.008e-4 to +0.064e-4) worse
+Reading: the room regression's own-value penalty doesn't survive into per-contract forecasts; the comps forecast
+already carries it, and teams sign into full rooms when they expect the player to play. **Not adopted.** The page shows
+the team's depth by group for 2027 (players under contract, by 2026 snaps per game so far, vs the other teams today;
+`fa_market.rooms`; fixed Nov 20 after NE showed 0.00 at EDGE: positions now from the active OTC contract - snap-count
+labels file many edge rushers as LB/DL - and contract status from the ACTIVE contract row via `fa_market.under_contract`,
+since older rows carry stale season histories (Buckner's 2027 salary only on his active row; this also kept some
+signed players on the free-agent list); 2026 rookies without an OTC season history use year signed + years; players
+with < 3 games in 2026 keep their 2025 snaps (ATL's Pearce, Walker)) as information and in an "Our depth" column; the factor is an off-by-default "experimental" sidebar
+switch; the comparison list warns when two options share a position.
