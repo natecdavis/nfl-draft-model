@@ -67,3 +67,16 @@ at.button[0].click().run()
 assert not at.exception, at.exception
 print("trade:", [(m.label, m.value, m.delta) for m in at.metric])
 print("assets:", at.dataframe[0].value[["side", "asset", "under contract", "titles (alone)"]].round(2).values.tolist())
+
+# 5. Offseason plan: a team with room (MIA) and one over the 2027 cap (KC)
+at = fresh()
+at.sidebar.selectbox[0].set_value("MIA").run()
+at.segmented_control[0].set_value("Offseason plan").run()
+assert not at.exception, at.exception
+print("MIA budget:", [(m.label, m.value) for m in at.metric][:5])
+print("MIA plan:", [(m.label, m.value) for m in at.metric][5:8])
+print("MIA signings:", list(at.dataframe[1].value.Player))
+print("MIA draft vs FA:", at.dataframe[2].value.iloc[:3, :3].round(2).values.tolist())
+at.sidebar.selectbox[0].set_value("KC").run()
+assert not at.exception, at.exception
+print("KC:", [w.value[:60] for w in at.warning])

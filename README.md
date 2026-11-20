@@ -3994,3 +3994,23 @@ money for players we send away.
   (+0.08: his 2029-31 cap hits $33-48M).
 - Not modeled: post-June 1 designations, restructures, conditional picks; the partner's verdict (run it with their
   situation). Test: `scripts/test_fa_page.py` part 4.
+
+## Free agency and trades, step 4: offseason planner (`src/offseason.py`, Nov 20 2026)
+
+Free agency page, **Offseason plan** view (a team must be chosen). Composes tested parts; no new model:
+- **Budget** = 2027 cap + rollover - commitments - dead money already on the books - rookie pool - filling to 51 -
+  reserve (default 3%). Commitments: active OTC contracts with a 2027 row for the team (cap number), plus active
+  contracts with no season history yet (mostly 2026 rookies) at APY. Dead money and rollover aren't in the data: inputs.
+  Rookie pool: `value.rookie_cost_curve` for the team's picks (projected slots, editable). Fill: 0.35% of cap per open
+  spot. Teams over their 2027 commitments (e.g. KC, $66M over at a $299M cap) get a warning: cuts / restructures first.
+- **Plan**: free agents from the ranked list (`fa_market.rank`) at predicted contracts with positive titles; greedy by
+  titles per $ within the budget; at most 2 at OL / DB / WR / DL, 1 elsewhere (each signing is valued as if he alone
+  fills a minimum-salary spot); likely-restricted and likely-extended players skipped by default; QBs only with a QB
+  need. Scored together on one strength path (`offseason.joint_titles`; joint > sum for most teams, the title curve is
+  convex). Example (MIA, $299M cap, $87M budget): 8 signings, $81M, +3.1% of a title.
+- **Draft or free agency by position**: a typical player at our first pick at each position (`trade.package_points`)
+  next to the best free agent there (titles at predicted price), planned signings and our depth. MIA at #2: WR 2.35,
+  EDGE 1.72, DL 1.20 ... LB -0.13; best free agents WR Pickens 0.71, DB Hickman 0.55, OL Ekwonu 0.47.
+- Not validated as a whole (no way to replay counterfactual offseasons); its parts are (forecast, contract model,
+  bargain ranking, pick values). Not modeled: re-signing decisions as such, trades, cap moves, June 1 cuts, the market
+  reacting, a plan that also reserves the first pick's position. Test: `scripts/test_fa_page.py` part 5.

@@ -8,6 +8,7 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import fa_market as fm  # noqa: E402
+import offseason as off  # noqa: E402
 import trade as tr  # noqa: E402
 import vet_trade as vtr  # noqa: E402
 import veteran as vt  # noqa: E402
@@ -92,6 +93,12 @@ def pick_label(pk):
     return f"{SIGN_SEASON + pk.year} round {pk.rnd}{src}"
 
 
+@st.cache_data(show_spinner="Valuing our first pick at each position...", max_entries=20)
+def draft_values(start, shift_key, qb_from, pick):
+    s = {"start": start, "shift": dict(shift_key), "qb_from": qb_from}
+    return off.draft_by_group(s, pick, trade_ctx(), qb_need=qb_from is not None)
+
+
 @st.cache_resource(show_spinner="Loading the forecast model...")
 def warm():
     vt.comps(); vt._curve()
@@ -135,7 +142,8 @@ st.caption(f"Contract seasons {SIGN_SEASON}-{SIGN_SEASON + 4}. Value = playing t
            f"prices (the same yardstick as draft picks). Data through the {vt.LAST} season; the forecast runs from "
            f"there, so {vt.LAST + 1} counts as a season of aging.")
 
-view = st.segmented_control("View", ["Ranked free agents", "One signing", "Trades"], default="Ranked free agents",
+view = st.segmented_control("View", ["Ranked free agents", "One signing", "Trades", "Offseason plan"],
+                            default="Ranked free agents",
                             key="fa_view", required=True)
 fa = load_free_agents()
 
@@ -199,6 +207,90 @@ if view == "Ranked free agents":
 - "Worth to us up to" uses the predicted years and guarantee share. Team needs aren't in it: every player is assumed
   to take a minimum-salary player's snaps. Two signings at one position don't both get that.
 """)
+    st.stop()
+
+# ---------------- offseason plan: free-agency budget, best set of signings, draft vs free agency ----------------
+if view == "Offseason plan":
+    if team == "Custom":
+        st.info("Pick a team in the sidebar: the plan needs its contracts and picks.")
+        st.stop()
+    trow = teams.loc[team]
+    pk0 = trow.firsts + [trow.firsts[0] + 32 * r for r in range(1, 7)] if trow.firsts else [40 + 32 * r for r in range(6)]
+    with st.form("plan_form", border=True):
+        a1, a2, a3, a4 = st.columns(4)
+        picks_txt = a1.text_input(f"Our {SIGN_SEASON} picks", ", ".join(str(x) for x in pk0),
+                                  help="Projected from the 2026 season simulation; edit as needed.")
+        rollover = a2.number_input("Cap rolled over from 2026 ($M)", 0.0, 150.0, 0.0, 1.0)
+        dead = a3.number_input(f"Dead money already on {SIGN_SEASON} ($M)", 0.0, 150.0, 0.0, 1.0,
+                               help="Not in the contract data; check OverTheCap.")
+        reserve = a4.number_input("Reserve (% of cap)", 0.0, 10.0, 3.0, 0.5, help="In-season signings, injuries.")
+        b1, b2 = st.columns(2)
+        max_n = b1.slider("Most signings", 1, 15, 8)
+        flagged = b2.toggle("Include players likely to be extended or tagged first", value=False)
+        st.form_submit_button("Build plan", type="primary")
+    picks_ = sorted({int(x) for x in picks_txt.replace(" ", "").split(",") if x.isdigit()})
+    B = off.budget(team, cap_m, picks_, rollover, dead, reserve / 100)
+    m = st.columns(5)
+    m[0].metric(f"{SIGN_SEASON} cap", f"${B['cap'] + B['rollover']:.0f}M")
+    m[1].metric("Committed", f"${B['commitments']:.0f}M", f"{B['n_signed']} players", delta_color="off")
+    m[2].metric("Rookie pool", f"${B['rookies']:.0f}M", f"{len(picks_)} picks", delta_color="off")
+    m[3].metric("Fill to 51 + reserve", f"${B['fill'] + B['reserve']:.0f}M")
+    m[4].metric("Free-agency budget", f"${B['budget']:.0f}M")
+    with st.expander(f"Contracts counted for {SIGN_SEASON} ({B['n_signed']})"):
+        st.dataframe(B["committed_players"].round(1), hide_index=True,
+                     column_config={"cap_m": st.column_config.NumberColumn("cap hit ($M)", format="$%.1f")})
+    R = ranked(start, tuple(sorted(sit["shift"].items())), sit["qb_from"], cap_price,
+               team, need_on)
+    if B["budget"] <= 0:
+        st.warning(f"Over the {SIGN_SEASON} cap by ${-B['budget']:.0f}M before any signing: the plan needs cuts, "
+                   "restructures or extensions first (not modeled). Add the room they'd clear as rollover to plan "
+                   "around it.")
+        P = R.iloc[0:0]
+    else:
+        P = off.plan(R, B["budget"], cap_m, max_n, qb_need=qb_need, include_flagged=flagged)
+    st.subheader("Free-agent plan")
+    if len(P):
+        jt = off.joint_titles(sit, P)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Super Bowls added over 5 seasons", f"{jt * 100:+.2f}% of a title")
+        c2.metric("Spent (APY)", f"${P.cost_m.sum():.0f}M", f"${B['budget'] - P.cost_m.sum():.0f}M left", delta_color="off")
+        c3.metric("Signings", f"{len(P)}")
+        st.dataframe(pd.DataFrame({
+            "Player": P.display_name, "Pos": P.grp, "Age": P.age.round(1), "Predicted APY ($M)": P.cost_m,
+            "Yrs": P.yrs_pred, "Titles added (%)": P.titles * 100, "Per $10M": P.per_10m, "Notes": P.note}),
+            hide_index=True, alt="Planned free-agent signings",
+            column_config={"Predicted APY ($M)": st.column_config.NumberColumn(format="$%.1f"),
+                           "Titles added (%)": st.column_config.NumberColumn(format="%+.2f"),
+                           "Per $10M": st.column_config.NumberColumn(format="%.2f",
+                                                                     help="% of a title per $10M of APY")})
+        st.caption("Greedy: best titles per dollar first, within the budget, at most 2 at OL / DB / WR / DL and 1 elsewhere "
+                   "(each signing is valued as if he alone fills a minimum-salary spot). The total is scored with all "
+                   "signings together, so it differs from the sum of the rows. Predicted prices miss by ~37% either way: "
+                   "treat it as a shopping list, not a budget.")
+    elif B["budget"] > 0:
+        st.info("No free agent adds titles at his predicted price within the budget.")
+    st.subheader(f"Draft or free agency, by position (our first pick: #{picks_[0] if picks_ else '-'})")
+    if picks_:
+        dv = draft_values(start, tuple(sorted(sit["shift"].items())), sit["qb_from"], picks_[0])
+        rows = []
+        for g, v in sorted(dv.items(), key=lambda kv: -kv[1]):
+            C_ = R[(R.grp == g) & ~R.restricted & (R.titles > 0) & (flagged | ~R.note.str.contains("likely extended"))]
+            best = C_.sort_values("titles", ascending=False).iloc[0] if len(C_) else None
+            planned = ", ".join(P[P.grp == g].display_name)
+            rows.append({"Position": g, f"Typical player at #{picks_[0]} (titles %)": v * 100,
+                         "Best free agent": best.display_name if best is not None else "",
+                         "His titles at predicted price (%)": best.titles * 100 if best is not None else np.nan,
+                         "His predicted APY ($M)": best.apy_pred * cap_m if best is not None else np.nan,
+                         "In the plan": planned,
+                         "Our depth": round(float(room_row[g]), 2) if room_row is not None and g in room_row else None})
+        st.dataframe(pd.DataFrame(rows), hide_index=True, alt="Draft pick value vs best free agent by position",
+                     column_config={c: st.column_config.NumberColumn(format="%+.2f") for c in
+                                    [f"Typical player at #{picks_[0]} (titles %)", "His titles at predicted price (%)"]} |
+                                   {"His predicted APY ($M)": st.column_config.NumberColumn(format="$%.1f")})
+        st.caption("The first pick goes to one position: positions near the top are where it does most. A position "
+                   "whose best free agent beats the pick there is a good one to fill in free agency and leave the pick "
+                   "for elsewhere. Depth is information only (it didn't improve past forecasts). On draft day, take the "
+                   "best player for us whatever this table says: the board decides (Draft room page).")
     st.stop()
 
 # ---------------- trades: players and picks ----------------
