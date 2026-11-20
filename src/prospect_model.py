@@ -136,7 +136,9 @@ def load() -> pd.DataFrame:
     df["log_pick"] = np.log(df.pick + 10)
     df["on_board"] = df.hasan_rank.notna().astype(int)
     df["log_rank"] = np.log(df.hasan_rank.fillna(OFF_BOARD) + 10)
-    df["grp_code"] = df.grp.astype("category").cat.codes
+    # rows with no position group (one punter on the 2015 board) get a missing code, not -1: LightGBM turns -1 into
+    # missing anyway (identical models, checked Nov 20 2026) but prints "Met negative value in categorical features"
+    df["grp_code"] = df.grp.astype("category").cat.codes.where(lambda c: c >= 0)
     # fill the unlabeled pre-2016 undrafted rows with cell averages (on/off board x rank band)
     band = lambda d: np.where(d.hasan_rank.isna(), "off",
                               pd.cut(d.hasan_rank, [0, 100, 200, 250, 10_000]).astype(str))
