@@ -35,12 +35,26 @@ import veteran as vt  # noqa: E402
 YEARS = range(2015, 2026)
 
 
-def returning(ps_rn, year):
+LABELS = "snap" if "--snap-labels" in sys.argv else "otc"
+
+
+def otc_groups():
+    """pfr -> pricing group (the OTC contract position the value model uses; same as room values and signees)."""
+    v = vt.season_table()
+    return v.sort_values("season").groupby("pfr_id").group.last().to_dict()
+
+
+def returning(ps_rn, year, gmap=None):
+    """Returning starter-equivalents by team x group. Labels: OTC pricing group (default since Nov 20 2026; the first
+    run used draft / snap-count labels, which file many edge rushers as LB or DL), snap label as fallback."""
     prev = ps_rn[(ps_rn.season == year - 1) & ps_rn.grp.isin(rn.GROUPS)]
     signed, away, _ = rn.departures_and_adds(year)
     left = np.array([(p, tm) in away or (p in signed and tm not in signed[p])
                      for p, tm in zip(prev.pfr_player_id, prev.team)], bool)
     r = prev[~left].assign(g=lambda d: d.grp.map(nv.TO_G))
+    if gmap is not None:
+        r["g"] = [gmap.get(p) or g for p, g in zip(r.pfr_player_id, r.g)]
+    r = r[r.g.isin(nv.GROUPS)]
     return r.groupby(["team", "g"]).se.sum()
 
 
@@ -73,7 +87,9 @@ def main():
     U, R = nv.build()
     U = U[U.year.isin(YEARS)].copy()
     _, ps_rn, _, _ = rn.load()
-    ret = {y: returning(ps_rn, y) for y in YEARS}
+    gmap = otc_groups() if LABELS == "otc" else None
+    print(f"position labels for returning snaps: {LABELS}")
+    ret = {y: returning(ps_rn, y, gmap) for y in YEARS}
     U["ret_se"] = [float(ret[y].get((t, g), 0.0)) for y, t, g in zip(U.year, U.team, U.g)]
     U["ret"] = U.ret_se / U.groupby("g").ret_se.transform("mean")
     U["terc"] = U.groupby("g").ret.transform(
@@ -123,7 +139,7 @@ def main():
     print("\nby group, season 1 room value:")
     print(pd.DataFrame(out).round(3).to_string(index=False))
     cap_side(U, S)
-    U.to_parquet(vt.OUT / "fa_room_test.parquet")
+    U.to_parquet(vt.OUT / ("fa_room_test.parquet" if LABELS == "otc" else "fa_room_test_snaplabels.parquet"))
 
 
 def cap_side(U, S):

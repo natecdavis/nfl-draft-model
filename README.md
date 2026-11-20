@@ -3961,3 +3961,12 @@ since older rows carry stale season histories (Buckner's 2027 salary only on his
 signed players on the free-agent list); 2026 rookies without an OTC season history use year signed + years; players
 with < 3 games in 2026 keep their 2025 snaps (ATL's Pearce, Walker)) as information and in an "Our depth" column; the factor is an off-by-default "experimental" sidebar
 switch; the comparison list warns when two options share a position.
+
+**Rerun with OTC position labels** (Nov 20 2026; `scripts/fa_room_test.py`, `--snap-labels` reproduces the first run).
+The first run grouped returning snaps by draft / snap-count labels (edge rushers filed as LB or DL), while room values
+and signees used the OTC pricing group. Relabeled: signees' own value thin / typical / full 0.91 / 0.88 / 0.74
+(thin - full +0.17, +0.01 to +0.34; seasons 1-2 +0.14, -0.03 to +0.30); room value thin - full +0.13 (ns); by group
+OL -2.10 (p < 0.001), LB -1.01 (p < 0.001; stronger, so not a labeling artifact), DB -0.56 (p 0.07); cap side unchanged
+(other players' cap -0.46 / -0.47). Adoption check rerun (`scripts/fa_need_check.py`; slopes OL -0.57, LB -0.41, other
+-0.29): realized / forecast by fullness 1.12 / 1.04 / 1.07 without the factor, 0.99 / 1.02 / 1.18 with; value per $1
+spread +0.353 -> +0.329; MSE +0.030e-4 (-0.006 to +0.065). Same verdict: not adopted.
