@@ -4066,3 +4066,12 @@ per round + compensatory picks ahead (`trade.COMP_OFFSET`, rounds 4-7). All 2027
 first-round trades (GB -> DAL, IND -> NYJ, DAL -> NYJ) are reproduced; 224 picks league-wide. NE: 22, 54, 86, 125, 162,
 165 (CHI), 186 (NO), 193 (HOU), 200 (its 7th went to HOU). The trade log ends April 17 2026: later trades and
 compensatory picks (awarded in March) still need adding by hand.
+
+**Dead money already on the books** (`inputs/dead_money_2027.csv`, `offseason.load_dead` / `save_dead`, Nov 20 2026).
+The contract data has no dead-money records: OTC rewrites a player's season history once he signs elsewhere, so the
+2027 charge from June 1 cuts and post-June 1 trades in 2026 can't be rebuilt (void-year acceleration is already in
+'Committed': placeholder 2027 rows carry it, $87.0M league-wide, matching the remaining void proration). OverTheCap's
+terms (overthecap.com/terms, checked Nov 20 2026) prohibit automated or systematic retrieval without written
+permission, so there is no fetcher; ask support@overthecap.com for a data license to automate it. Instead the planner
+reads each team's figure from `inputs/dead_money_2027.csv` (team, dead_money_m, checked, source; tracked in git, all
+blank to start) as the box's default, shows when it was checked, and a "Save" button writes what's typed back to the file.

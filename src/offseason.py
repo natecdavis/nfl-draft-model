@@ -243,3 +243,33 @@ def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1):
     total = float((sb(base + after) - sb(base + before)).sum(axis=1).mean())
     alone = {k: float((sb(base + v) - sb(base)).sum(axis=1).mean()) for k, v in parts.items()}
     return total, alone
+
+
+# ---------------- dead money already on the books (entered by hand; not in the contract data) ----------------
+DEAD_FILE = vt.ROOT / "inputs" / f"dead_money_{SIGN_SEASON}.csv"
+
+
+def load_dead(path=DEAD_FILE):
+    """team -> (dead money $M, date checked, source) for SIGN_SEASON, from inputs/dead_money_<season>.csv.
+    Only June 1 cuts and post-June 1 trades from the season before need entering: void-year acceleration is already
+    in the contract data's commitments (README 'Offseason workbench'). OTC's terms bar automated collection."""
+    if not path.exists():
+        return {}
+    d = pd.read_csv(path, dtype={"team": str, "checked": str, "source": str})
+    d = d[pd.to_numeric(d.dead_money_m, errors="coerce").notna()]
+    return {r.team: (float(r.dead_money_m), r.checked if isinstance(r.checked, str) else "",
+                     r.source if isinstance(r.source, str) else "") for r in d.itertuples()}
+
+
+def save_dead(team, amount, source, checked=None, path=DEAD_FILE):
+    """Write one team's figure (others unchanged)."""
+    checked = checked or pd.Timestamp.today().strftime("%Y-%m-%d")
+    d = pd.read_csv(path, dtype=str) if path.exists() else pd.DataFrame(columns=["team", "dead_money_m", "checked", "source"])
+    row = {"team": team, "dead_money_m": f"{amount:.2f}", "checked": checked, "source": source}
+    if (d.team == team).any():
+        for k, v in row.items():
+            d.loc[d.team == team, k] = v
+    else:
+        d = pd.concat([d, pd.DataFrame([row])], ignore_index=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    d.sort_values("team").to_csv(path, index=False)

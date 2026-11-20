@@ -238,14 +238,29 @@ if view == "Offseason plan":
                                        "2026 season simulation, compensatory picks ahead counted in rounds 4-7. Add "
                                        "later trades and our own compensatory picks (awarded in March).")
         rollover = a2.number_input("Cap rolled over from 2026 ($M)", 0.0, 150.0, 0.0, 1.0)
-        dead = a3.number_input(f"Dead money already on {SIGN_SEASON} ($M)", 0.0, 150.0, 0.0, 1.0,
-                               help="Not in the contract data; check OverTheCap.")
+        dead_file = off.load_dead()
+        d0 = dead_file.get(team, (0.0, "", ""))
+        dead = a3.number_input(f"Dead money already on {SIGN_SEASON} ($M)", 0.0, 150.0, d0[0], 0.5,
+                               key=f"dead_{team}_{d0[1]}_{d0[0]}",
+                               help="Not in the contract data. Only June 1 cuts and post-June 1 trades from "
+                                    f"{SIGN_SEASON - 1} are needed (void-year acceleration is already in 'Committed'). "
+                                    f"Read it off the team's OverTheCap or Spotrac cap page; save it below to keep it.")
         reserve = a4.number_input("Reserve (% of cap)", 0.0, 10.0, 3.0, 0.5, help="In-season signings, injuries.")
         b1, b2 = st.columns(2)
         max_n = b1.slider("Most signings", 1, 15, 8)
         flagged = b2.toggle("Include players likely to be extended or tagged first", value=False)
         st.form_submit_button("Build plan", type="primary")
     picks_ = sorted({int(x) for x in picks_txt.replace(" ", "").split(",") if x.isdigit()})
+    with st.container(horizontal=True, vertical_alignment="center"):
+        if d0[1]:
+            st.caption(f"Dead money from inputs/{off.DEAD_FILE.name}: ${d0[0]:.1f}M, checked {d0[1]}"
+                       + (f" ({d0[2]})" if d0[2] else "") + ".")
+        else:
+            st.caption(f"No dead money saved for {team} yet: enter it above, then save.")
+        src = st.text_input("Source", "OverTheCap", key="dead_src", label_visibility="collapsed", width=160)
+        if st.button(f"Save {team}'s dead money (${dead:.1f}M)", icon=":material/save:"):
+            off.save_dead(team, dead, src)
+            st.rerun()
     B = off.budget(team, cap_m, picks_, rollover, dead, reserve / 100)
     m = st.columns(5)
     m[0].metric(f"{SIGN_SEASON} cap", f"${B['cap'] + B['rollover']:.0f}M")
