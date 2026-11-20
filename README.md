@@ -4014,3 +4014,17 @@ Free agency page, **Offseason plan** view (a team must be chosen). Composes test
 - Not validated as a whole (no way to replay counterfactual offseasons); its parts are (forecast, contract model,
   bargain ranking, pick values). Not modeled: re-signing decisions as such, trades, cap moves, June 1 cuts, the market
   reacting, a plan that also reserves the first pick's position. Test: `scripts/test_fa_page.py` part 5.
+
+### CB vs S (and T / G / C) in the free-agency tools (`scripts/cb_s_split_check.py`, Nov 20 2026)
+
+The tools use one DB group (and one OL group), like the draft model's pricing. Checked where a split could matter:
+1. **Contract model**: pooled DB under-predicted CBs and over-predicted safeties, both significantly (lag 1: CB 1.13,
+   1.06-1.19; S 0.87, 0.81-0.93; lag 2 CB 1.12, S 0.91); OL the same way, smaller (T 1.08-1.11, G 0.95-0.96, C 0.90);
+   EDGE / LB / DL fine. **Adopted**: fine position (CB, S, T, G, C; most common OTC contract position) as a feature
+   (`fa_market.fine_positions`). R2 0.620 -> 0.626 (lag 1), 0.481 -> 0.490 (lag 2); now CB 1.01 / S 0.99 / T 1.02 /
+   G 1.00 / C 0.99 (lag 2: 1.04 / 0.98 / 1.03 / 0.97 / 0.98); scale factors unchanged; bargain check +0.375 (was +0.372).
+2. **Forecast** (comps from all DBs): CB 1.00 (0.95-1.05), S 1.06 (1.01-1.11) in season 1; season 3 0.94 / 1.04. Small;
+   not split (would halve the comp pools).
+3. **Currency**: team strength per 1% of curve value CB 0.70 vs S 0.64, equal p 0.57 - the pooled pay curve is fine.
+Depth stays pooled (CB / S rooms trade off, r ~ -0.75, "Room check: are team rooms persistent?"). Draft side unchanged
+(CB x1.11 / S x0.89 pay factors failed their choice test, "Pay within OL and DB").

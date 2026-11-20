@@ -20,7 +20,11 @@ import pandas as pd
 import veteran as vt
 
 RAW, OUT = vt.RAW, vt.OUT
-FEATS = ["grp_c", "age", "v1", "v2", "g1", "prev_apy", "prev_rookie", "ufa"]
+FEATS = ["grp_c", "fpos_c", "age", "v1", "v2", "g1", "prev_apy", "prev_rookie", "ufa"]
+# fine position inside DB and OL (most common OTC contract position): the market pays CBs ~1.12x and safeties
+# ~0.89x what a pooled-DB model predicts, tackles ~1.10x / guards 0.96x / centers 0.90x (scripts/cb_s_split_check.py)
+FPOS = {"CB": "CB", "S": "S", "LT": "T", "RT": "T", "LG": "G", "RG": "G", "C": "C"}
+FPOS_CATS = ["CB", "S", "T", "G", "C", "other"]
 KINDS = ("UFA",)  # contract types trained on; ufa = 1 for UFA rows (predictions use ufa = 1)
 GROUPS = ["QB", "RB", "WR", "TE", "OL", "DL", "EDGE", "LB", "DB"]
 PARAMS = dict(n_estimators=400, learning_rate=0.03, num_leaves=15, min_child_samples=25, subsample=0.8,
@@ -102,6 +106,17 @@ def history():
 
 
 @lru_cache(maxsize=1)
+def fine_positions():
+    """pfr -> CB / S / T / G / C (most common OTC position over his contracts, ties -> latest), else absent."""
+    c = pd.read_parquet(RAW / "contracts.parquet", columns=["gsis_id", "position", "year_signed"])
+    c = c[c.position.isin(FPOS)].sort_values("year_signed", ascending=False)
+    pl = pd.read_parquet(RAW / "players.parquet").dropna(subset=["pfr_id"])
+    g2p = dict(zip(pl.gsis_id, pl.pfr_id))
+    c = c.assign(pfr=c.gsis_id.map(g2p), fp=c.position.map(FPOS)).dropna(subset=["pfr"])
+    return c.groupby("pfr", sort=False).fp.agg(lambda x: x.value_counts().index[0]).to_dict()
+
+
+@lru_cache(maxsize=1)
 def _values():
     v = vt.season_table()
     V = v.set_index(["pfr_id", "season"])
@@ -127,6 +142,9 @@ def features(pfr_ids, Y, lag):
                      "prev_rookie": int(bool(prev) and prev[-1][1] in ("Drafted", "UDFA"))})
     d = pd.DataFrame(rows)
     d["grp_c"] = pd.Categorical(d.grp, categories=GROUPS)
+    fp = fine_positions()
+    d["fpos_c"] = pd.Categorical([fp.get(p, "other") if g in ("DB", "OL") else "other" for p, g in zip(d.pfr_id, d.grp)],
+                                 categories=FPOS_CATS)
     d["ufa"] = 1
     return d
 
@@ -182,7 +200,7 @@ def free_agents(sign_season=vt.LAST + 2):
     fa["restricted"] = (sign_season - fa.pfr_id.map(first)) <= 3
     lag = sign_season - vt.LAST
     F = features(fa.pfr_id, sign_season, lag)
-    fa = fa.merge(F[["pfr_id", "age", "prev_apy", "prev_rookie", "grp_c", "ufa"]], on="pfr_id")
+    fa = fa.merge(F[["pfr_id", "age", "prev_apy", "prev_rookie", "grp_c", "fpos_c", "ufa"]], on="pfr_id")
     P = predict(models(lag), fa, SMEAR[lag])
     return pd.concat([fa, P], axis=1)
 
