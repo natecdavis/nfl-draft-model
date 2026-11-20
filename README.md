@@ -4075,3 +4075,32 @@ terms (overthecap.com/terms, checked Nov 20 2026) prohibit automated or systemat
 permission, so there is no fetcher; ask support@overthecap.com for a data license to automate it. Instead the planner
 reads each team's figure from `inputs/dead_money_2027.csv` (team, dead_money_m, checked, source; tracked in git, all
 blank to start) as the box's default, shows when it was checked, and a "Save" button writes what's typed back to the file.
+
+### Spotrac's 2027 free-agent list as a check (Nov 20 2026)
+
+Spotrac's 2027 free-agent page (saved by the user as a PDF; parsed locally, not stored in the repo): 748 players
+(589 UFA, 78 RFA, 81 ERFA), Spotrac's projected market value (APY) for the top 106.
+- **Who's a free agent.** First pass: 598 on our list, 36 we had under contract for 2027. Those were void years OTC
+  fills with a minimum-level base salary that it also counts in the cap number (Travis Kelce, Kirk Cousins, Dallas
+  Goedert, Tariq Woolen on one-year 2026 deals; Deshaun Watson's 2022 deal ends 2026; Daron Payne). Fixed
+  (`fa_market.fresh_deal_end` / `real_season(x, end)`): seasons after the end of a fresh deal (any type but extension or
+  rookie deal: year signed + years - 1) are void; their remaining proration counts as 2027 dead money in the planner
+  (Watson: CLE $86.2M; Goedert: PHI $18.3M; Kelce: KC $7.1M). Now 623 of 748 on our list (922 in all), 9 still
+  disputed (mostly ERFAs), 116 not on ours because they have no 2024-25 value to forecast from.
+- **Prices** (102 matched): corr 0.84 (log); Spotrac 5% higher in total, median player 0.90x ours; typically 35%
+  apart - about the same as our out-of-sample miss on real contracts (37%). Spotrac is far higher on young players
+  coming off rookie deals (Joey Porter Jr. $27.4M vs our $10.8M, Tyrique Stevenson $20.1M vs $7.2M, Puka Nacua $47.6M vs
+  $25.9M) and lower on older veterans (31+: 0.82x ours) and TEs (0.66x).
+- **Which is right, by real signings** (our lag-2 predictions, out of sample, actual / predicted):
+
+| | 2015-19 | 2020-23 | 2024-26 |
+|---|---|---|---|
+| off rookie deal, starter | 1.07 | 1.05 | 1.02 (0.92-1.13) |
+| off rookie deal, other | 1.23 | 0.94 | 0.97 |
+| veterans | 1.04 | 0.94 | 0.94 (0.88-0.98) |
+| age 31+ | 0.98 | 0.98 | **0.89 (0.83-0.95)** |
+
+  Real signings don't support Spotrac's much higher prices for rookie-deal players as a group (stars excepted, already
+  flagged), nor a TE gap (0.91-0.96, ns). They do support Spotrac's lower prices for older veterans: the market for them
+  has drifted down, and a model trained on 2015-26 equally prices them ~10% high. Candidate fix: weight recent signings
+  more, tested forward (fit through year Y-1, predict Y).

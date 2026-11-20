@@ -38,20 +38,27 @@ def commitments(team, cap0, season=SIGN_SEASON):
     sys.path.insert(0, str(vt.ROOT / "scripts"))
     import roster_need as rn
     raw = pd.read_parquet(vt.RAW / "contracts.parquet", columns=["player", "gsis_id", "is_active", "year_signed", "years",
-                                                                 "apy", "season_history", "team"])
+                                                                 "apy", "season_history", "team", "contract_history"])
     act = raw[raw.is_active == True].sort_values("year_signed").drop_duplicates(["player", "gsis_id"], keep="last")  # noqa: E712
     nick = dict(zip(*pd.read_parquet(vt.RAW / "teams.parquet")[["team_nick", "team_abbr"]].T.values))
     nick.update({"Washington": "WAS", "Redskins": "WAS", "Football Team": "WAS", "Commanders": "WAS"})
     total, n, rows = 0.0, 0, []
-    for nm, sh, ys, yrs, apy, tm in zip(act.player, act.season_history, act.year_signed, act.years, act.apy, act.team):
+    for nm, sh, ys, yrs, apy, tm, ch in zip(act.player, act.season_history, act.year_signed, act.years, act.apy,
+                                            act.team, act.contract_history):
         hist = [x for x in (sh if sh is not None else []) if str(x.get("year", "")).isdigit()]
+        end = fm.fresh_deal_end(ch)
         if hist:
             for x in hist:
                 if int(x["year"]) == season and x.get("team") and rn.team(nick.get(x["team"], x["team"])) == team:
-                    capn = float(x.get("cap_number") or 0.0)
+                    if fm.real_season(x, end):
+                        capn = float(x.get("cap_number") or 0.0)
+                        n += 1
+                        rows.append((nm, capn))
+                    else:  # the deal voids: all remaining proration accelerates into this season (dead money)
+                        capn = sum(float(y.get("prorated_bonus") or 0.0) for y in hist
+                                   if int(y["year"]) >= season and not fm.real_season(y, end))
+                        rows.append((nm + " (void years: dead money)", capn))
                     total += capn
-                    n += fm.real_season(x)  # placeholder years still carry cap (proration), not a roster spot
-                    rows.append((nm, capn))
         elif pd.notna(ys) and pd.notna(yrs) and ys + yrs - 1 >= season and \
                 rn.team(nick.get(str(tm).split("/")[-1], str(tm).split("/")[-1])) == team:
             total += float(apy or 0.0)

@@ -47,11 +47,30 @@ def _contracts():
     return c, cap
 
 
-def real_season(x):
-    """A real contract season in an OTC season_history row: base salary > 0 and cap number >= base salary. OTC marks
-    void / placeholder years with a base above the cap number (99.999999 or 50.0 with a small cap number: A.J. Brown
-    2030, Arnold Ebiketie 2027); a real season's cap number is base + bonuses."""
+def fresh_deal_end(contract_history):
+    """Last season of the player's current deal when it is a fresh contract (free-agent signing, tag, trade-and-sign:
+    year signed + years - 1), else None. Extensions are skipped (OTC counts only the added years, and repeats an
+    extension under each team it's traded to) and so are rookie deals (fifth-year options aren't separate entries):
+    for those the season rows decide."""
+    hist = [x for x in (contract_history if contract_history is not None else [])
+            if x.get("contract_type") != "Practice" and x.get("year_signed") is not None]
+    if not hist:
+        return None
+    cur = next((x for x in reversed(hist) if x.get("status") == "Active"), hist[-1])
+    if cur.get("contract_type") in ("Extension", "Drafted"):
+        return None
+    return int(cur["year_signed"]) + int(cur.get("yrs") or 1) - 1
+
+
+def real_season(x, end=None):
+    """A real contract season in an OTC season_history row. Two kinds of void / placeholder year are excluded:
+    (1) a base salary above the cap number (99.999999 or 50.0 with a small cap number: A.J. Brown 2030, Arnold
+    Ebiketie 2027); (2) seasons after the end of a fresh deal (`end`, fresh_deal_end), which OTC fills with a
+    minimum-level base salary that it also counts in the cap number (Travis Kelce, Kirk Cousins, Dallas Goedert 2027 on
+    one-year 2026 deals; Deshaun Watson's 2022 deal ends 2026; found against Spotrac's 2027 free-agent list)."""
     b, c = float(x.get("base_salary") or 0.0), float(x.get("cap_number") or 0.0)
+    if end is not None and str(x.get("year", "")).isdigit() and int(x["year"]) > end:
+        return False
     return b > 0 and c > 0 and b <= c + 0.01
 
 
@@ -67,7 +86,8 @@ def under_contract(season):
     sys.path.insert(0, str(vt.ROOT / "scripts"))
     import roster_need as rn
     raw = pd.read_parquet(RAW / "contracts.parquet", columns=["player", "gsis_id", "position", "team", "is_active",
-                                                              "year_signed", "years", "season_history"])
+                                                              "year_signed", "years", "season_history",
+                                                              "contract_history"])
     act = raw[raw.is_active == True].sort_values("year_signed").drop_duplicates(["player", "gsis_id"], keep="last")  # noqa: E712
     nick = dict(zip(*pd.read_parquet(RAW / "teams.parquet")[["team_nick", "team_abbr"]].T.values))
     nick.update({"Washington": "WAS", "Redskins": "WAS", "Football Team": "WAS", "Commanders": "WAS"})
@@ -79,13 +99,14 @@ def under_contract(season):
     sn = sn[sn.season == season - 1].assign(team=lambda d: d.team.map(rn.team)).drop_duplicates(["player", "team"])
     by_name = {(nm, tm): p for nm, tm, p in zip(sn.player, sn.team, sn.pfr_player_id)}
     rows = []
-    for nm, g, pos, team, ys, yrs, sh in zip(act.player, act.gsis_id, act.position, act.team, act.year_signed,
-                                              act.years, act.season_history):
+    for nm, g, pos, team, ys, yrs, sh, ch in zip(act.player, act.gsis_id, act.position, act.team, act.year_signed,
+                                                  act.years, act.season_history, act.contract_history):
+        end = fresh_deal_end(ch)
         years_rows = [x for x in (sh if sh is not None else []) if str(x.get("year", "")).isdigit()]
         cur_team = to_abbr(str(team).split("/")[-1])
         if years_rows:
             nxt = [x for x in years_rows if int(x["year"]) == season]
-            signed = bool(nxt) and real_season(nxt[0])
+            signed = bool(nxt) and real_season(nxt[0], end)
             if nxt and nxt[0].get("team"):
                 cur_team = to_abbr(nxt[0]["team"])
         else:

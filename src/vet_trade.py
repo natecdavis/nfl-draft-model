@@ -33,7 +33,8 @@ WINDOW = 5
 @lru_cache(maxsize=1)
 def _active_rows():
     raw = pd.read_parquet(vt.RAW / "contracts.parquet", columns=["player", "gsis_id", "is_active", "year_signed",
-                                                                 "season_history", "position", "team"])
+                                                                 "season_history", "position", "team",
+                                                                 "contract_history"])
     act = raw[raw.is_active == True].sort_values("year_signed").drop_duplicates("gsis_id", keep="last")  # noqa: E712
     pl = pd.read_parquet(vt.RAW / "players.parquet").dropna(subset=["pfr_id"])
     g2p = dict(zip(pl.gsis_id, pl.pfr_id))
@@ -47,10 +48,11 @@ def contract(pfr_id, cap0, season=SIGN_SEASON):
     if pfr_id not in A.index:
         return None
     sh = A.at[pfr_id, "season_history"]
+    end = fm.fresh_deal_end(A.at[pfr_id, "contract_history"])
     rows = sorted([x for x in (sh if sh is not None else []) if str(x.get("year", "")).isdigit() and int(x["year"]) >= season],
                   key=lambda x: int(x["year"]))
     f = lambda x, k: float(x.get(k) or 0.0)  # noqa: E731
-    play = [x for x in rows if fm.real_season(x)][:WINDOW]  # skip void / placeholder years
+    play = [x for x in rows if fm.real_season(x, end)][:WINDOW]  # skip void / placeholder years
     cap = lambda y: cap0 * CAP_GROWTH ** (y - season)  # noqa: E731
     years = [int(x["year"]) for x in play]
     pro = np.array([f(x, "prorated_bonus") / cap(int(x["year"])) for x in play])
