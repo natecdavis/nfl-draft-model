@@ -4104,3 +4104,20 @@ Spotrac's 2027 free-agent page (saved by the user as a PDF; parsed locally, not 
   flagged), nor a TE gap (0.91-0.96, ns). They do support Spotrac's lower prices for older veterans: the market for them
   has drifted down, and a model trained on 2015-26 equally prices them ~10% high. Candidate fix: weight recent signings
   more, tested forward (fit through year Y-1, predict Y).
+
+**Recency weighting** (`scripts/contract_recency.py`, `fa_market.fit(half_life=)`). Forward-chained as the tool is used:
+for 2020-26, fit on earlier UFA signings only (lag 2), predict that year; mean scaling also re-estimated forward.
+Equal weights vs half-lives of 2 / 4 / 6 years, scored on 2022-26 (1,545 signings):
+
+| | R2 log | median miss | all | 31+ | 28-30 | <=27 | off rookie deal, starter |
+|---|---|---|---|---|---|---|---|
+| equal | 0.480 | 35.0% | 1.02 | 0.98 (0.91-1.07) | 0.99 | 1.06 | 1.10 |
+| h2 | 0.474 | 35.6% | 1.04 | 0.97 | 1.03 | 1.07 | 1.09 |
+| h4 | 0.482 | 35.6% | 1.03 | 0.97 | 1.01 | 1.06 | 1.09 |
+| h6 | 0.478 | 35.1% | 1.03 | 0.98 | 1.00 | 1.06 | 1.09 |
+
+Not adopted (pre-set rule: no accuracy gain, no change in the 31+ bias). Forward, there is no 31+ overpricing (0.98);
+the 0.89 in the leave-one-year-out table came from a single pooled scale factor. What the forward run shows instead:
+2025 and 2026 signings ran ~10% above prediction overall (1.09, 1.12; 31+ 0.93, 1.02 those years) - prices rising as a
+share of the cap, mostly for younger players, which recency weights don't capture (trees don't extrapolate a trend).
+Worth rechecking after the 2027 signings; Spotrac's higher prices for young players point the same way.

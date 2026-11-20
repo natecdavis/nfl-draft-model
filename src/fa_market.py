@@ -195,10 +195,16 @@ def training(lag, years=(2015, 2026), kinds=None):
     return D.reset_index(drop=True)
 
 
-def fit(D):
+def fit(D, half_life=None, ref_year=None):
+    """LightGBM per target. half_life (years): weight signings by 0.5 ** ((ref_year - Y) / half_life), recent first
+    (scripts/contract_recency.py); None = equal weights."""
     import lightgbm as lgb
     X = D[FEATS]
-    return {t: lgb.LGBMRegressor(**PARAMS).fit(X, D[t]) for t in ["log_apy", "yrs", "gshare"]}
+    w = None
+    if half_life:
+        ref = ref_year if ref_year is not None else D.Y.max()
+        w = 0.5 ** ((ref - D.Y).clip(lower=0) / half_life)
+    return {t: lgb.LGBMRegressor(**PARAMS).fit(X, D[t], sample_weight=w) for t in ["log_apy", "yrs", "gshare"]}
 
 
 def predict(models, F, smear=1.0):
