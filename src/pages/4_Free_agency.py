@@ -315,7 +315,12 @@ if view == "Offseason plan":
                        help="Moving cap from now to later seasons, and more dead money if he's cut later")})
     st.caption(f"His {SIGN_SEASON} salary above the minimum becomes a bonus spread over his remaining seasons (no void "
                "years added). Suggested only when the budget is still negative after the suggested cuts.")
-    restrs = set(Tr.pfr_id[restr_ed["Do it"].to_numpy()]) - cuts
+    restr_checked = set(Tr.pfr_id[restr_ed["Do it"].to_numpy()])
+    both = restr_checked & cuts
+    if both:
+        st.warning("Checked to cut and to restructure: " + ", ".join(T.set_index("pfr_id").player[list(both)])
+                   + ". The cut is used and the restructure ignored (a released player's contract can't be reworked).")
+    restrs = restr_checked - cuts
 
     saved = T[T.pfr_id.isin(cuts)].saved_cut.sum() + T[T.pfr_id.isin(restrs)].saved_restr.sum()
     fill_after = max(off.ROSTER - (B["n_signed"] - len(cuts)) - len(picks_), 0) * off.FILL_SHARE * cap_m
