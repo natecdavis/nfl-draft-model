@@ -4056,3 +4056,13 @@ added) updates on every toggle, scoring all checked moves together on one streng
   the cap number (99.999999, or 50.0 with a small cap number); they were being read as real seasons (A.J. Brown "2030"
   at $53.5M; Arnold Ebiketie, Julius Brents, Marquise Brown, Davante Adams "under contract" for 2027). Now a real
   season needs base > 0 and cap number >= base: contracts, the free-agent list (869 -> 894), depth and roster counts.
+
+**Default picks from the trade log** (Nov 20 2026; `teams.pick_ownership`, `team_inputs()["picks"]`). The draft room's
+"Our picks" box and the offseason planner assumed one pick per round (first-round slot + 32 per round), ignoring traded
+picks. Now: replay every trade of a 2027 pick in the nflverse trade log in date order (the log names giver, receiver and
+round, not the original team: a team gives its own pick of that round if it still has it, else the first it acquired;
+conditional picks count as conveyed), then project each pick from its original team's simulated first-round slot + 32
+per round + compensatory picks ahead (`trade.COMP_OFFSET`, rounds 4-7). All 2027 pick trades resolve; the hand-coded
+first-round trades (GB -> DAL, IND -> NYJ, DAL -> NYJ) are reproduced; 224 picks league-wide. NE: 22, 54, 86, 125, 162,
+165 (CHI), 186 (NO), 193 (HOU), 200 (its 7th went to HOU). The trade log ends April 17 2026: later trades and
+compensatory picks (awarded in March) still need adding by hand.

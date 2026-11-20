@@ -243,6 +243,34 @@ if __name__ == "__main__":
     main()
 
 
+def pick_ownership(year: int = 2027, teams=None) -> tuple[dict, list]:
+    """Who holds each team's `year` picks (rounds 1-7), replaying every trade of a `year` pick in the trade log in date
+    order (nflverse trades; ends April 2026). The log names the giving and receiving teams and the round, not whose
+    pick it originally was: a team trading a round-r pick gives its own if it still has it, else the first one it
+    acquired. Conditional picks count as conveyed. Returns ({holder: [(original team, round), ...]}, unresolved rows)."""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from roster_need import team as norm
+    t = pd.read_parquet(RAW / "trades.parquet")
+    t = t[(t.pick_season == year) & t.pick_round.between(1, 7)].copy()
+    t["gave"], t["received"] = t.gave.map(norm), t.received.map(norm)
+    t = t.sort_values(["trade_date", "trade_id"])
+    teams = teams if teams is not None else sorted(set(t.gave) | set(t.received))
+    hold = {tm: [(tm, r) for r in range(1, 8)] for tm in teams}
+    bad = []
+    for r in t.itertuples():
+        rnd = int(r.pick_round)
+        have = [p for p in hold.get(r.gave, []) if p[1] == rnd]
+        if not have:
+            bad.append((r.trade_date, r.gave, r.received, rnd))
+            continue
+        p = next((x for x in have if x[0] == r.gave), have[0])
+        hold[r.gave].remove(p)
+        hold.setdefault(r.received, []).append(p)
+    return hold, bad
+
+
 def team_inputs(sims: int = 4000) -> pd.DataFrame:
     """Each team's situation and projected 2027 first-round picks, without the slow
     title-odds evaluations. Used by the draft-day app."""
@@ -260,6 +288,8 @@ def team_inputs(sims: int = 4000) -> pd.DataFrame:
         N = old
     owner = {t: t for t in teams}
     owner.update({"GB": "DAL", "IND": "NYJ", "DAL": "NYJ"})
+    from trade import COMP_OFFSET
+    holdings, _ = pick_ownership(2027, teams)
     rows = []
     for t in teams:
         q = qb.loc[t]
@@ -267,6 +297,12 @@ def team_inputs(sims: int = 4000) -> pd.DataFrame:
         sit = {"start": CARRY * rating[t], "shift": q["shift"], "qb_from": None if pd.isna(qf) else int(qf)}
         sit.update(OVERRIDES.get(t, {}))
         firsts = sorted(int(np.median(slots[o])) for o in teams if owner[o] == t)
+        # every 2027 pick the team holds, projected: original team's first-round slot + 32 per round + compensatory
+        # picks ahead of it (trade.COMP_OFFSET, rounds 4-7)
+        own_slot = {o: int(np.median(slots[o])) for o in teams}
+        held = sorted(own_slot[o] + 32 * (r - 1) + COMP_OFFSET.get(r, 0) for o, r in holdings.get(t, []) if o in own_slot)
         rows.append({"team": t, "situation": sit, "qb": q.qb, "qb_status": q.qb_status,
-                     "strength_now": rating[t], "firsts": firsts})
+                     "strength_now": rating[t], "firsts": firsts, "picks": held,
+                     "picks_from": sorted((own_slot[o] + 32 * (r - 1) + COMP_OFFSET.get(r, 0), o, r)
+                                          for o, r in holdings.get(t, []) if o in own_slot)})
     return pd.DataFrame(rows).set_index("team")

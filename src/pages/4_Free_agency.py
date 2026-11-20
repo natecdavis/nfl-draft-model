@@ -230,11 +230,13 @@ if view == "Offseason plan":
         st.info("Pick a team in the sidebar: the plan needs its contracts and picks.")
         st.stop()
     trow = teams.loc[team]
-    pk0 = trow.firsts + [trow.firsts[0] + 32 * r for r in range(1, 7)] if trow.firsts else [40 + 32 * r for r in range(6)]
+    pk0 = list(trow.picks) if trow.picks else [40 + 32 * r for r in range(6)]
     with st.form("plan_form", border=True):
         a1, a2, a3, a4 = st.columns(4)
         picks_txt = a1.text_input(f"Our {SIGN_SEASON} picks", ", ".join(str(x) for x in pk0),
-                                  help="Projected from the 2026 season simulation; edit as needed.")
+                                  help="Every pick we hold per the trade log (ends April 2026), slots projected from the "
+                                       "2026 season simulation, compensatory picks ahead counted in rounds 4-7. Add "
+                                       "later trades and our own compensatory picks (awarded in March).")
         rollover = a2.number_input("Cap rolled over from 2026 ($M)", 0.0, 150.0, 0.0, 1.0)
         dead = a3.number_input(f"Dead money already on {SIGN_SEASON} ($M)", 0.0, 150.0, 0.0, 1.0,
                                help="Not in the contract data; check OverTheCap.")

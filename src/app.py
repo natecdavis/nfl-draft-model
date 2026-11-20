@@ -62,8 +62,8 @@ if team != "Custom":
     row = teams.loc[team]
     sit0 = row.situation
     st.sidebar.caption(f"Market strength now {row.strength_now:+.1f}. QB: {row.qb} ({row.qb_status}).")
-    default_picks = ", ".join(str(p) for p in row.firsts + [row.firsts[0] + 32 * r for r in range(1, 7)]) \
-        if row.firsts else "40, 72, 104, 136, 168, 200"
+    # every 2027 pick the team holds per the trade log (to April 2026), projected slots (teams.team_inputs)
+    default_picks = ", ".join(str(p) for p in row.picks) if row.picks else "40, 72, 104, 136, 168, 200"
 else:
     sit0 = {"start": 0.0, "shift": {}, "qb_from": None}
     default_picks = "16, 48, 80, 112, 144, 176, 208"
@@ -89,7 +89,10 @@ with st.sidebar.expander("Advanced"):
                                  "where they went. Lower it only if you trust your board over 31 teams.")
 
 st.sidebar.header("Our picks")
-picks_text = st.sidebar.text_input("This draft (overall pick numbers)", default_picks)
+picks_text = st.sidebar.text_input("This draft (overall pick numbers)", default_picks,
+                                   help="For a real team: every 2027 pick it holds per the trade log (ends April 2026), "
+                                        "slots projected from the 2026 season simulation. Add later trades and "
+                                        "compensatory picks.")
 future_text = st.sidebar.text_input("Future picks we own (e.g. '2028 R1, 2028 R2')", "2028 R1, 2028 R2")
 st.session_state["draft_year"] = st.sidebar.number_input("Draft year", 2020, 2035, 2027)
 
