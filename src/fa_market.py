@@ -417,3 +417,23 @@ def need_factor(g, fullness):
     if g == "QB" or fullness is None or pd.isna(fullness):
         return 1.0
     return float(np.clip(1 + slope * (fullness - meta["mean_ret"]), 0.6, 1.25))
+
+
+# ---------------- extensions: new years for a player under contract (workbench) ----------------
+# Trained on UFA signings + extensions (flag ufa = 0 for extensions), lag 2 + weeks 1-11. Out of sample on 704 past
+# extensions (leave-year-out): R2 log APY 0.80, median miss 20%, calibrated by quintile after a scale of 1.039; new
+# years within one 90% of the time; guaranteed share miss 0.15 (Nov 20 2026).
+EXT_SMEAR = 1.039
+
+
+@lru_cache(maxsize=1)
+def ext_models():
+    return fit(training(2, kinds=("UFA", "Extension")), feats=FEATS_PARTIAL)
+
+
+def predict_extension(pfr_ids, Y=vt.LAST + 2):
+    """Predicted extension for each player: new years, APY (share of cap), guaranteed share of the new money."""
+    F = features(list(pfr_ids), Y, 2).assign(ufa=0)
+    F = F[F.grp.notna()]
+    P = predict(ext_models(), F, EXT_SMEAR)
+    return pd.concat([F[["pfr_id"]], P], axis=1).set_index("pfr_id")

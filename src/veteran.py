@@ -220,8 +220,11 @@ def team_seasons_sched(V, cost_y, gtd_y, extra_dead_y=None, theta=CUT_THETA):
     for t in range(years):
         if t > 0:
             nongtd = cost_y[t] - min(gtd_y[t], cost_y[t])
-            cut = alive & ((V[:, t - 1] <= 0) | (V[:, t - 1] < theta * nongtd))
-            cost[cut, t] = gtd_y[t:].sum() + extra[t]  # dead money
+            dead = gtd_y[t:].sum() + extra[t]
+            # out of football -> gone; otherwise cut only when it saves cap this season (dead money below his cap hit):
+            # a team doesn't cut a player whose guarantees (e.g. a fresh extension) would cost more than keeping him
+            cut = alive & ((V[:, t - 1] <= 0) | ((V[:, t - 1] < theta * nongtd) & (dead < cost_y[t])))
+            cost[cut, t] = dead  # dead money
             alive &= ~cut
         val[alive, t] = V[alive, t]
         cost[alive, t] = cost_y[t]

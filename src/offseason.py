@@ -16,6 +16,8 @@ Pieces (all tested elsewhere; this module only composes them):
 Not modeled: re-signing our own free agents (they're in the ranking like anyone else), trades, cap moves
 (restructures, cuts), June 1 designations, the market reacting to us.
 """
+import zlib
+
 import numpy as np
 import pandas as pd
 
@@ -167,19 +169,26 @@ def roster_moves(team, sit, cap0, n=4000, seed=0):
     curve = vt._curve()
     sb = lambda x: np.interp(x, curve.strength, curve.super_bowl)  # noqa: E731
     R = vtr.roster()
+    ours = R[R.team == team]
+    EXT = fm.predict_extension(ours.pfr_id) if len(ours) else pd.DataFrame()
     rows, arrays = [], {}
-    for r in R[R.team == team].itertuples():
+    for r in ours.itertuples():
         pl, c = vtr.player_features(r.pfr_id), vtr.contract(r.pfr_id, cap0)
         if pl is None or c is None or not c["years"]:
             continue
         yrs = len(c["years"])
-        V, S = vt.comps().paths(pl, yrs, exclude=False, skip=SKIP)
+        ext = EXT.loc[r.pfr_id] if r.pfr_id in EXT.index else None
+        n_new = int(np.clip(ext.yrs_pred, 1, 4)) if ext is not None else 0
+        n_tot = min(yrs + n_new, 5)  # seasons inside the 5-season window
+        # one set of comp futures, long enough for the extension, so keep / cut / restructure / extend are paired
+        V, S = vt.comps().paths(pl, n_tot, exclude=False, skip=SKIP)
         qb = pl["grp"] == "QB"
 
-        def pts_for(cost_y, extra_y):
-            val, cost, on = vt.team_seasons_sched(V, cost_y, c["gtd"], extra_y)
+        def pts_for(cost_y, extra_y, gtd_y=None):
+            m = len(cost_y)
+            val, cost, on = vt.team_seasons_sched(V[:, :m], cost_y, c["gtd"] if gtd_y is None else gtd_y, extra_y)
             out = np.zeros((len(V), 5))
-            out[:, :yrs] = vt.points(val, S, cost, on, qb)
+            out[:, :m] = vt.points(val, S[:, :m], cost, on, qb)
             return out
         keep = pts_for(c["keep_cost"], c["keep_extra"])
         dead = float(c["gtd"].sum() + c["pro"].sum() + c["void_pro"])
@@ -195,14 +204,36 @@ def roster_moves(team, sit, cap0, n=4000, seed=0):
             pro_new = c["pro"] + per
             extra = np.array([pro_new[t:].sum() + c["void_pro"] for t in range(yrs)])
             restr = pts_for(cost_y, extra)
+        # extension: n_new seasons after his deal at the predicted APY (guarantees on the first new seasons), and his
+        # SIGN_SEASON base above the minimum turned into a bonus spread over all seasons in the window (the usual way
+        # an extension lowers the current cap hit)
+        extp, e_apy, e_gtd, e_saved, e_later = None, 0.0, 0.0, 0.0, 0.0
+        if n_new and n_tot > yrs:
+            e_apy = float(ext.apy_pred)
+            m_new = n_tot - yrs
+            g_total = float(ext.gshare_pred) * e_apy * n_new
+            gnew = np.array([min(e_apy, max(g_total - e_apy * i, 0.0)) for i in range(m_new)])
+            conv = max(float(c["base"][0]) - FILL_SHARE, 0.0)
+            per_c = conv / n_tot
+            cost_y = np.concatenate([c["keep_cost"], np.full(m_new, e_apy)])
+            cost_y[0] -= conv - per_c
+            cost_y[1:] += per_c
+            gtd_y = np.concatenate([c["gtd"], gnew])
+            pro_new = np.concatenate([c["pro"], np.zeros(m_new)]) + per_c
+            extra = np.array([pro_new[t:].sum() + c["void_pro"] for t in range(n_tot)])
+            extp = pts_for(cost_y, extra, gtd_y)
+            e_gtd, e_saved, e_later = g_total, conv - per_c, per_c
         idx = rng.integers(0, len(keep), n)
         alone = lambda new: float((sb(base + new[idx]) - sb(base + keep[idx])).sum(axis=1).mean())  # noqa: E731
-        arrays[r.pfr_id] = {"keep": keep, "cut": cut, "restr": restr}
+        arrays[r.pfr_id] = {"keep": keep, "cut": cut, "restr": restr, "ext": extp}
         rows.append({"pfr_id": r.pfr_id, "player": r.player, "grp": pl["grp"], "age": pl["age"] + SKIP,
                      "years_left": yrs, "cap_now": c["keep_cost"][0] * cap0, "dead_cut": dead * cap0,
                      "saved_cut": (c["keep_cost"][0] - dead) * cap0, "titles_cut": alone(cut),
                      "restr_amount": amount * cap0, "saved_restr": (amount - per) * cap0, "later_restr": per * cap0,
-                     "titles_restr": alone(restr) if restr is not None else np.nan})
+                     "titles_restr": alone(restr) if restr is not None else np.nan,
+                     "ext_years": n_new if extp is not None else 0, "ext_apy": e_apy * cap0, "ext_gtd": e_gtd * cap0,
+                     "saved_ext": e_saved * cap0, "later_ext": e_later * cap0,
+                     "titles_ext": alone(extp) if extp is not None else np.nan})
     return pd.DataFrame(rows), arrays
 
 
@@ -221,7 +252,7 @@ def suggest(T, base_budget):
     return cuts, restr
 
 
-def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1):
+def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1, exts=()):
     """Titles added (share of one) by doing all the moves together, and by each kind alone."""
     import pick_value as pv
     rng = np.random.default_rng(seed)
@@ -229,15 +260,18 @@ def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1):
     curve = vt._curve()
     sb = lambda x: np.interp(x, curve.strength, curve.super_bowl)  # noqa: E731
     before, after = np.zeros((n, 5)), np.zeros((n, 5))
-    parts = {"cuts": np.zeros((n, 5)), "restructures": np.zeros((n, 5)), "signings": np.zeros((n, 5))}
-    for p in set(cuts) | set(restrs):
+    parts = {"cuts": np.zeros((n, 5)), "restructures": np.zeros((n, 5)), "extensions": np.zeros((n, 5)),
+             "signings": np.zeros((n, 5))}
+    for p in sorted(set(cuts) | set(restrs) | set(exts)):
         a = arrays[p]
-        idx = rng.integers(0, len(a["keep"]), n)
+        # same draws for a player whatever else is toggled (seeded by player), so options compare like for like
+        idx = np.random.default_rng(zlib.crc32(str(p).encode()) + seed).integers(0, len(a["keep"]), n)
         k = a["keep"][idx]
-        new = a["cut"][idx] if p in cuts else a["restr"][idx]
+        kind = "cuts" if p in cuts else ("extensions" if p in exts else "restructures")
+        new = a["cut"][idx] if kind == "cuts" else (a["ext"][idx] if kind == "extensions" else a["restr"][idx])
         before += k
         after += new
-        parts["cuts" if p in cuts else "restructures"] += new - k
+        parts[kind] += new - k
     for r in P.itertuples():
         yrs = int(r.yrs_pred)
         pl = {"grp": r.grp, "age": r.age - SKIP, "v1": r.v1, "v2": r.v2, "g1": r.g1,

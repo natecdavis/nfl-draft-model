@@ -4163,3 +4163,23 @@ when the player has them (real players on every page; custom players forecast wi
 Effects: KC trading #28 + 2028 R1 for Myles Garrett (30% of 2026 games so far) went from about even to -0.90% of a title;
 Spotrac comparison corr 0.84 -> 0.81 (we now discount players hurt in 2026, e.g. Joey Porter Jr., Ethan Pocic, Mekhi
 Becton; Spotrac doesn't appear to).
+
+### Extensions in the workbench, and a cut-rule fix (Nov 20 2026)
+
+**Extensions** (`fa_market.predict_extension`, `offseason.roster_moves`): a fourth table. Predicted new years, APY and
+guaranteed share from a model trained on UFA signings + extensions (flag ufa = 0 for extensions; lag 2 + weeks 1-11).
+Out of sample on 704 past extensions (leave-year-out): R2 log APY 0.80, median miss 20%, calibrated by quintile after a
+scale of 1.039 (`EXT_SMEAR`); new years within one 90% of the time; guaranteed share miss 0.15. The extended contract:
+his current seasons, then the new ones at the predicted APY (guarantees on the first new seasons), with his 2027 base
+above the minimum turned into a bonus over all seasons in the window (how extensions usually lower the current hit).
+Not suggested by the model (nothing pre-checked). Conflicts warn: cut wins over restructure / extension; extension wins
+over restructure. Keep, cut, restructure and extend now use one set of comp futures per player, and each player's draws
+in `evaluate_moves` are seeded by player, so options compare like for like whatever else is toggled.
+Examples (NE): Drake Maye 4 new years at ~$71.7M: +3.7% of a title; Christian Barmore 3 years at $22.8M: -0.16% (cut
++0.05%, restructure +0.09%: his forecast is below that price).
+
+**Cut rule** (`veteran.team_seasons_sched`, used by trades and the workbench; the flat-contract `team_seasons` used for
+free agents and its validation is unchanged): a player still playing is now cut only when it saves cap that season (dead
+money below his cap hit). Before, the rule ignored dead money and "cut" players right after big guarantees (an
+extension's $39M of new guarantees landed as 2028 dead money in the bad futures). Workbench suggestions moved (KC: 5
+restructures instead of a cut + restructures; MIA: no suggested cut; NE unchanged). Untested against history.
