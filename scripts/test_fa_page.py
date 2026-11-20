@@ -73,10 +73,25 @@ at = fresh()
 at.sidebar.selectbox[0].set_value("MIA").run()
 at.segmented_control[0].set_value("Offseason plan").run()
 assert not at.exception, at.exception
-print("MIA budget:", [(m.label, m.value) for m in at.metric][:5])
-print("MIA plan:", [(m.label, m.value) for m in at.metric][5:8])
-print("MIA signings:", list(at.dataframe[1].value.Player))
-print("MIA draft vs FA:", at.dataframe[2].value.iloc[:3, :3].round(2).values.tolist())
+ms = {m.label: (m.value, m.delta) for m in at.metric}
+print("MIA:", {k: ms[k] for k in ["Free-agency budget", "Cuts + restructures free", "Signings (APY)", "Left",
+                                   "Super Bowls added over 5 seasons"]})
+draft = at.dataframe[-1].value
+print("MIA draft vs FA (top 3):", draft.iloc[:3, :3].round(2).values.tolist())
 at.sidebar.selectbox[0].set_value("KC").run()
 assert not at.exception, at.exception
-print("KC:", [w.value[:60] for w in at.warning])
+ms = {m.label: (m.value, m.delta) for m in at.metric}
+print("KC:", {k: ms[k] for k in ["Budget before moves", "Cuts + restructures free", "Left"]})
+
+# 6. Workbench: NE over the cap -> suggested cuts fund signings; totals shown
+at = fresh()
+at.sidebar.selectbox[0].set_value("NE").run()
+at.segmented_control[0].set_value("Offseason plan").run()
+assert not at.exception, at.exception
+ms = {m.label: (m.value, m.delta) for m in at.metric}
+print("NE workbench:", {k: ms[k] for k in ["Budget before moves", "Cuts + restructures free", "Signings (APY)", "Left",
+                                            "Super Bowls added over 5 seasons"]})
+at.button(key=None) if False else None
+[b for b in at.button if b.label.startswith("Re-plan")][0].click().run()
+assert not at.exception, at.exception
+print("after re-plan:", {m.label: m.value for m in at.metric if m.label in ("Signings (APY)", "Left")})

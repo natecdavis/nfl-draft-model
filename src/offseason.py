@@ -50,7 +50,7 @@ def commitments(team, cap0, season=SIGN_SEASON):
                 if int(x["year"]) == season and x.get("team") and rn.team(nick.get(x["team"], x["team"])) == team:
                     capn = float(x.get("cap_number") or 0.0)
                     total += capn
-                    n += (x.get("base_salary") or 0) > 0
+                    n += fm.real_season(x)  # placeholder years still carry cap (proration), not a roster spot
                     rows.append((nm, capn))
         elif pd.notna(ys) and pd.notna(yrs) and ys + yrs - 1 >= season and \
                 rn.team(nick.get(str(tm).split("/")[-1], str(tm).split("/")[-1])) == team:
@@ -137,3 +137,109 @@ def draft_by_group(sit, pick, ctx, qb_need=False, n=8000, seed=0):
             best = max(best, float((ctx.sb(base + pts) - b0).sum(axis=1).mean()))
         out[g] = best
     return out
+
+
+# ---------------- cap moves: cuts and restructures, and scoring any mix of moves together ----------------
+SUGGEST_CUT = 0.0002  # suggest a cut when it adds at least 0.02% of a title on its own (he's paid well over his value)
+
+
+def roster_moves(team, sit, cap0, n=4000, seed=0):
+    """Cut and restructure options for every player under contract with `team` in SIGN_SEASON with recent value.
+    Returns (table, arrays): arrays[pfr] = {"keep", "cut", "restr"} -> (K, 5) points per comp future.
+      cut (before June 1): dead = remaining guaranteed salary + all remaining proration (void years too), all in
+        SIGN_SEASON; saved in SIGN_SEASON = his cap number - dead; later seasons save his whole cap number.
+      restructure: his SIGN_SEASON base salary above the minimum becomes a bonus prorated over his remaining playing
+        seasons (n >= 2; no void years added): saves amount x (1 - 1/n) now, adds amount / n to each later season
+        and to the dead money if he's cut later."""
+    import pick_value as pv
+    import vet_trade as vtr
+    from pick_value import COST_RATE
+    rng = np.random.default_rng(seed)
+    base = pv.baseline_paths(sit, rng, n)
+    curve = vt._curve()
+    sb = lambda x: np.interp(x, curve.strength, curve.super_bowl)  # noqa: E731
+    R = vtr.roster()
+    rows, arrays = [], {}
+    for r in R[R.team == team].itertuples():
+        pl, c = vtr.player_features(r.pfr_id), vtr.contract(r.pfr_id, cap0)
+        if pl is None or c is None or not c["years"]:
+            continue
+        yrs = len(c["years"])
+        V, S = vt.comps().paths(pl, yrs, exclude=False, skip=SKIP)
+        qb = pl["grp"] == "QB"
+
+        def pts_for(cost_y, extra_y):
+            val, cost, on = vt.team_seasons_sched(V, cost_y, c["gtd"], extra_y)
+            out = np.zeros((len(V), 5))
+            out[:, :yrs] = vt.points(val, S, cost, on, qb)
+            return out
+        keep = pts_for(c["keep_cost"], c["keep_extra"])
+        dead = float(c["gtd"].sum() + c["pro"].sum() + c["void_pro"])
+        cut = np.zeros_like(keep)
+        cut[:, 0] = -COST_RATE * dead * 100
+        restr, amount, per = None, 0.0, 0.0
+        if yrs >= 2:
+            amount = max(float(c["base"][0]) - FILL_SHARE, 0.0)
+            per = amount / yrs
+            cost_y = c["keep_cost"].copy()
+            cost_y[0] -= amount - per
+            cost_y[1:] += per
+            pro_new = c["pro"] + per
+            extra = np.array([pro_new[t:].sum() + c["void_pro"] for t in range(yrs)])
+            restr = pts_for(cost_y, extra)
+        idx = rng.integers(0, len(keep), n)
+        alone = lambda new: float((sb(base + new[idx]) - sb(base + keep[idx])).sum(axis=1).mean())  # noqa: E731
+        arrays[r.pfr_id] = {"keep": keep, "cut": cut, "restr": restr}
+        rows.append({"pfr_id": r.pfr_id, "player": r.player, "grp": pl["grp"], "age": pl["age"] + SKIP,
+                     "years_left": yrs, "cap_now": c["keep_cost"][0] * cap0, "dead_cut": dead * cap0,
+                     "saved_cut": (c["keep_cost"][0] - dead) * cap0, "titles_cut": alone(cut),
+                     "restr_amount": amount * cap0, "saved_restr": (amount - per) * cap0, "later_restr": per * cap0,
+                     "titles_restr": alone(restr) if restr is not None else np.nan})
+    return pd.DataFrame(rows), arrays
+
+
+def suggest(T, base_budget):
+    """Suggested cuts (cutting adds titles on its own and saves cap) and, only if the budget is still negative,
+    restructures (largest savings first, age < 32, 2+ seasons left) until it isn't."""
+    cuts = set(T[(T.titles_cut > SUGGEST_CUT) & (T.saved_cut > 0)].pfr_id)
+    b = base_budget + T[T.pfr_id.isin(cuts)].saved_cut.sum()
+    restr = set()
+    if b < 0:
+        for r in T[~T.pfr_id.isin(cuts) & (T.saved_restr > 0) & (T.age < 32)].sort_values("saved_restr", ascending=False).itertuples():
+            if b >= 0:
+                break
+            restr.add(r.pfr_id)
+            b += r.saved_restr
+    return cuts, restr
+
+
+def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1):
+    """Titles added (share of one) by doing all the moves together, and by each kind alone."""
+    import pick_value as pv
+    rng = np.random.default_rng(seed)
+    base = pv.baseline_paths(sit, rng, n)
+    curve = vt._curve()
+    sb = lambda x: np.interp(x, curve.strength, curve.super_bowl)  # noqa: E731
+    before, after = np.zeros((n, 5)), np.zeros((n, 5))
+    parts = {"cuts": np.zeros((n, 5)), "restructures": np.zeros((n, 5)), "signings": np.zeros((n, 5))}
+    for p in set(cuts) | set(restrs):
+        a = arrays[p]
+        idx = rng.integers(0, len(a["keep"]), n)
+        k = a["keep"][idx]
+        new = a["cut"][idx] if p in cuts else a["restr"][idx]
+        before += k
+        after += new
+        parts["cuts" if p in cuts else "restructures"] += new - k
+    for r in P.itertuples():
+        yrs = int(r.yrs_pred)
+        pl = {"grp": r.grp, "age": r.age - SKIP, "v1": r.v1, "v2": r.v2, "g1": r.g1}
+        V, S = vt.comps().paths(pl, yrs, exclude=False, skip=SKIP)
+        val, cost, on = vt.team_seasons(V, yrs, r.apy_pred, r.gshare_pred * r.apy_pred * yrs)
+        pts = np.zeros((len(V), 5))
+        pts[:, :yrs] = vt.points(val, S, cost, on, r.grp == "QB")
+        d = pts[rng.integers(0, len(V), n)]
+        after += d
+        parts["signings"] += d
+    total = float((sb(base + after) - sb(base + before)).sum(axis=1).mean())
+    alone = {k: float((sb(base + v) - sb(base)).sum(axis=1).mean()) for k, v in parts.items()}
+    return total, alone

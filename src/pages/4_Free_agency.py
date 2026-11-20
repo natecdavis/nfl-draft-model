@@ -100,6 +100,12 @@ def pick_label(pk):
     return f"{SIGN_SEASON + pk.year} round {pk.rnd}{src}"
 
 
+@st.cache_data(show_spinner="Pricing cuts and restructures for our roster...", max_entries=20)
+def moves_for(team, start, shift_key, qb_from, cap):
+    s = {"start": start, "shift": dict(shift_key), "qb_from": qb_from}
+    return off.roster_moves(team, s, cap)
+
+
 @st.cache_data(show_spinner="Valuing our first pick at each position...", max_entries=20)
 def draft_values(start, shift_key, qb_from, pick):
     s = {"start": start, "shift": dict(shift_key), "qb_from": qb_from}
@@ -250,34 +256,101 @@ if view == "Offseason plan":
                      column_config={"cap_m": st.column_config.NumberColumn("cap hit ($M)", format="$%.1f")})
     R = ranked(start, tuple(sorted(sit["shift"].items())), sit["qb_from"], cap_price,
                team, need_on)
-    if B["budget"] <= 0:
-        st.warning(f"Over the {SIGN_SEASON} cap by ${-B['budget']:.0f}M before any signing: the plan needs cuts, "
-                   "restructures or extensions first (not modeled). Add the room they'd clear as rollover to plan "
-                   "around it.")
-        P = R.iloc[0:0]
-    else:
-        P = off.plan(R, B["budget"], cap_m, max_n, qb_need=qb_need, include_flagged=flagged)
-    st.subheader("Free-agent plan")
-    if len(P):
-        jt = off.joint_titles(sit, P)
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Super Bowls added over 5 seasons", f"{jt * 100:+.2f}% of a title")
-        c2.metric("Spent (APY)", f"${P.cost_m.sum():.0f}M", f"${B['budget'] - P.cost_m.sum():.0f}M left", delta_color="off")
-        c3.metric("Signings", f"{len(P)}")
-        st.dataframe(pd.DataFrame({
-            "Player": P.display_name, "Pos": P.grp, "Age": P.age.round(1), "Predicted APY ($M)": P.cost_m,
-            "Yrs": P.yrs_pred, "Titles added (%)": P.titles * 100, "Per $10M": P.per_10m, "Notes": P.note}),
-            hide_index=True, alt="Planned free-agent signings",
-            column_config={"Predicted APY ($M)": st.column_config.NumberColumn(format="$%.1f"),
-                           "Titles added (%)": st.column_config.NumberColumn(format="%+.2f"),
-                           "Per $10M": st.column_config.NumberColumn(format="%.2f",
-                                                                     help="% of a title per $10M of APY")})
-        st.caption("Greedy: best titles per dollar first, within the budget, at most 2 at OL / DB / WR / DL and 1 elsewhere "
-                   "(each signing is valued as if he alone fills a minimum-salary spot). The total is scored with all "
-                   "signings together, so it differs from the sum of the rows. Predicted prices miss by ~37% either way: "
-                   "treat it as a shopping list, not a budget.")
-    elif B["budget"] > 0:
-        st.info("No free agent adds titles at his predicted price within the budget.")
+    T, arrays = moves_for(team, start, tuple(sorted(sit["shift"].items())), sit["qb_from"], cap_m)
+    sug_c, sug_r = off.suggest(T, B["budget"])
+    ver = st.session_state.setdefault(f"plan_ver_{team}", 0)
+    summary = st.container(border=True)
+    money = lambda x: f"{'-' if x < 0 else ''}${abs(x):.1f}M"  # noqa: E731
+
+    st.subheader("Cuts")
+    Tc = T.assign(sug=T.pfr_id.isin(sug_c)).sort_values(["sug", "titles_cut"], ascending=False).reset_index(drop=True)
+    cut_ed = st.data_editor(pd.DataFrame({
+        "Do it": Tc.sug, "Player": Tc.player, "Pos": Tc.grp, "Age": Tc.age.round(1), "Years left": Tc.years_left,
+        f"{SIGN_SEASON} cap hit": Tc.cap_now, "Dead money": Tc.dead_cut, f"{SIGN_SEASON} saved": Tc.saved_cut,
+        "Titles (%)": Tc.titles_cut * 100, "Suggested": np.where(Tc.sug, "yes", "")}),
+        key=f"cuts_{team}_{ver}", hide_index=True, disabled=[c for c in ["Player", "Pos", "Age", "Years left",
+        f"{SIGN_SEASON} cap hit", "Dead money", f"{SIGN_SEASON} saved", "Titles (%)", "Suggested"]],
+        column_config={"Do it": st.column_config.CheckboxColumn(width="small")} |
+                      {c: st.column_config.NumberColumn(format="$%.1f") for c in
+                       [f"{SIGN_SEASON} cap hit", "Dead money", f"{SIGN_SEASON} saved"]} |
+                      {"Titles (%)": st.column_config.NumberColumn(format="%+.2f",
+                       help="Super Bowls over 5 seasons from cutting him alone: losing his forecast value, taking the "
+                            "dead money now, freeing his cap (charged at the model's 0.10 points per 1% of cap)")})
+    st.caption("Before June 1: all remaining signing-bonus proration and guaranteed salary become dead money in "
+               f"{SIGN_SEASON}. Suggested when cutting him adds titles on its own (forecast value well below his pay). "
+               "Players with no 2024-25 snaps (most 2026 rookies) aren't listed.")
+    cuts = set(Tc.pfr_id[cut_ed["Do it"].to_numpy()])
+
+    st.subheader("Restructures")
+    Tr = T[(T.years_left >= 2) & (T.saved_restr > 0.05)].assign(sug=lambda d: d.pfr_id.isin(sug_r))
+    Tr = Tr.sort_values(["sug", "saved_restr"], ascending=False).reset_index(drop=True)
+    restr_ed = st.data_editor(pd.DataFrame({
+        "Do it": Tr.sug, "Player": Tr.player, "Pos": Tr.grp, "Age": Tr.age.round(1), "Years left": Tr.years_left,
+        "Salary converted": Tr.restr_amount, f"{SIGN_SEASON} saved": Tr.saved_restr,
+        "Added each later year": Tr.later_restr, "Titles (%)": Tr.titles_restr * 100,
+        "Suggested": np.where(Tr.sug, "yes", "")}),
+        key=f"restr_{team}_{ver}", hide_index=True, disabled=["Player", "Pos", "Age", "Years left", "Salary converted",
+        f"{SIGN_SEASON} saved", "Added each later year", "Titles (%)", "Suggested"],
+        column_config={"Do it": st.column_config.CheckboxColumn(width="small")} |
+                      {c: st.column_config.NumberColumn(format="$%.1f") for c in
+                       ["Salary converted", f"{SIGN_SEASON} saved", "Added each later year"]} |
+                      {"Titles (%)": st.column_config.NumberColumn(format="%+.2f",
+                       help="Moving cap from now to later seasons, and more dead money if he's cut later")})
+    st.caption(f"His {SIGN_SEASON} salary above the minimum becomes a bonus spread over his remaining seasons (no void "
+               "years added). Suggested only when the budget is still negative after the suggested cuts.")
+    restrs = set(Tr.pfr_id[restr_ed["Do it"].to_numpy()]) - cuts
+
+    saved = T[T.pfr_id.isin(cuts)].saved_cut.sum() + T[T.pfr_id.isin(restrs)].saved_restr.sum()
+    fill_after = max(off.ROSTER - (B["n_signed"] - len(cuts)) - len(picks_), 0) * off.FILL_SHARE * cap_m
+    budget_after = B["budget"] + saved - (fill_after - B["fill"])
+
+    st.subheader("Signings")
+    sver = st.session_state.setdefault(f"sign_ver_{team}", 0)
+    if st.button("Re-plan signings for the current budget", icon=":material/refresh:"):
+        st.session_state[f"sign_ver_{team}"] = sver = sver + 1
+    plan_now = off.plan(R, budget_after, cap_m, max_n, qb_need=qb_need, include_flagged=flagged) if budget_after > 0 \
+        else R.iloc[0:0]
+    Cand = R[(R.titles > 0) & ~R.restricted & ((R.grp != "QB") | qb_need) &
+             (flagged | ~R.note.str.contains("likely extended"))].copy()
+    Cand["cost_m"] = Cand.apy_pred * cap_m
+    Cand["per_10m"] = Cand.titles * 100 / Cand.cost_m * 10
+    Cand = Cand.sort_values("per_10m", ascending=False)
+    Cand = pd.concat([Cand[Cand.pfr_id.isin(plan_now.pfr_id)], Cand[~Cand.pfr_id.isin(plan_now.pfr_id)].head(60)])
+    sign_ed = st.data_editor(pd.DataFrame({
+        "Do it": Cand.pfr_id.isin(plan_now.pfr_id).to_numpy(), "Player": Cand.display_name.to_numpy(),
+        "Pos": Cand.grp.to_numpy(), "Age": Cand.age.round(1).to_numpy(), "Predicted APY": Cand.cost_m.to_numpy(),
+        "Yrs": Cand.yrs_pred.to_numpy(), "Titles (%)": (Cand.titles * 100).to_numpy(),
+        "Per $10M": Cand.per_10m.to_numpy(), "Notes": Cand.note.to_numpy()}),
+        key=f"sign_{team}_{ver}_{sver}", hide_index=True,
+        disabled=["Player", "Pos", "Age", "Predicted APY", "Yrs", "Titles (%)", "Per $10M", "Notes"],
+        column_config={"Do it": st.column_config.CheckboxColumn(width="small"),
+                       "Predicted APY": st.column_config.NumberColumn(format="$%.1f"),
+                       "Titles (%)": st.column_config.NumberColumn(format="%+.2f"),
+                       "Per $10M": st.column_config.NumberColumn(format="%.2f", help="% of a title per $10M of APY")})
+    st.caption("Checked at first: the greedy plan for the budget after the suggested moves (best titles per dollar, at "
+               "most 2 at OL / DB / WR / DL and 1 elsewhere). Toggle anything; 'Re-plan' redoes it for the budget after "
+               "your current cuts and restructures. Predicted prices miss by ~37% either way.")
+    P = Cand[sign_ed["Do it"].to_numpy()]
+    spend = P.cost_m.sum()
+    total, alone = off.evaluate_moves(sit, arrays, cuts, restrs, P)
+    with summary:
+        st.markdown("**This offseason, as toggled below**")
+        k = st.columns(5)
+        k[0].metric("Budget before moves", money(B["budget"]))
+        k[1].metric("Cuts + restructures free", money(saved - (fill_after - B["fill"])),
+                    f"{len(cuts)} cuts, {len(restrs)} restructures", delta_color="off")
+        k[2].metric("Signings (APY)", money(spend), f"{len(P)} players", delta_color="off")
+        k[3].metric("Left", money(budget_after - spend))
+        k[4].metric("Super Bowls added over 5 seasons", f"{total * 100:+.2f}%")
+        st.caption(f"Each kind alone: cuts {alone['cuts'] * 100:+.2f}%, restructures {alone['restructures'] * 100:+.2f}%, "
+                   f"signings {alone['signings'] * 100:+.2f}% of a title; the total scores everything together on one "
+                   "strength path. Not modeled: post-June 1 cuts, void years in restructures, extensions, trades "
+                   "(Trades view), re-signing our own free agents as such (they're in the signings list).")
+        if budget_after - spend < 0:
+            st.warning(f"Over the {SIGN_SEASON} cap by {money(spend - budget_after)}: free more room or drop a signing.")
+        if st.button("Reset to suggestions", icon=":material/restart_alt:"):
+            st.session_state[f"plan_ver_{team}"] = ver + 1
+            st.rerun()
     st.subheader(f"Draft or free agency, by position (our first pick: #{picks_[0] if picks_ else '-'})")
     if picks_:
         dv = draft_values(start, tuple(sorted(sit["shift"].items())), sit["qb_from"], picks_[0])

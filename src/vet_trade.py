@@ -50,7 +50,7 @@ def contract(pfr_id, cap0, season=SIGN_SEASON):
     rows = sorted([x for x in (sh if sh is not None else []) if str(x.get("year", "")).isdigit() and int(x["year"]) >= season],
                   key=lambda x: int(x["year"]))
     f = lambda x, k: float(x.get(k) or 0.0)  # noqa: E731
-    play = [x for x in rows if f(x, "base_salary") > 0 and f(x, "cap_number") > 0][:WINDOW]  # skip void / placeholder years
+    play = [x for x in rows if fm.real_season(x)][:WINDOW]  # skip void / placeholder years
     cap = lambda y: cap0 * CAP_GROWTH ** (y - season)  # noqa: E731
     years = [int(x["year"]) for x in play]
     pro = np.array([f(x, "prorated_bonus") / cap(int(x["year"])) for x in play])
@@ -59,7 +59,9 @@ def contract(pfr_id, cap0, season=SIGN_SEASON):
     played = {int(x["year"]) for x in play}
     void_pro = sum(f(x, "prorated_bonus") / cap(season) for x in rows if int(x["year"]) not in played)
     keep_extra = np.array([pro[t:].sum() + void_pro for t in range(len(play))])  # proration left if cut before t
-    return {"years": years, "keep_cost": capn, "acq_cost": np.maximum(capn - pro, 0.0), "gtd": gtd,
+    base = np.array([f(x, "base_salary") / cap(int(x["year"])) for x in play])
+    return {"years": years, "keep_cost": capn, "acq_cost": np.maximum(capn - pro, 0.0), "gtd": gtd, "base": base,
+            "pro": pro, "void_pro": float(void_pro),
             "keep_extra": keep_extra, "dead_if_traded": float(pro.sum() + void_pro),
             "team": A.at[pfr_id, "team"], "cap_m": [float(f(x, "cap_number")) for x in play]}
 

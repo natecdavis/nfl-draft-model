@@ -47,6 +47,14 @@ def _contracts():
     return c, cap
 
 
+def real_season(x):
+    """A real contract season in an OTC season_history row: base salary > 0 and cap number >= base salary. OTC marks
+    void / placeholder years with a base above the cap number (99.999999 or 50.0 with a small cap number: A.J. Brown
+    2030, Arnold Ebiketie 2027); a real season's cap number is base + bonuses."""
+    b, c = float(x.get("base_salary") or 0.0), float(x.get("cap_number") or 0.0)
+    return b > 0 and c > 0 and b <= c + 0.01
+
+
 @lru_cache(maxsize=4)
 def under_contract(season):
     """One row per player with an active OTC contract: pfr_id (players table, else name match to that season-1's snap
@@ -77,7 +85,7 @@ def under_contract(season):
         cur_team = to_abbr(str(team).split("/")[-1])
         if years_rows:
             nxt = [x for x in years_rows if int(x["year"]) == season]
-            signed = bool(nxt) and (nxt[0].get("base_salary") or 0) > 0
+            signed = bool(nxt) and real_season(nxt[0])
             if nxt and nxt[0].get("team"):
                 cur_team = to_abbr(nxt[0]["team"])
         else:

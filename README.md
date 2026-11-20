@@ -4030,3 +4030,29 @@ Depth stays pooled (CB / S rooms trade off, r ~ -0.75, "Room check: are team roo
 (CB x1.11 / S x0.89 pay factors failed their choice test, "Pay within OL and DB").
 Nov 20 2026: the page's cap input now defaults to a 2027 projection (the 2026 cap from the contract data x 1.07 =
 $320M) instead of the 2026 cap ($299M); budgets and the trade view's cap shares use it. NE at $320M: -$16M (was -$35M).
+
+### Offseason workbench: cuts, restructures and signings, toggled together (`offseason.roster_moves`, Nov 20 2026)
+
+The Offseason plan view is now a workbench: three tables (cuts, restructures, signings) with a "Do it" checkbox each,
+pre-checked with suggestions; the summary at the top (budget before moves, room freed, signings, money left, Super Bowls
+added) updates on every toggle, scoring all checked moves together on one strength path (`offseason.evaluate_moves`).
+- **Cut** (before June 1): dead money = remaining guaranteed salary + all remaining proration (void years too), all in
+  2027; saved = 2027 cap number - dead; later seasons save his whole cap number; titles = losing his forecast value
+  (cut rule, `veteran.team_seasons_sched`) vs taking the dead money now. Suggested when cutting adds >= 0.02% of a
+  title on its own (forecast value well below his pay). Each cut opens a roster spot (fill to 51 recomputed).
+- **Restructure**: 2027 base salary above the minimum becomes a bonus prorated over his remaining playing seasons
+  (2+, no void years added): saves amount x (1 - 1/n) now, adds amount / n each later season and to his dead money if
+  cut later. Suggested only while the budget is still negative after suggested cuts (largest savings first, under 32).
+  Direction is situational: restructuring Christian Gonzalez (saves $13.6M) is +0.49% of a title for a contender,
+  -0.12% for a rebuilding team (cap pushed into the seasons a rebuilder hopes to be good).
+- **Signings**: pre-checked = the greedy plan for the budget after the suggested moves; "Re-plan" redoes it for the
+  current toggles; "Reset to suggestions" restores everything.
+- Examples ($320M cap): NE -$15.6M before moves; suggested cuts Carlton Davis, Milton Williams, Robert Spillane,
+  Rhamondre Stevenson free $50.3M net; 6 signings $34.4M; together +2.4% of a title. KC -$47.9M: 1 cut + 3
+  restructures free $53.7M. MIA $102M: 1 cut, 8 signings, +2.7%.
+- Not validated as a whole (the suggestions follow the tested forecast and cut rule; past offseasons can't be replayed
+  with other moves). Not modeled: post-June 1 cuts, void years in restructures, extensions, pay cuts.
+- **Placeholder years fixed** (`fa_market.real_season`): OTC marks void / placeholder seasons with a base salary above
+  the cap number (99.999999, or 50.0 with a small cap number); they were being read as real seasons (A.J. Brown "2030"
+  at $53.5M; Arnold Ebiketie, Julius Brents, Marquise Brown, Davante Adams "under contract" for 2027). Now a real
+  season needs base > 0 and cap number >= base: contracts, the free-agent list (869 -> 894), depth and roster counts.
