@@ -31,7 +31,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from draftday import LEVELS, NEED_STEP, TITLE_MONOTONE, DraftEngine
+from draftday import LEVELS, NEED_STEP, TITLE_MONOTONE, DraftEngine, tiebreak
 from outlook import GROUPS, OUT, RAW
 from public_board import _norm
 from simulate import league_params, load_schedules
@@ -405,7 +405,7 @@ def review_year(year, states, ctx, tables):
         pn = teams_st[tm]["p_need"]
         vals = np.array([blended(tab.lookup, lab, g, lvl(g), r, k, pn, W)
                          for lab, g, r in zip(avail.pos, avail.grp_label, avail["rank"])])
-        best = avail.iloc[int(np.argmax(vals))] if len(avail) else None
+        best = avail.iloc[int(np.argmax(tiebreak(vals, avail["rank"])))] if len(avail) else None
         cons = avail.sort_values("rank").iloc[0] if len(avail) else None
         on_board = b[b.drafted_at == k]
         rank_actual = int(on_board["rank"].iloc[0]) if len(on_board) else OFF_BOARD_RANK
@@ -829,7 +829,7 @@ def trade_decisions(year, picks_df, states_df, ctx, tables) -> pd.DataFrame:
         pn = pneed.get(tm, 1.0)
         vals = np.array([blended(tab.lookup, lab, g, min(int(mine.get(g, 0)), 2), r, k, pn, W)
                          for lab, g, r in zip(avail.pos, avail.grp_label, avail["rank"])])
-        i = int(np.argmax(vals))
+        i = int(np.argmax(tiebreak(vals, avail["rank"])))
         return vals[i] * 100, avail["name"].iloc[i], avail.grp_label.iloc[i]
 
     def plan(tm, ks):

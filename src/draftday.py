@@ -44,6 +44,15 @@ from trade import Context, Pick, package_points
 # "off": none. README "Titles non-increasing in rank". Environment variable TITLE_MONOTONE overrides it.
 TITLE_MONOTONE = os.environ.get("TITLE_MONOTONE", "min")
 
+
+def tiebreak(vals, ranks):
+    """Values for choosing the best player (not for reporting): equal to 12 decimals (titles as a fraction) counts
+    as a tie, and ties go to the better consensus rank. The TITLE_MONOTONE cap holds players level (e.g. a QB
+    ranked 14 capped at the value of one ranked 6 at that pick), and interpolating the table at different points
+    then leaves ~1e-17 noise that could rank the worse-ranked player first (fixed Nov 19 2026)."""
+    r = np.nan_to_num(np.asarray(ranks, float), nan=1000.0)
+    return np.round(np.asarray(vals, float), 12) - 1e-16 * r
+
 # board position labels -> model position groups
 POS = {"QB": "QB", "RB": "RB", "HB": "RB", "FB": "RB", "WR": "WR", "TE": "TE",
        "OT": "T", "T": "T", "OL": "G", "OG": "G", "G": "G", "IOL": "G", "C": "C",
@@ -188,7 +197,7 @@ class DraftEngine:
                 idx = np.flatnonzero((board.grp == g).to_numpy() & (rk < OFF_BOARD))
                 idx = idx[np.argsort(rk[idx], kind="stable")]
                 V[idx] = np.minimum.accumulate(V[idx], axis=0)
-        return V
+        return tiebreak(V, board["rank"].to_numpy(float)[:, None, None])
 
     def simulate(self, board: pd.DataFrame, picks: list[int], now: int, sims: int = 2000, seed: int = 1) -> dict:
         """Play the rest of the draft from pick `now` many times. Other teams take

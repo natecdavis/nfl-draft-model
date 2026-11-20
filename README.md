@@ -3627,6 +3627,14 @@ Test (`scripts/title_monotone_compare.py`; full review 2014-26, off vs min):
   (-3.6, -4.7), the one case where the worse-ranked QB was right.
 - Adopted. Review outputs before / after in `data/derived/before_title_monotone/` and `title_monotone_min/`.
   Artifact version 38.
+- Tie-break (Nov 19 2026): the cap holds players exactly level (Manziel #14 capped at Bridgewater's value, with
+  Bridgewater shaded to a #9 talent at pick 9), and interpolating the table at different points left ~1e-15 noise
+  that could still put the worse-ranked player first: the simulator showed Manziel over Bridgewater at #9 for
+  MIN 2014 once the BUF/CLE trade was OK'd. Values equal to 12 decimals now go to the better consensus rank
+  (`draftday.tiebreak`, used by the review, the draft-day app and the simulator page). 7 of 3,334 review recs
+  changed, all exact ties (e.g. Sutton #31 over Kirk #44 at MIN #30 / IND #36 in 2018); scorecard all +0.43 ->
+  +0.43, R1 +0.98 -> +0.96 only because Sutton and Kirk were two recommended players and are now one (once per
+  draft). Review outputs before in `data/derived/before_tiebreak/`. Artifact version 39.
 
 ## Class-size test: late picks in big draft classes (`scripts/class_size_test.py`, Nov 19 2026)
 
