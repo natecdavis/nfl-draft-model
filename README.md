@@ -3864,3 +3864,81 @@ Pre-set reading: summed coefficient ~0.12 per 1% supports the shadow price, ~0.0
 Read: no sign that a team's unspent cap becomes later strength once franchise is held fixed (the confound found in
 `scripts/fa_vs_extension.py` again); too wide to rule out 0.12 or 0. The shadow price describes a team that really
 does redeploy the money, not the typical team. **Kept the current charge (0.10) in the draft model; not adopted.**
+
+## Free agency page (step 2; `src/pages/4_Free_agency.py`, Nov 20 2026)
+
+`uv run streamlit run src/app.py`, then "Free agency" in the page list. Same team inputs as the draft room (situation,
+QB contract season, QB need). Pick any player with value in 2024-25 (or enter a custom one), set years / APY /
+guarantees in $M and the cap, and it shows:
+- Super Bowls added over 5 seasons (`veteran.evaluate`), and the highest APY that still adds titles at the same
+  guarantee share (`veteran.break_even`).
+- Value delivered per $1 of cap charged, against the break-even ratio (0.10 / 0.187 = $0.53 non-QB, $0.30 QB) and past
+  free agents at that price ($0.88 / $0.72 / $0.53 for 1-2% / 2-5% / 5%+ of cap).
+- Per contract season: chance he's still on the roster, expected value with its 10-90% range, cap charged (with dead
+  money), points of team strength.
+- A comparison list (same-cost comparisons hold whatever the cap price).
+- Scenario switch: rolled-over cap spent well later (`cap_price="rollover"`; not the default, see the rollover test).
+Data ends with 2025, so for a 2027 signing the forecast skips 2026 (comps' season 2 = contract season 1; `veteran.H`
+is now 6). Warnings: player older than his comps by 1.5+ years (e.g. Aaron Rodgers at 43), QB rate caveat, QB signed by
+a team that has its QB. Spot checks (3 yrs, contender break-even): Ja'Marr Chase $50M, Penei Sewell $38M, Myles
+Garrett $49M, Brian Branch $23M, Daron Payne $12M. Test: `.venv/bin/python scripts/test_fa_page.py`.
+Not modeled: backloaded cap hits, void years, restructures; player trades (step 3).
+
+### Ranked free agents and predicted contracts (`src/fa_market.py`, Nov 20 2026)
+
+The Free agency page opens on **Ranked free agents**: every player out of contract after 2026 (no real 2027 salary in
+OTC season_history; void years don't count; `years` isn't used, OTC counts extensions inconsistently): 869 with value
+in 2024-25, 201 likely restricted (3 or fewer seasons). Each is priced at his predicted market contract and scored for
+the chosen team: titles added, the most he's worth per year to us at the predicted years / guarantee share, and the
+gap. Filters: positions, price, restricted, players who cost titles. Selecting a row opens it in "One signing", with
+the predicted contract filled in. About 30 s per team setup (cached).
+
+**Contract model** (`scripts/contract_predict.py`): LightGBM on 3,276 UFA signings 2015-26 (APY >= 0.5% of cap); log
+APY, years, guaranteed share; features: group, age, value in the last two seasons of data, games, previous contract
+APY, previous deal a rookie deal. Trained with the gap it's used with (lag 2: data through 2025, signing 2027).
+Leave-one-year-out:
+
+| | R2 log APY | median miss | within 25% |
+|---|---|---|---|
+| lag 1 (normal March) | 0.60 | 31% | 40% |
+| lag 2 (a year ahead) | 0.44 | 38% | 30% |
+| previous contract only | 0.36 | 39% | 28% |
+| value only (lag 2) | 0.35 | 46% | 25% |
+
+exp(predicted log) ran 13-19% under the mean; scaled to the mean (`SMEAR`), calibrated in every price quintile.
+Years within one 89%; guaranteed share miss 0.21. Stars off rookie deals rarely reach the market (4 UFAs worth 8%+
+of cap): they signed ~1.25x the prediction; adding extensions and tags to training didn't fix it (1.27), so they're
+flagged ("likely extended/tagged") instead.
+
+**Do the ranked bargains pay off?** (`scripts/fa_bargain_check.py`) Past UFA contracts 2015-23 (1,509), bargain score =
+forecast value per season / out-of-sample predicted APY. Realized value with the team per $1 of actual cost by score
+tercile: **0.48 / 0.66 / 0.85; high - low +0.37 (+0.30 to +0.44)**, same in 2015-18 (0.51 / 0.68 / 0.85) and 2019-23
+(0.44 / 0.65 / 0.85). The market didn't bid the bargains up (actual / predicted APY 1.03 high vs 1.32 low tercile).
+Caveat: forecast and realized value use the same pay-curve yardstick, so a persistent quirk of the yardstick (a kind of
+player it rates above what wins) would show here as a "bargain" too; the currency check (veterans vs rookies) supports
+the yardstick on average, not within it.
+Example (KC, contender): Puka Nacua, George Pickens, Moro Ojomo, Ronnie Hickman Jr., Kobie Turner top the list.
+
+### Team needs in free agency (`scripts/fa_room_test.py`, Nov 20 2026)
+
+Draft-test design (`scripts/room_fullness_value.py`) with outside free agents as the treatment: 1,707 outside UFA
+signings 2015-25 (no snaps for the team the season before), E = their forecast own value (`veteran.Comps`), rooms =
+team x season x group (non-QB), fullness = returning starter-equivalents after departures, before signings (1 =
+typical). Controls: fullness, last season's room value, the team's round 1-3 rookies' expected value, group x season
+FE; team-clustered. Teams sign for need: 56% of thin rooms got an outside signing, 43% typical, 34% full.
+
+| per 1.0 of E | typical room | x fullness | thin / typical / full | thin - full |
+|---|---|---|---|---|
+| Room value, season 1 | 0.12 (0.01 to 0.23) | -0.20 (-0.52 to +0.12) | 0.14 / 0.17 / 0.02 | +0.12 (-0.11 to +0.35) |
+| Room value, seasons 1-2 | 0.16 (0.06 to 0.27) | -0.06 | 0.17 / 0.21 / 0.10 | +0.07 (-0.16 to +0.30) |
+| Signees' own value, season 1 | 0.86 (0.81 to 0.92) | -0.22 (-0.40 to -0.03) | 0.93 / 0.86 / 0.77 | +0.15 (+0.00 to +0.31) |
+| Signees' own value, seasons 1-2 | 0.80 (0.75 to 0.85) | -0.18 (-0.34 to -0.02) | 0.84 / 0.81 / 0.70 | +0.15 (-0.00 to +0.29) |
+
+By group (season 1 room value), fullness interaction: OL -2.15 (p < 0.001), LB -0.64 (p 0.003), DB -0.38 (p 0.19),
+others ~0. Cap side (OTC cap hits, + last season's group spend): per 1.0 of E the signees cost 0.76 (season 1) / 0.85
+(1-2); the group's other players' cap falls 0.49 (-0.61 to -0.37) both horizons; team total +0.18 (ns) / +0.32
+(+0.01 to +0.63). Draft picks: room gain 0.18, veteran spend at the group -0.54.
+Reading: free agents work like picks - ~15% of their value is net field gain, about half comes back as less spending on
+the position's other players - so the model's own-value accounting is as consistent for them as for picks. Need shows
+up mainly in the signee's own playing time: a full room cuts it ~15% vs thin (borderline), strongly at OL and LB.
+Not yet in the tool.

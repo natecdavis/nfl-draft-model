@@ -28,6 +28,7 @@ import roster_need as rn  # noqa: E402
 RAW, OUT = ROOT / "data/raw", ROOT / "data/derived"
 import veteran as vt  # noqa: E402
 from veteran import H, K, LAST, Comps, anchors, season_table  # noqa: E402
+H = 5  # contract seasons checked here (veteran.H = 6 adds a lead season for the app)
 
 
 def part_a(A, C, rng):

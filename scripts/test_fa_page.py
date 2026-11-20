@@ -1,0 +1,47 @@
+"""Headless check of the Free agency page (src/pages/4_Free_agency.py). Run from the project root:
+.venv/bin/python scripts/test_fa_page.py"""
+from streamlit.testing.v1 import AppTest
+
+
+def fresh():
+    at = AppTest.from_file("../src/pages/4_Free_agency.py", default_timeout=600)
+    at.run()
+    assert not at.exception, at.exception
+    return at
+
+
+# 1. Ranked list (default view), custom team, then a contender
+at = fresh()
+df = at.dataframe[0].value
+print("ranked rows:", len(df), "| top 5:", list(df.Player[:5]))
+assert len(df) > 100
+at.sidebar.selectbox[0].set_value("KC").run()
+assert not at.exception, at.exception
+df = at.dataframe[0].value
+print("KC top 5:", list(zip(df.Player[:5], df["Titles added (%)"][:5].round(2))))
+at.segmented_control[1].set_value("Value gap ($)").run()
+assert not at.exception, at.exception
+print("KC by gap:", list(at.dataframe[0].value.Player[:3]))
+
+# 2. One signing: search, team switch, rollover, comparison
+at.segmented_control[0].set_value("One signing").run()
+assert not at.exception, at.exception
+search = [s for s in at.selectbox if s.label == "Search"][0]
+search.set_value([o for o in search.options if o.startswith("George Pickens")][0]).run()
+assert not at.exception, at.exception
+print("Pickens info:", [i.value[:90] for i in at.info])
+print("signing:", [(m.label, m.value, m.delta) for m in at.metric])
+at.sidebar.checkbox[1].check().run()
+assert not at.exception, at.exception
+print("rollover:", [(m.value, m.delta) for m in at.metric][:2])
+at.button[0].click().run()
+assert not at.exception, at.exception
+print("comparison rows:", len(at.dataframe[-1].value))
+
+# 3. An old QB: age warning shows
+at = fresh()
+at.segmented_control[0].set_value("One signing").run()
+search = [s for s in at.selectbox if s.label == "Search"][0]
+search.set_value([o for o in search.options if o.startswith("Aaron Rodgers")][0]).run()
+assert not at.exception, at.exception
+print("Rodgers warnings:", [w.value[:40] for w in at.warning], [i.value[:30] for i in at.info])

@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RAW, OUT = ROOT / "data/raw", ROOT / "data/derived"
 LAST = 2025
 K = 60
-H = 5  # seasons forecast
+H = 6  # seasons forecast (5 contract seasons + 1 when the data ends a season before the signing)
 AGE_SD = 2.0
 RAW_FEATS = ["age", "v1", "v2f", "g1"]
 VET_MIN = 0.005
@@ -115,21 +115,27 @@ class Comps:
         shift = (np.array([row[f] for f in RAW_FEATS], float) - P[RAW_FEATS].to_numpy()) @ self.beta[(g, k)]
         return (P[f"y{k}"].to_numpy() + shift).clip(min=0), nb
 
+    def comp_age(self, row, need=1):
+        """Mean age of the comps used (when far below the player's age, he's older than almost anyone like him)."""
+        row, x = self._x(row)
+        return float(self.A.loc[self.neighbors(row["grp"], x, need=need), "age"].mean())
+
     def forecast(self, row, exclude=True):
         return {f"f{k}": self.outcomes(row, k, exclude)[0].mean() for k in range(1, H + 1)}
 
-    def paths(self, row, years, exclude=True):
-        """(K, years) values and snap shares: whole futures of the comps with all `years` seasons observed,
-        each season shifted to the target's features. Share is scaled with the value shift (same role, better
-        or worse play keeps share; only used for the small replacement-level credit)."""
+    def paths(self, row, years, exclude=True, skip=0):
+        """(K, years) values and snap shares: whole futures of the comps with all seasons observed, each season
+        shifted to the target's features. skip: seasons between the features and the contract's first season
+        (1 when the data ends two seasons before it). Share only feeds the small replacement-level credit."""
         row, x = self._x(row)
         g = row["grp"]
         nb = self.neighbors(g, x, row.get("pfr_id") if exclude else None, row.get("Y") if exclude else None,
-                            need=years)
+                            need=years + skip)
         P = self.A.loc[nb]
         dx = np.array([row[f] for f in RAW_FEATS], float) - P[RAW_FEATS].to_numpy()
-        V = np.column_stack([(P[f"y{k}"].to_numpy() + dx @ self.beta[(g, k)]).clip(min=0) for k in range(1, years + 1)])
-        S = np.column_stack([P[f"s{k}"].to_numpy() for k in range(1, years + 1)])
+        ks = range(skip + 1, skip + years + 1)
+        V = np.column_stack([(P[f"y{k}"].to_numpy() + dx @ self.beta[(g, k)]).clip(min=0) for k in ks])
+        S = np.column_stack([P[f"s{k}"].to_numpy() for k in ks])
         S = np.where(V > 0, np.maximum(S, 0.05), 0.0).clip(max=1.0)
         return V, S
 
@@ -168,26 +174,75 @@ def points(val, share, cost, on, qb, rates=None, cost_rate=None):
     return rate * (val - repl) * 100 - cr * charge * 100
 
 
+ROLLOVER_YIELD = 0.12  # points per 1% of cap that market free agency buys (scripts/vet_value.py, UFA 2015-23)
+
+
 def evaluate(sit, player: dict, years: int, apy: float, gtd: float, n=20000, seed=0, exclude=False,
-             cost_rate=None) -> dict:
+             cost_rate=None, skip=0, cap_price="model", paths=None) -> dict:
     """Titles added over 5 seasons by signing `player` (grp, age, v1, v2, g1) for `years` at `apy` (share of
-    cap per season) with `gtd` guaranteed (share of cap, paid first). Situation as pick_value.SITUATIONS."""
+    cap per season) with `gtd` guaranteed (share of cap, paid first). Situation as pick_value.SITUATIONS.
+    cap_price "model": cap charged at COST_RATE points in the season it's used (the draft model's charge);
+    "rollover": charged at ROLLOVER_YIELD x the best titles-per-point from that season on (unused cap rolls over and
+    is spent at market rates later; scripts/cap_rollover_test.py found real teams don't, so it's a scenario)."""
     import pick_value as pv
-    from simulate import league_params, load_schedules
     sit = pv.SITUATIONS[sit] if isinstance(sit, str) else sit
-    years = int(min(years, H))
-    V, S = comps().paths(player, years, exclude=exclude)
+    years = int(min(years, 5))
+    V, S = paths if paths is not None else comps().paths(player, years, exclude=exclude, skip=skip)
     val, cost, on = team_seasons(V, years, apy, gtd)
-    pts = np.zeros((len(V), 5))
-    pts[:, :years] = points(val, S, cost, on, player["grp"] == "QB", cost_rate=cost_rate)
+    qb = player["grp"] == "QB"
     rng = np.random.default_rng(seed)
     base = pv.baseline_paths(sit, rng, n)
     curve = _curve()
     sb = lambda x: np.interp(x, curve.strength, curve.super_bowl)
-    draw = pts[rng.integers(0, len(pts), n)]
-    d = (sb(base + draw) - sb(base)).sum(axis=1)
+    idx = rng.integers(0, len(V), n)
+    pts = np.zeros((len(V), 5))
+    if cap_price == "rollover":
+        pts[:, :years] = points(val, S, cost, on, qb, cost_rate=0.0)
+        charge = (points(np.zeros_like(val), np.zeros_like(S), cost, on, qb, cost_rate=1.0) * -1).mean(axis=0)
+        m = (sb(base + 0.5) - sb(base - 0.5)).mean(axis=0)
+        M = np.maximum.accumulate(m[::-1])[::-1]
+        d = (sb(base + pts[idx]) - sb(base)).sum(axis=1) - (ROLLOVER_YIELD * charge * M[:years]).sum()
+    else:
+        pts[:, :years] = points(val, S, cost, on, qb, cost_rate=cost_rate)
+        d = (sb(base + pts[idx]) - sb(base)).sum(axis=1)
     return {"titles_added": d.mean(), "se": d.std() / np.sqrt(n), "pts_per_season": pts[:, :years].mean(axis=0),
-            "value": val.mean(axis=0), "cost": cost.mean(axis=0), "on_team": on.mean(axis=0)}
+            "value": val.mean(axis=0), "cost": cost.mean(axis=0), "on_team": on.mean(axis=0),
+            "value_pct": np.percentile(val, [10, 50, 90], axis=0)}
+
+
+def break_even(sit, player, years, gtd_share, skip=0, cap_price="model", lo=0.0, hi=0.30, tol=0.0005, paths=None,
+               n=8000):
+    """Highest APY (share of cap) with titles added >= 0, guarantees kept at gtd_share of total value."""
+    P = paths if paths is not None else comps().paths(player, int(min(years, 5)), exclude=False, skip=skip)
+    f = lambda a: evaluate(sit, player, years, a, gtd_share * a * years, skip=skip, cap_price=cap_price, paths=P,
+                           n=n)["titles_added"]
+    if f(lo + 0.005) < 0:
+        return 0.0
+    if f(hi) > 0:
+        return hi
+    while hi - lo > tol:
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if f(mid) > 0 else (lo, mid)
+    return (lo + hi) / 2
+
+
+def current_players(asof=LAST):
+    """Players with value in the last two seasons of data: features entering season asof + 1."""
+    v = season_table()
+    pl = pd.read_parquet(RAW / "players.parquet").dropna(subset=["pfr_id"]).drop_duplicates("pfr_id")
+    V = v.set_index(["pfr_id", "season"])
+    grp = v.sort_values("season").groupby("pfr_id").group.last()
+    rec = v[v.season.between(asof - 1, asof)].pfr_id.unique()
+    d = pl[pl.pfr_id.isin(rec)][["pfr_id", "display_name", "birth_date", "latest_team", "status"]].copy()
+    d["grp"] = d.pfr_id.map(grp)
+    get = lambda p, y, c: float(V[c].get((p, y), 0.0))
+    d["v1"] = [get(p, asof, "value_ours") for p in d.pfr_id]
+    d["v2"] = [get(p, asof - 1, "value_ours") for p in d.pfr_id]
+    d["v3"] = [get(p, asof - 2, "value_ours") for p in d.pfr_id]
+    d["g1"] = [get(p, asof, "gfrac") for p in d.pfr_id]
+    d["share1"] = [get(p, asof, "share") for p in d.pfr_id]
+    d["born"] = pd.to_datetime(d.birth_date, errors="coerce")
+    return d[d.grp.notna()].sort_values("v1", ascending=False).reset_index(drop=True)
 
 
 @lru_cache(maxsize=1)
