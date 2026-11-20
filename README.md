@@ -3774,3 +3774,93 @@ they deliver about a quarter of what a round 5-7 pick does, the model's or the t
 miss, and lose badly in 2021-22. The "best by public model" rules collapse to about one player per draft (the
 same top undrafted player stays available all draft), too few to read. The visit marks undrafted players worth
 signing, not players worth a pick. Not adopted.
+
+## Free agency and trades, step 1: a veteran on a contract, in titles (`src/veteran.py`, `scripts/vet_value.py`, Nov 20 2026)
+
+Goal: value one veteran on one contract on the draft model's yardstick, so free-agent signings, player trades and
+picks can be compared in the same currency (step 2 = a Free agency tab; step 3 = players in the trade calculator).
+
+**Season value** (`scripts/vet_season_values.py`): every player-season 2013-25 priced like the draft label's seasons
+(snap share x veteran pay curve(share, darko quality) x games fraction, /1.10 to this project's units). Same harness
+and pay curves as `scripts/darko_label.py`; 24.9k player-seasons.
+
+**Currency check** (`scripts/vet_currency_check.py`): team rating ~ curve value, season means removed (416 team-seasons).
+Veterans and rookie-deal players buy the same strength per 1% of curve value: non-QB 0.249 vs 0.259 (equal p 0.70),
+QB 0.51 vs 0.58. So a veteran's seasons can be credited exactly like a pick's. (Absolute slopes, 0.26 non-QB / 0.51 QB,
+are inflated by same-season quality; the model keeps the bridge's 0.19 / 0.34, as for picks.)
+
+**Forecast** (`veteran.Comps`): the 60 nearest past "anchors" in the same pricing group by age, value last season,
+value the season before and games played last season; each comp's next five seasons (zeros count: cut, retired,
+hurt), shifted by a per-group linear slope times the feature gap. Out of sample (other players, other seasons, 4000
+anchors): actual / forecast 1.00 in each of seasons 1-5 (plain nearest neighbours ran 6-15% low; fixed by the shift);
+RMSE beats carrying last season forward at every horizon (1.12 vs 1.27 in season 1, 1.34 vs 2.15 in season 5, % of
+cap); by group 0.97-1.07 in season 1. Weak spot: age 31+ over-forecast by ~10-20% from season 3 (34+: 0.81, n 180).
+Aging, players worth >= 2% of cap: value kept after 3 seasons 97% (<25), 72% (25-27), 48% (28-30), 35% (31-33).
+
+**Contract** (`veteran.team_seasons`): flat APY, guarantees paid first; before each later season the team cuts him if
+last season's value < theta x the non-guaranteed part of next season's pay, then charges the guarantees left as dead
+money. theta = 0.5 fit to UFA signees' retention (still on team in contract season 2-5: actual 0.64 / 0.44 / 0.35 /
+0.25, modeled 0.62 / 0.38 / 0.27 / 0.21). Extensions stay longer than the rule says (season 3: 0.74 actual vs 0.49).
+Points per season as `pick_value.pick_effect`: rate x (value - share x vet min) - COST_RATE (0.10) x (cap charge - vet min).
+
+**Past signings** (OTC contract_history 'UFA', 2015-23, APY >= 1% of cap, finished by 2025: 1510): points over the
+contract, predicted (comps, leave-player-out) vs realized (value with the signing team, APY while there, unearned
+guarantees as dead money): **+0.149 vs +0.137, realized - predicted -0.012 (-0.049 to +0.025)**; per-signing corr 0.54;
+by predicted tercile -0.20 / +0.06 / +0.59 predicted vs -0.13 / +0.10 / +0.44 realized (ranks right, a little
+overconfident). Contracts >= 5% of cap: predicted +0.26, realized +0.03 (diff -0.23, -0.42 to -0.06; non-QB -0.18,
+-0.30 to -0.06): the value forecast holds for them (~5% high), the gap is mostly cost timing (more leave in year 1,
+fewer cut in years 3-4 than the rule; the realized cost is a proxy, real deals are backloaded) - read big-contract
+verdicts as ~0.2 points optimistic. QBs: +0.86 predicted vs +0.61 (n 107, ns). Extensions (488): +0.74 vs +0.68;
+franchise tags (76): +0.40 vs +0.32.
+
+**Example contracts**, titles added over 5 seasons (% of one Super Bowl; contender with veteran QB / rebuilding),
+with the model's cap charge 0.10 and, for comparison, the bridge's non-QB rate 0.19:
+
+| player | APY (% cap) x yrs | @0.10 contender | @0.10 rebuild | @0.19 contender | @0.19 rebuild |
+|---|---|---|---|---|---|
+| EDGE 27, star (6% value) | 10 x 4 | 0.0 | +0.1 | -4.5 | -0.6 |
+| EDGE 27, star | 7 x 4 | +1.7 | +0.3 | -1.9 | -0.3 |
+| WR 30, good (4%) | 6 x 3 | -0.8 | -0.1 | -2.8 | -0.3 |
+| OL 26, starter (3%) | 4 x 4 | +0.4 | +0.1 | -1.4 | -0.2 |
+| QB 29, starter (12%) | 17 x 4 | +11.5 | +2.6 | +1.6 | +0.6 |
+
+**The cap charge decides the sign of most non-QB free-agent verdicts.** At 0.10 a fairly priced veteran adds a little
+(value ~0.6 of APY x 0.19 > 0.10); at 0.19 nearly every market deal subtracts. The realized check above can't settle
+it (prediction and realization share the charge). Earlier evidence points both ways: teams turn QB savings into only
+~a quarter of their value (`scripts/qb_savings.py`, the basis of 0.10), but money spent on veterans buys ~0.2 points
+per 1% (`scripts/fa_vs_extension.py`, with franchise effects). For choosing between free agents, or between a free
+agent and a pick, at the same cap cost, the charge cancels; for "sign or keep the space", it doesn't. Not adopted
+anywhere yet (no app change); `veteran.evaluate(situation, player, years, apy, gtd)` is the entry point for step 2.
+
+### Follow-up: a cap price that depends on season and situation, applied to picks (`scripts/cap_shadow_picks.py`, Nov 20 2026)
+
+Idea (user): manage the cap to maximize titles. Then a cap dollar costs what its best use buys, and unused cap rolls
+over. Measured best use: market free agency buys ~0.12 points per 1% of cap spent (UFA 2015-23, non-QB, value with
+the team / actual cost x 0.19; 0.16 for 1-2% deals, 0.13 for 2-5%, 0.10 for 5%+). Titles per point by season
+(contender vet QB 2.78 / 1.83 / 1.39 / 1.15 / 1.04; middle 0.52 -> 0.85; rebuilding 0.06 / 0.32 / 0.52 / 0.64 / 0.74,
+% of one SB). Shadow charge for 1% of cap in season t = 0.12 x the best titles-per-point from t on (within 5 seasons).
+Value side unchanged; ranking of players at one slot unchanged (same rookie cost). Typical non-QB pick, titles %
+old -> new: contenders -0.1 to -0.3 at the top, ~0 after #32; middle #1 1.33 -> 1.06; **rebuilding #1 0.84 -> 0.20,
+#5 0.80 -> 0.23, #10 0.95 -> 0.62, #48 0.51 -> 0.45, #100+ unchanged**. QB picks move < 0.4. Rebuilding #5 vs #20 + #48:
+old 0.80 vs 1.25, new 0.23 vs 0.98. Caveats: 5-season window drops seasons 6+ (value of top picks' second contracts
+and the rebuild's good years); assumes rolled-over cap is later spent at 0.12, while `scripts/qb_savings.py` found real
+teams redeploy QB savings at ~0.05 (the reason for 0.10). Measurement only; not adopted, no app change.
+
+**7-season window** (`scripts/cap_shadow_picks.py 7`): seasons 6-7 (and season 5 for picks after round 1) added from
+what drafted players really gave the drafting team then (`second_contract_seasons.parquet`, expected by pick), baseline
+paths and title curve run 7 seasons. It doesn't rescue top picks for rebuilders: by season 6-7 a kept top pick is on a
+market-rate extension, so it adds little. Typical non-QB, old -> new: rebuilding #1 0.90 -> 0.01, #5 0.82 -> 0.04,
+#10 0.94 -> 0.45, #48 0.54 -> 0.41; contender vet QB #5 2.55 -> 2.18; middle #5 1.31 -> 0.98. Rebuilding #5 vs #20 + #48:
+0.82 vs 1.32 old, 0.04 vs 0.86 new.
+
+**Does unspent cap turn into strength later?** (`scripts/cap_rollover_test.py`; the evidence that decides the price -
+scoring real trades can't, since a slot's rookie cost is fixed in advance and shifts prediction and realization alike.)
+Team-seasons 2014-22 (288): unused cap = 100% - cap used by the team's players (OTC season_history; mean 16.5%, sd 8.4).
+Rating in t+1..t+3 ~ unused + rating t, t-1 + roster curve value (veteran, rookie-deal) + season FE, clustered by team.
+Pre-set reading: summed coefficient ~0.12 per 1% supports the shadow price, ~0.05 the current charge.
+- Without franchise FE: +0.23 (+0.01 to +0.45). But the money isn't respent: cap used next season *falls* 0.30% per 1%
+  unused (-0.44 to -0.16) - frugal teams stay frugal, so the later gain isn't rolled-over cap at work.
+- With franchise FE: **+0.02 (-0.16 to +0.21)**, used next season -0.07 (ns). Same season: -0.09 per 1% (p 0.007).
+Read: no sign that a team's unspent cap becomes later strength once franchise is held fixed (the confound found in
+`scripts/fa_vs_extension.py` again); too wide to rule out 0.12 or 0. The shadow price describes a team that really
+does redeploy the money, not the typical team. **Kept the current charge (0.10) in the draft model; not adopted.**
