@@ -4028,3 +4028,5 @@ The tools use one DB group (and one OL group), like the draft model's pricing. C
 3. **Currency**: team strength per 1% of curve value CB 0.70 vs S 0.64, equal p 0.57 - the pooled pay curve is fine.
 Depth stays pooled (CB / S rooms trade off, r ~ -0.75, "Room check: are team rooms persistent?"). Draft side unchanged
 (CB x1.11 / S x0.89 pay factors failed their choice test, "Pay within OL and DB").
+Nov 20 2026: the page's cap input now defaults to a 2027 projection (the 2026 cap from the contract data x 1.07 =
+$320M) instead of the 2026 cap ($299M); budgets and the trade view's cap shares use it. NE at $320M: -$16M (was -$35M).

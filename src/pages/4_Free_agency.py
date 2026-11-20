@@ -56,6 +56,13 @@ def open_signing():
         st.session_state.fa_view = "One signing"
 
 
+@st.cache_data
+def cap_projection():
+    c = pd.read_parquet(vt.RAW / "contracts.parquet", columns=["year_signed", "apy", "apy_cap_pct"])
+    cap_last = float((c.apy / c.apy_cap_pct).replace([np.inf], np.nan).groupby(c.year_signed).median().loc[SIGN_SEASON - 1])
+    return float(round(cap_last * vtr.CAP_GROWTH))
+
+
 @st.cache_resource(show_spinner="Loading the trade calculator...")
 def trade_ctx():
     return tr.Context()
@@ -121,8 +128,10 @@ cap_hit = st.sidebar.selectbox("Our QB's big second contract starts in season", 
                                index=(["none", 1, 2, 3, 4, 5].index(list(sit0["shift"])[0]) if sit0["shift"] else 0))
 qb_need = st.sidebar.checkbox("We need a starting QB", value=sit0["qb_from"] is not None)
 sit = {"start": start, "shift": {} if cap_hit == "none" else {int(cap_hit): -3.0}, "qb_from": 1 if qb_need else None}
-cap_m = st.sidebar.number_input(f"Salary cap in {SIGN_SEASON} ($M)", 200.0, 500.0, 299.0, 1.0,
-                                help="Defaults to the 2026 cap. Contract dollars are turned into shares of this.")
+cap_m = st.sidebar.number_input(f"Salary cap in {SIGN_SEASON} ($M, projected)", 200.0, 500.0, cap_projection(), 1.0,
+                                help=f"Default: the {SIGN_SEASON - 1} cap x {vtr.CAP_GROWTH:.2f} (the league sets the real "
+                                     f"figure in late February; 2023-26 grew ~10% a year). Contract dollars are turned "
+                                     f"into shares of this.")
 rollover = st.sidebar.checkbox("Scenario: cap we don't spend rolls over and is spent well later", value=False,
                                help="Charges cap at what it would buy in our best later season. Real teams on "
                                     "average don't re-spend saved cap (scripts/cap_rollover_test.py), so this is a "
@@ -235,7 +244,7 @@ if view == "Offseason plan":
     m[1].metric("Committed", f"${B['commitments']:.0f}M", f"{B['n_signed']} players", delta_color="off")
     m[2].metric("Rookie pool", f"${B['rookies']:.0f}M", f"{len(picks_)} picks", delta_color="off")
     m[3].metric("Fill to 51 + reserve", f"${B['fill'] + B['reserve']:.0f}M")
-    m[4].metric("Free-agency budget", f"${B['budget']:.0f}M")
+    m[4].metric("Free-agency budget", f"{'-' if B['budget'] < 0 else ''}${abs(B['budget']):.0f}M")
     with st.expander(f"Contracts counted for {SIGN_SEASON} ({B['n_signed']})"):
         st.dataframe(B["committed_players"].round(1), hide_index=True,
                      column_config={"cap_m": st.column_config.NumberColumn("cap hit ($M)", format="$%.1f")})
