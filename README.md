@@ -3663,3 +3663,52 @@ Team-drafts 2014-22 had 3 to 15 picks (60 of 288 with 10 or more; class size vs 
 Late picks in big classes are a little less likely to play as rookies, but their four-season value, titles and
 career AV are not lower. Not adopted: no class-size term. Limit: real classes rarely go past 12 picks (2 of 288),
 so this says nothing about a follower who trades down into 13 or more.
+
+## Revealed team opinion: trade-ups and undrafted guarantees (`scripts/conviction_test.py`, Nov 20 2026)
+
+Two ways teams show what they think of a player with money or picks rather than words (the press-conference
+route had too few prospect mentions: ledger `presser_feasibility`).
+
+**A. Draft-night trade-ups.** Does a player a team traded up for beat his draft slot? Drafted players 2006-2022,
+value seasons 1-4 vs an out-of-sample slot model (leave-one-class-out 2006-15, rolling 2016-22; each class
+rescaled to actual). Trade-up = the team got the pick on draft night and gave no earlier pick of that draft in the
+deal (481 picks; 92 in round 1, 36 QBs).
+
+| Test | n | Beat slot | Value vs other picks |
+|---|---|---|---|
+| A1 all trade-ups | 481 | 39% vs 35% (p 0.13) | x1.01 (0.91-1.12) |
+| A2 round 1 | 92 | 45% vs 38% | x1.09 (0.88-1.32) |
+| A3 picks 33+ | 389 | 37% vs 34% | x0.96 (0.85-1.08) |
+| A4 non-QB | 445 | 39% vs 35% | x1.00 (0.90-1.10) |
+| A5 per sd of overpay (chart value paid / got) | 436 | | x0.97 (0.85-1.10) |
+| A6 2018-22 vs consensus board | 164 | 46% vs 41% (odds x1.52, p 0.02) | x0.97 (0.81-1.16) |
+
+A trade-up says nothing about value beyond the slot it buys, and paying more doesn't mean a better player. The
+slightly higher beat rates come with no more total value (one A6 p 0.02 among nine comparisons). Not adopted;
+the trade calculator keeps valuing the pick, not the team's conviction.
+
+**B. Undrafted free-agent guarantees.** Do undrafted rookies whose teams guaranteed more money do better?
+OverTheCap contracts with no draft round signed in the draft year, matched by name + class to the prospect
+universe: 1,860 signers 2018-2022 (350 on the consensus board). 84% get some guarantee; median $12k, 90th
+percentile $85k. Value seasons 1-4, 0 if he never played.
+
+| Test | n | Value per sd of log guarantee |
+|---|---|---|
+| B1 controls: position, class, on board, log board rank | 1,860 | x1.77 (1.54-2.05) |
+| B3 top quartile vs rest (B1 controls) | 1,860 | x2.22 (1.61-3.05) |
+| B2 board signers vs consensus-board model | 350 | x1.08 (0.84-1.38) |
+| B4 vs the public pre-draft model (board + stats + combine + recruiting), offset | 1,860 | x1.25 (1.08-1.44) |
+| same, public model as a free covariate (+ board rank) | 1,860 | x1.51 (1.31-1.75) |
+| played at all (odds), same controls | 1,860 | x1.47 |
+| value given he played | 681 | x1.23 (p 0.001) |
+
+By class (free-slope version): 2018 x0.87, 2019-2022 x1.49-1.61. Teams know a good deal about the undrafted pool
+that public data doesn't: the guarantee ranks those players better than board rank, college stats and combine
+together. Within the 350 board players the board model's own comparison (B2) is null, so most of the edge is in
+the ~80% of signers the board doesn't rank. Upper bound: guaranteed money (and the roster promise it stands for)
+can buy playing time; the money itself is small, and the effect holds for value among players who did play.
+
+Use: guarantees are signed after the draft, so they can't feed a draft-day choice. What they show is that teams'
+late-round information is real and goes beyond public data, consistent with the model's lack of an edge in
+rounds 5-7. Not adopted as an input; a possible later use is pricing undrafted signings, or checking whether any
+pre-draft proxy (visits, workouts) picks up the same interest for players off the board.
