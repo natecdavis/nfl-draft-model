@@ -4121,3 +4121,18 @@ the 0.89 in the leave-one-year-out table came from a single pooled scale factor.
 2025 and 2026 signings ran ~10% above prediction overall (1.09, 1.12; 31+ 0.93, 1.02 those years) - prices rising as a
 share of the cap, mostly for younger players, which recency weights don't capture (trees don't extrapolate a trend).
 Worth rechecking after the 2027 signings; Spotrac's higher prices for young players point the same way.
+
+**Counting stats in the contract model** (`scripts/contract_stats.py`; `fa_market.FEATS_STATS1/2`, `_stats`). Last
+season's counting stats per 17 games (passing yds / TDs, rushing yds / TDs, receptions, receiving yds / TDs, sacks, QB
+hits, tackles, INTs, passes defended; nflverse player_stats 2012-25), and the season before too:
+
+| | R2 base -> stats1 -> stats2 | median miss |
+|---|---|---|
+| leave-year-out, lag 1 (normal March) | 0.626 -> **0.654** -> 0.650 | 30.9% -> **29.4%** -> 29.4% |
+| leave-year-out, lag 2 (a year ahead) | 0.490 -> 0.490 -> 0.487 | 37.4% -> 37.4% -> 37.3% |
+| forward 2022-26, lag 2 | 0.480 -> 0.476 -> 0.475 | 35.5% -> 35.8% -> 35.9% |
+
+The market pays for the stats of the season just played; two seasons back they add nothing. Pre-set rule (better in
+the forward check and at both lags) not met: default stays base. Planning 2027 now (data through 2025) is lag 2, so
+nothing changes today. Once 2026 snaps, grades and stats are added (lag 1, next March), stats1 would cut the median miss
+~1.5 points - a separate decision, recheck then with a forward lag-1 test.

@@ -20,7 +20,13 @@ import pandas as pd
 import veteran as vt
 
 RAW, OUT = vt.RAW, vt.OUT
-FEATS = ["grp_c", "fpos_c", "age", "v1", "v2", "g1", "prev_apy", "prev_rookie", "ufa"]
+FEATS_BASE = ["grp_c", "fpos_c", "age", "v1", "v2", "g1", "prev_apy", "prev_rookie", "ufa"]
+# counting stats, per 17 games, from the last season of data (s1_) and the one before (s2_) (scripts/contract_stats.py)
+STAT_COLS = ["passing_yards", "passing_tds", "rushing_yards", "rushing_tds", "receptions", "receiving_yards",
+             "receiving_tds", "def_sacks", "def_qb_hits", "tackles", "def_interceptions", "def_pass_defended"]
+FEATS_STATS1 = FEATS_BASE + [f"s1_{c}" for c in STAT_COLS]
+FEATS_STATS2 = FEATS_STATS1 + [f"s2_{c}" for c in STAT_COLS]
+FEATS = FEATS_BASE
 # fine position inside DB and OL (most common OTC contract position): the market pays CBs ~1.12x and safeties
 # ~0.89x what a pooled-DB model predicts, tackles ~1.10x / guards 0.96x / centers 0.90x (scripts/cb_s_split_check.py)
 FPOS = {"CB": "CB", "S": "S", "LT": "T", "RT": "T", "LG": "G", "RG": "G", "C": "C"}
@@ -146,6 +152,22 @@ def fine_positions():
 
 
 @lru_cache(maxsize=1)
+def _stats():
+    """(pfr_id, season) -> counting stats per 17 games (regular season; nflverse player_stats, 2012-2025)."""
+    st = pd.read_parquet(RAW / "player_stats.parquet")
+    st = st[st.season_type == "REG"].copy()
+    st["tackles"] = st.def_tackles_solo.fillna(0) + st.def_tackle_assists.fillna(0)
+    st = st.groupby(["player_id", "season"])[STAT_COLS].sum()
+    G = np.where(st.index.get_level_values(1) >= 2021, 17, 16)
+    st = st.mul(17 / G, axis=0)
+    pl = pd.read_parquet(RAW / "players.parquet").dropna(subset=["pfr_id"])
+    g2p = dict(zip(pl.gsis_id, pl.pfr_id))
+    st = st.reset_index()
+    st["pfr_id"] = st.player_id.map(g2p)
+    return st.dropna(subset=["pfr_id"]).drop_duplicates(["pfr_id", "season"]).set_index(["pfr_id", "season"])[STAT_COLS]
+
+
+@lru_cache(maxsize=1)
 def _values():
     v = vt.season_table()
     V = v.set_index(["pfr_id", "season"])
@@ -170,6 +192,12 @@ def features(pfr_ids, Y, lag):
                      "prev_apy": max(prev[-1][2], MIN_APY) if prev else MIN_APY,
                      "prev_rookie": int(bool(prev) and prev[-1][1] in ("Drafted", "UDFA"))})
     d = pd.DataFrame(rows)
+    S = _stats()
+    for k, yr in (("s1", Y - lag), ("s2", Y - lag - 1)):
+        idx = pd.MultiIndex.from_arrays([d.pfr_id, np.full(len(d), yr)])
+        vals = S.reindex(idx).fillna(0.0).to_numpy()
+        for j, c in enumerate(STAT_COLS):
+            d[f"{k}_{c}"] = vals[:, j]
     d["grp_c"] = pd.Categorical(d.grp, categories=GROUPS)
     fp = fine_positions()
     d["fpos_c"] = pd.Categorical([fp.get(p, "other") if g in ("DB", "OL") else "other" for p, g in zip(d.pfr_id, d.grp)],
@@ -195,11 +223,11 @@ def training(lag, years=(2015, 2026), kinds=None):
     return D.reset_index(drop=True)
 
 
-def fit(D, half_life=None, ref_year=None):
+def fit(D, half_life=None, ref_year=None, feats=None):
     """LightGBM per target. half_life (years): weight signings by 0.5 ** ((ref_year - Y) / half_life), recent first
     (scripts/contract_recency.py); None = equal weights."""
     import lightgbm as lgb
-    X = D[FEATS]
+    X = D[feats or FEATS]
     w = None
     if half_life:
         ref = ref_year if ref_year is not None else D.Y.max()
@@ -208,7 +236,7 @@ def fit(D, half_life=None, ref_year=None):
 
 
 def predict(models, F, smear=1.0):
-    X = F[FEATS]
+    X = F[models["log_apy"].feature_name_]  # the features the model was fit with
     return pd.DataFrame({"apy_pred": smear * np.exp(models["log_apy"].predict(X)),
                          "apy_typical": np.exp(models["log_apy"].predict(X)),
                          "yrs_pred": np.clip(np.round(models["yrs"].predict(X)), 1, 5).astype(int),
@@ -235,7 +263,8 @@ def free_agents(sign_season=vt.LAST + 2):
     fa["restricted"] = (sign_season - fa.pfr_id.map(first)) <= 3
     lag = sign_season - vt.LAST
     F = features(fa.pfr_id, sign_season, lag)
-    fa = fa.merge(F[["pfr_id", "age", "prev_apy", "prev_rookie", "grp_c", "fpos_c", "ufa"]], on="pfr_id")
+    fa = fa.merge(F[["pfr_id", "age", "prev_apy", "prev_rookie", "grp_c", "fpos_c", "ufa"]
+                    + [c for c in F.columns if c.startswith(("s1_", "s2_"))]], on="pfr_id")
     P = predict(models(lag), fa, SMEAR[lag])
     return pd.concat([fa, P], axis=1)
 
