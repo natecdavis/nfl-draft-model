@@ -3712,3 +3712,26 @@ Use: guarantees are signed after the draft, so they can't feed a draft-day choic
 late-round information is real and goes beyond public data, consistent with the model's lack of an edge in
 rounds 5-7. Not adopted as an input; a possible later use is pricing undrafted signings, or checking whether any
 pre-draft proxy (visits, workouts) picks up the same interest for players off the board.
+
+### Follow-up: do pre-draft visits pick up the same interest? (`scripts/visits_udfa_test.py`, Nov 20 2026)
+
+Off-board undrafted signers 2018-2022 (1,510), matched to reported pre-draft meetings (top-30 visits, combine /
+pro-day meetings, private workouts). Only 19% have any reported meeting (2021: 1%, COVID); the count leaves out
+the team that signed him, since a meeting with the signer can be reported after the draft.
+
+| Test (controls: position, class, public pre-draft model) | n | Effect |
+|---|---|---|
+| V1 guarantee ~ log1p(teams met) | 1,510 | +0.65 log points (+0.51 to +0.79); median $5k / $8k / $13k for 0 / 1 / 2+ teams |
+| V2 value ~ log1p(teams met) | 1,510 | x1.03 (0.79-1.35) |
+| V3 guarantee per sd, given teams met | 1,510 | x1.48 (1.24-1.76); teams met x0.89 |
+| V4 value ~ top-30 private visits (log1p) | 1,510 | x1.88 (1.32-2.68) |
+| V4 value ~ private workouts | 1,510 | x0.70 (0.34-1.43) |
+
+Visits track the guarantee market (teams that show interest before the draft bid after it), but the count of
+teams met says nothing about value: the information in the guarantee isn't in the visit count. One sub-result
+stands out: an off-board player brought in for a top-30 visit by a team other than his signer (94 players) did
+x2.4 better than the public model expects (x2.1 given his guarantee), in 3 of 4 classes (2018 x3.8 / 1.2,
+2019 x1.4 / 0.6, 2020 x0.25 / 0.50, 2022 x2.1 / 0.8; actual / public, visited vs not), with 30% of the visited
+group's value from three players (Charvarius Ward, Tony Adams, Jaylen Warren). It's one of several sub-tests and
+the workout count points the other way, so it's a lead, not a finding. Fresh check: classes 2016-17 and 2023.
+Not adopted.
