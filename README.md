@@ -3735,3 +3735,24 @@ x2.4 better than the public model expects (x2.1 given his guarantee), in 3 of 4 
 group's value from three players (Charvarius Ward, Tony Adams, Jaylen Warren). It's one of several sub-tests and
 the workout count points the other way, so it's a lead, not a finding. Fresh check: classes 2016-17 and 2023.
 Not adopted.
+
+**Fresh replication** (`scripts/visits_udfa_replication.py`, Nov 20 2026): classes 2016, 2017 (4 seasons) and 2023
+(3 seasons), never in the original test; same definitions, except the public model is fit leave-one-class-out on
+2014-2022 (board features start in 2014, so the rolling fit can't reach 2016-17). 894 off-board signers, 61 with a
+top-30 visit by another team.
+
+| Test | Replication | Original 2018-22 |
+|---|---|---|
+| R1 top-30 visit flag (primary) | x1.83 (1.07-3.13), one-sided p 0.013 | x2.43 |
+| R2 same, given the guarantee | x1.26 (0.77-2.06) | x2.13 |
+| R3 per log1p(top-30 visits) | x1.64 (1.01-2.66) | x1.88 |
+| R4 by class | 2016 x2.95, 2017 x1.47, 2023 x1.25 | 3 of 4 classes |
+| R5 teams met, any meeting | x0.87 (0.59-1.29) | x1.03 |
+
+The primary test replicated: off-board undrafted players brought in for a top-30 visit by another team did about
+x1.8 better than the public model expected, all three classes in the same direction. Smaller than the original
+and concentrated (Bourne, J. Wilson, E. Wilson: 47% of the visited group's value). Once the guarantee is known
+most of it is in the guarantee, but the visit is known before the draft and the guarantee isn't. Any meeting,
+counted by teams, still says nothing: it's specifically the top-30 invitation. Not yet used: the model's
+candidates are the board plus drafted players, so using it needs off-board visited players in the late-round pool
+and a choice test against the model's round 6-7 picks.
