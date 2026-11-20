@@ -26,7 +26,17 @@ STAT_COLS = ["passing_yards", "passing_tds", "rushing_yards", "rushing_tds", "re
              "receiving_tds", "def_sacks", "def_qb_hits", "tackles", "def_interceptions", "def_pass_defended"]
 FEATS_STATS1 = FEATS_BASE + [f"s1_{c}" for c in STAT_COLS]
 FEATS_STATS2 = FEATS_STATS1 + [f"s2_{c}" for c in STAT_COLS]
+# partial season (scripts/partial_season_test.py): the season in progress up to week PARTIAL_W - snap share per team game,
+# share of team games played, counting stats per 17 team games - for planning a year ahead (lag 2)
+PARTIAL_W = 11
+FEATS_PARTIAL = FEATS_BASE + ["p_share", "p_gp"] + [f"p_{c}" for c in STAT_COLS]
 FEATS = FEATS_BASE
+
+
+def feats_for(lag):
+    """Adopted feature sets (scripts/partial_season_test.py): planning a year ahead (lag 2) uses weeks 1-11 of the
+    season in progress (R2 0.490 -> 0.596 leave-year-out, forward 0.480 -> 0.605); lag 1 uses the base set."""
+    return FEATS_PARTIAL if lag >= 2 else FEATS_BASE
 # fine position inside DB and OL (most common OTC contract position): the market pays CBs ~1.12x and safeties
 # ~0.89x what a pooled-DB model predicts, tackles ~1.10x / guards 0.96x / centers 0.90x (scripts/cb_s_split_check.py)
 FPOS = {"CB": "CB", "S": "S", "LT": "T", "RT": "T", "LG": "G", "RG": "G", "C": "C"}
@@ -38,7 +48,7 @@ PARAMS = dict(n_estimators=400, learning_rate=0.03, num_leaves=15, min_child_sam
 MIN_APY = 0.005
 # exp(predicted log APY) is a typical (median) contract; the average is higher. Scale to the mean, measured out of
 # sample (scripts/contract_predict.py, leave-one-year-out: actual / predicted 1.128 lag 1, 1.185 lag 2; median 1.0)
-SMEAR = {1: 1.128, 2: 1.185}
+SMEAR = {1: 1.128, 2: 1.153}  # lag 2 re-estimated with weeks 1-11 of the season in progress (was 1.185)
 
 
 @lru_cache(maxsize=1)
@@ -167,6 +177,27 @@ def _stats():
     return st.dropna(subset=["pfr_id"]).drop_duplicates(["pfr_id", "season"]).set_index(["pfr_id", "season"])[STAT_COLS]
 
 
+@lru_cache(maxsize=32)
+def partial(season, weeks=PARTIAL_W):
+    """pfr_id -> p_share, p_gp, p_<stat> for weeks 1..`weeks` of `season` (snap counts and nflverse weekly stats)."""
+    snaps = vt.partial_snaps(season, weeks)
+    if snaps.empty:
+        return pd.DataFrame()
+    out, per = snaps[["p_share", "p_gp"]].copy(), snaps
+    w = pd.read_parquet(RAW / "player_stats_week.parquet")
+    w = w[(w.season == season) & (w.week <= weeks)].copy()
+    w["tackles"] = w.def_tackles_solo.fillna(0) + w.def_tackle_assists.fillna(0)
+    st = w.groupby("player_id")[STAT_COLS].sum()
+    pl = pd.read_parquet(RAW / "players.parquet").dropna(subset=["pfr_id"])
+    g2p = dict(zip(pl.gsis_id, pl.pfr_id))
+    st.index = st.index.map(g2p)
+    st = st[st.index.notna()].groupby(level=0).sum()
+    st = st.reindex(out.index).fillna(0.0)
+    st = st.mul(17 / per.tg.reindex(st.index), axis=0)
+    out = out.join(st.add_prefix("p_"))
+    return out
+
+
 @lru_cache(maxsize=1)
 def _values():
     v = vt.season_table()
@@ -198,6 +229,14 @@ def features(pfr_ids, Y, lag):
         vals = S.reindex(idx).fillna(0.0).to_numpy()
         for j, c in enumerate(STAT_COLS):
             d[f"{k}_{c}"] = vals[:, j]
+    pcols = ["p_share", "p_gp"] + [f"p_{c}" for c in STAT_COLS]
+    Pt = partial(Y - 1) if lag >= 2 else pd.DataFrame()
+    if len(Pt):
+        d = d.join(Pt[pcols], on="pfr_id")
+        d[pcols] = d[pcols].fillna(0.0)  # no snaps so far this season = 0 (hurt, cut, unsigned)
+    else:
+        for c in pcols:
+            d[c] = np.nan
     d["grp_c"] = pd.Categorical(d.grp, categories=GROUPS)
     fp = fine_positions()
     d["fpos_c"] = pd.Categorical([fp.get(p, "other") if g in ("DB", "OL") else "other" for p, g in zip(d.pfr_id, d.grp)],
@@ -245,7 +284,7 @@ def predict(models, F, smear=1.0):
 
 @lru_cache(maxsize=2)
 def models(lag):
-    return fit(training(lag))
+    return fit(training(lag), feats=feats_for(lag))
 
 
 def free_agents(sign_season=vt.LAST + 2):
@@ -264,7 +303,7 @@ def free_agents(sign_season=vt.LAST + 2):
     lag = sign_season - vt.LAST
     F = features(fa.pfr_id, sign_season, lag)
     fa = fa.merge(F[["pfr_id", "age", "prev_apy", "prev_rookie", "grp_c", "fpos_c", "ufa"]
-                    + [c for c in F.columns if c.startswith(("s1_", "s2_"))]], on="pfr_id")
+                    + [c for c in F.columns if c.startswith(("s1_", "s2_", "p_")) and c not in fa.columns]], on="pfr_id")
     P = predict(models(lag), fa, SMEAR[lag])
     return pd.concat([fa, P], axis=1)
 
@@ -275,7 +314,8 @@ def rank(fa, sit, cap_price="model", n=4000, team=None, need=False):
     skip = vt.LAST + 2 - vt.LAST - 1
     rows = []
     for r in fa.itertuples():
-        pl = {"grp": r.grp, "age": r.age - skip, "v1": r.v1, "v2": r.v2, "g1": r.g1}
+        pl = {"grp": r.grp, "age": r.age - skip, "v1": r.v1, "v2": r.v2, "g1": r.g1,
+              "p_share": getattr(r, "p_share", np.nan), "p_gp": getattr(r, "p_gp", np.nan)}
         yrs = int(r.yrs_pred)
         P = vt.comps().paths(pl, yrs, exclude=False, skip=skip)
         f = 1.0

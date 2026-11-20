@@ -476,7 +476,9 @@ with c2:
         st.dataframe(pd.DataFrame({"season": [vt.LAST - 2, vt.LAST - 1, vt.LAST],
                                    "value (% of cap)": [p.v3 * 100, p.v2 * 100, p.v1 * 100]}).set_index("season").T
                      .round(2), width="stretch")
-        st.caption(f"{vt.LAST}: {p.share1:.0%} of snaps in games played, played {p.g1:.0%} of games.")
+        st.caption(f"{vt.LAST}: {p.share1:.0%} of snaps in games played, played {p.g1:.0%} of games."
+                   + (f" {vt.LAST + 1} so far (weeks 1-{vt.PARTIAL_W}): {p.p_share:.0%} of snaps per team game, "
+                      f"played {p.p_gp:.0%} of games." if pd.notna(p.get("p_share")) else ""))
 
 with st.expander("Player inputs (edit to override)", expanded=(mode == "Custom player")):
     d1, d2, d3, d4, d5 = st.columns(5)
@@ -487,7 +489,9 @@ with st.expander("Player inputs (edit to override)", expanded=(mode == "Custom p
     g1 = d5.slider(f"Share of games played {vt.LAST}", 0.0, 1.0, float(p.g1) if p is not None else 1.0, 0.05)
     st.caption("Value guide: a good starter is ~3-4% of cap at most positions, a star EDGE/WR 6-9%, a top QB 15-19%.")
 player = {"grp": grp, "age": age - SKIP, "v1": v1 / 100, "v2": v2 / 100, "g1": g1,
-          "pfr_id": p.pfr_id if p is not None else None}
+          "pfr_id": p.pfr_id if p is not None else None,
+          # the season in progress, for a real player (custom players forecast without it)
+          "p_share": p.p_share if p is not None else np.nan, "p_gp": p.p_gp if p is not None else np.nan}
 # age is fed as of the first forecast season (the comps' features), the contract starts SKIP seasons later
 
 # ---------------- contract ----------------

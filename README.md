@@ -4136,3 +4136,30 @@ The market pays for the stats of the season just played; two seasons back they a
 the forward check and at both lags) not met: default stays base. Planning 2027 now (data through 2025) is lag 2, so
 nothing changes today. Once 2026 snaps, grades and stats are added (lag 1, next March), stats1 would cut the median miss
 ~1.5 points - a separate decision, recheck then with a forward lag-1 test.
+
+### The season in progress: weeks 1-11 of 2026 (`scripts/partial_season_test.py`, Nov 20 2026)
+
+Data added: 2026 snap counts through week 11 (`data/raw/snap_counts_2026.parquet`, was through week 8) and nflverse
+weekly player stats 2012-2026 (`data/raw/player_stats_week.parquet`). No 2026 PFF grades (cfdarko's PFF files end with
+2025). Features (`fa_market.partial`, `veteran.partial_snaps`): weeks 1-11 snap share per team game, share of team
+games played, counting stats per 17 team games. Every past year replicated the same way (full data through Y-2,
+weeks 1-11 of Y-1).
+
+**A. Contract model** (planning a year ahead, lag 2):
+
+| | leave-year-out R2 / median miss | forward 2022-26 R2 / median miss |
+|---|---|---|
+| base | 0.490 / 37.4% | 0.480 / 35.5% |
+| **+ weeks 1-11** | **0.596 / 32.4%** | **0.605 / 30.8%** |
+| full season (lag 1, next March) | 0.626 / 30.9% | 0.635 / 31.0% |
+
+Adopted (`fa_market.feats_for(2)` = FEATS_PARTIAL; scale factor re-estimated 1.185 -> 1.153; calibrated by quintile).
+
+**B. Value forecast** (seasons after the one in progress; 4000 anchors 2014-24): season-2 RMSE 1.344 -> 1.264 (% of
+cap; MSE change -0.21e-4, -0.29 to -0.14), season 3 1.389 -> 1.335. Actual / forecast, season 2: players who played most
+of weeks 1-11 base 1.12 -> 0.99; players who missed half or more base 0.44 -> 0.66; overall 0.99 -> 0.95 (season 3 0.97
+-> 0.92, slightly optimistic). Adopted (pre-set rule on season 2): `veteran.Comps` adds p_share, p_gp to the linear shift
+when the player has them (real players on every page; custom players forecast without).
+Effects: KC trading #28 + 2028 R1 for Myles Garrett (30% of 2026 games so far) went from about even to -0.90% of a title;
+Spotrac comparison corr 0.84 -> 0.81 (we now discount players hurt in 2026, e.g. Joey Porter Jr., Ethan Pocic, Mekhi
+Becton; Spotrac doesn't appear to).

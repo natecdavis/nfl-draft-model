@@ -117,7 +117,8 @@ def joint_titles(sit, P, n=20000, seed=0):
     total = np.zeros((n, 5))
     for r in P.itertuples():
         yrs = int(r.yrs_pred)
-        pl = {"grp": r.grp, "age": r.age - SKIP, "v1": r.v1, "v2": r.v2, "g1": r.g1}
+        pl = {"grp": r.grp, "age": r.age - SKIP, "v1": r.v1, "v2": r.v2, "g1": r.g1,
+              "p_share": getattr(r, "p_share", np.nan), "p_gp": getattr(r, "p_gp", np.nan)}
         V, S = vt.comps().paths(pl, yrs, exclude=False, skip=SKIP)
         val, cost, on = vt.team_seasons(V, yrs, r.apy_pred, r.gshare_pred * r.apy_pred * yrs)
         pts = np.zeros((len(V), 5))
@@ -239,7 +240,8 @@ def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1):
         parts["cuts" if p in cuts else "restructures"] += new - k
     for r in P.itertuples():
         yrs = int(r.yrs_pred)
-        pl = {"grp": r.grp, "age": r.age - SKIP, "v1": r.v1, "v2": r.v2, "g1": r.g1}
+        pl = {"grp": r.grp, "age": r.age - SKIP, "v1": r.v1, "v2": r.v2, "g1": r.g1,
+              "p_share": getattr(r, "p_share", np.nan), "p_gp": getattr(r, "p_gp", np.nan)}
         V, S = vt.comps().paths(pl, yrs, exclude=False, skip=SKIP)
         val, cost, on = vt.team_seasons(V, yrs, r.apy_pred, r.gshare_pred * r.apy_pred * yrs)
         pts = np.zeros((len(V), 5))

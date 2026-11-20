@@ -23,7 +23,7 @@ def main():
         P = []
         for Y in sorted(D.Y.unique()):
             tr, te = D[D.Y != Y], D[(D.Y == Y) & (D.ufa == 1)].copy()  # always scored on UFA signings
-            te = te.join(fm.predict(fm.fit(tr), te, fm.SMEAR[lag] if "--smeared" in sys.argv else 1.0))
+            te = te.join(fm.predict(fm.fit(tr, feats=fm.feats_for(lag)), te, fm.SMEAR[lag] if "--smeared" in sys.argv else 1.0))
             te["b_prev"] = np.exp(smf.ols("log_apy ~ np.log(prev_apy) + prev_rookie", tr).fit().predict(te))
             te["b_val"] = np.exp(smf.ols("log_apy ~ C(grp) + v1 + v2 + g1 + age + I(age**2)", tr).fit().predict(te))
             P.append(te)

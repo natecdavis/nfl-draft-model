@@ -73,7 +73,8 @@ def player_features(pfr_id):
     if pfr_id not in P.index:
         return None
     r = P.loc[pfr_id]
-    return {"grp": r.grp, "age": r.age - SKIP, "v1": r.v1, "v2": r.v2, "g1": r.g1}
+    return {"grp": r.grp, "age": r.age - SKIP, "v1": r.v1, "v2": r.v2, "g1": r.g1,
+            "p_share": r.get("p_share", np.nan), "p_gp": r.get("p_gp", np.nan)}
 
 
 @lru_cache(maxsize=1)

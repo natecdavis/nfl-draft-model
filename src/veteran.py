@@ -30,6 +30,11 @@ K = 60
 H = 6  # seasons forecast (5 contract seasons + 1 when the data ends a season before the signing)
 AGE_SD = 2.0
 RAW_FEATS = ["age", "v1", "v2f", "g1"]
+# the season in progress (scripts/partial_season_test.py): snap share per team game and share of team games played in
+# weeks 1-PARTIAL_W of the anchor season, added to the comps' linear shift when the player has them (planning a year
+# ahead). Season-2 forecast RMSE 1.344 -> 1.264; players who missed half+ of those weeks no longer forecast at full value.
+PARTIAL_W = 11
+P_FEATS = ["p_share", "p_gp"]
 VET_MIN = 0.005
 CUT_THETA = 0.5  # fit to UFA signings' retention (scripts/vet_value.py part C)
 
@@ -78,12 +83,23 @@ class Comps:
         # local-linear correction: each comp's outcome is shifted by beta x (target features - comp features),
         # beta from a per-group, per-horizon linear fit, so comps drawn mostly from one side (few players are as
         # good as a top player) don't pull the forecast toward the middle
-        self.beta = {}
+        self.beta, self.beta_p = {}, {}
+        has_p = all(c in A.columns for c in P_FEATS)
         for g, G in A.groupby("grp"):
             for k in range(1, H + 1):
                 d = G[G[f"y{k}"].notna()]
                 X = np.column_stack([np.ones(len(d)), d[RAW_FEATS].to_numpy()])
                 self.beta[(g, k)] = np.linalg.lstsq(X, d[f"y{k}"].to_numpy(), rcond=None)[0][1:]
+                if has_p:
+                    X = np.column_stack([np.ones(len(d)), d[RAW_FEATS + P_FEATS].to_numpy()])
+                    self.beta_p[(g, k)] = np.linalg.lstsq(X, d[f"y{k}"].to_numpy(), rcond=None)[0][1:]
+
+    def _shift(self, row, P, g, k):
+        """Comp-to-target shift for season k: with the season in progress when the target has it."""
+        if self.beta_p and all(pd.notna(row.get(c)) for c in P_FEATS):
+            f = RAW_FEATS + P_FEATS
+            return (np.array([row[c] for c in f], float) - P[f].to_numpy()) @ self.beta_p[(g, k)]
+        return (np.array([row[c] for c in RAW_FEATS], float) - P[RAW_FEATS].to_numpy()) @ self.beta[(g, k)]
 
     def feats(self, d, g):
         s = self.scale[g]
@@ -112,8 +128,7 @@ class Comps:
         nb = self.neighbors(g, x, row.get("pfr_id") if exclude else None, row.get("Y") if exclude else None,
                             need=need or k)
         P = self.A.loc[nb]
-        shift = (np.array([row[f] for f in RAW_FEATS], float) - P[RAW_FEATS].to_numpy()) @ self.beta[(g, k)]
-        return (P[f"y{k}"].to_numpy() + shift).clip(min=0), nb
+        return (P[f"y{k}"].to_numpy() + self._shift(row, P, g, k)).clip(min=0), nb
 
     def comp_age(self, row, need=1):
         """Mean age of the comps used (when far below the player's age, he's older than almost anyone like him)."""
@@ -132,17 +147,47 @@ class Comps:
         nb = self.neighbors(g, x, row.get("pfr_id") if exclude else None, row.get("Y") if exclude else None,
                             need=years + skip)
         P = self.A.loc[nb]
-        dx = np.array([row[f] for f in RAW_FEATS], float) - P[RAW_FEATS].to_numpy()
         ks = range(skip + 1, skip + years + 1)
-        V = np.column_stack([(P[f"y{k}"].to_numpy() + dx @ self.beta[(g, k)]).clip(min=0) for k in ks])
+        V = np.column_stack([(P[f"y{k}"].to_numpy() + self._shift(row, P, g, k)).clip(min=0) for k in ks])
         S = np.column_stack([P[f"s{k}"].to_numpy() for k in ks])
         S = np.where(V > 0, np.maximum(S, 0.05), 0.0).clip(max=1.0)
         return V, S
 
 
+@lru_cache(maxsize=32)
+def partial_snaps(season, weeks=PARTIAL_W):
+    """pfr_id -> p_share (snap share per team game) and p_gp (share of team games played), weeks 1..weeks of
+    `season`; empty if there are no snap counts for that season."""
+    import sys
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import roster_need as rn
+    f = RAW / f"snap_counts_{season}.parquet"
+    sc = pd.read_parquet(f if f.exists() else RAW / "snap_counts.parquet")
+    sc = sc[(sc.game_type == "REG") & (sc.season == season) & (sc.week <= weeks)].copy()
+    if sc.empty:
+        return pd.DataFrame(columns=P_FEATS)
+    sc["team"] = sc.team.map(rn.team)
+    pct = sc[["offense_pct", "defense_pct"]].max(axis=1).astype(float)
+    sc["pct"] = pct / (100 if pct.max() > 1.5 else 1)
+    tg = sc.groupby("team").game_id.nunique()
+    per = sc.groupby("pfr_player_id").agg(pct=("pct", "sum"), gp=("game_id", "nunique"),
+                                          team=("team", lambda x: x.mode().iloc[0]))
+    per["tg"] = per.team.map(tg)
+    return pd.DataFrame({"p_share": per.pct / per.tg, "p_gp": (per.gp / per.tg).clip(upper=1), "tg": per.tg})
+
+
 @lru_cache(maxsize=1)
 def comps() -> Comps:
-    return Comps(pd.read_parquet(OUT / "vet_anchors.parquet"))
+    A = pd.read_parquet(OUT / "vet_anchors.parquet")
+    pp = []
+    for Y in sorted(A.Y.unique()):
+        Pt = partial_snaps(int(Y))
+        if len(Pt):
+            pp.append(Pt[P_FEATS].assign(Y=Y).reset_index(names="pfr_id"))
+    if pp:
+        A = A.merge(pd.concat(pp), on=["pfr_id", "Y"], how="left")
+        A[P_FEATS] = A[P_FEATS].fillna(0.0)  # no snaps in weeks 1-11 of that season
+    return Comps(A)
 
 
 def team_seasons(V, years, apy, gtd, theta=CUT_THETA):
@@ -263,6 +308,12 @@ def current_players(asof=LAST):
     d["g1"] = [get(p, asof, "gfrac") for p in d.pfr_id]
     d["share1"] = [get(p, asof, "share") for p in d.pfr_id]
     d["born"] = pd.to_datetime(d.birth_date, errors="coerce")
+    Pt = partial_snaps(asof + 1)  # the season in progress, if there are snap counts for it
+    if len(Pt):
+        d = d.join(Pt[P_FEATS], on="pfr_id")
+        d[P_FEATS] = d[P_FEATS].fillna(0.0)  # no snaps so far this season
+    else:
+        d[P_FEATS] = np.nan
     return d[d.grp.notna()].sort_values("v1", ascending=False).reset_index(drop=True)
 
 
