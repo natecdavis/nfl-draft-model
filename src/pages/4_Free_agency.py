@@ -8,6 +8,8 @@ import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import fa_market as fm  # noqa: E402
+import trade as tr  # noqa: E402
+import vet_trade as vtr  # noqa: E402
 import veteran as vt  # noqa: E402
 
 st.set_page_config(page_title="Free agency: Super Bowl odds", layout="wide")
@@ -53,6 +55,43 @@ def open_signing():
         st.session_state.fa_view = "One signing"
 
 
+@st.cache_resource(show_spinner="Loading the trade calculator...")
+def trade_ctx():
+    return tr.Context()
+
+
+@st.cache_data(show_spinner="Loading rosters...")
+def trade_roster():
+    return vtr.roster(SIGN_SEASON)
+
+
+def parse_now(text):
+    return [tr.Pick(int(x)) for x in text.replace(" ", "").split(",") if x.strip().isdigit()]
+
+
+def parse_future(text):
+    """'2028 R1, 2029 R2 strong' -> Picks; 'middle' / 'weak' / 'strong' = another team's pick (else ours)."""
+    out = []
+    for item in [x.strip() for x in text.split(",") if x.strip()]:
+        parts = item.upper().split()
+        try:
+            yr, rnd = int(parts[0]), int(parts[1].lstrip("R"))
+        except (ValueError, IndexError):
+            continue
+        src = ("Middle of the pack" if "MIDDLE" in parts else "Rebuilding" if "WEAK" in parts
+               else "Contender, veteran QB" if "STRONG" in parts else "own")
+        out.append(tr.Pick(rnd=rnd, year=yr - SIGN_SEASON, src=src))
+    return out
+
+
+def pick_label(pk):
+    if pk.year == 0:
+        return f"#{pk.number} ({SIGN_SEASON} draft)"
+    src = "" if pk.src == "own" else {"Middle of the pack": " (middle team's)", "Rebuilding": " (weak team's)",
+                                      "Contender, veteran QB": " (strong team's)"}[pk.src]
+    return f"{SIGN_SEASON + pk.year} round {pk.rnd}{src}"
+
+
 @st.cache_resource(show_spinner="Loading the forecast model...")
 def warm():
     vt.comps(); vt._curve()
@@ -96,7 +135,7 @@ st.caption(f"Contract seasons {SIGN_SEASON}-{SIGN_SEASON + 4}. Value = playing t
            f"prices (the same yardstick as draft picks). Data through the {vt.LAST} season; the forecast runs from "
            f"there, so {vt.LAST + 1} counts as a season of aging.")
 
-view = st.segmented_control("View", ["Ranked free agents", "One signing"], default="Ranked free agents",
+view = st.segmented_control("View", ["Ranked free agents", "One signing", "Trades"], default="Ranked free agents",
                             key="fa_view", required=True)
 fa = load_free_agents()
 
@@ -160,6 +199,72 @@ if view == "Ranked free agents":
 - "Worth to us up to" uses the predicted years and guarantee share. Team needs aren't in it: every player is assumed
   to take a minimum-salary player's snaps. Two signings at one position don't both get that.
 """)
+    st.stop()
+
+# ---------------- trades: players and picks ----------------
+if view == "Trades":
+    roster_tbl = trade_roster()
+    ours = roster_tbl[roster_tbl.team == team] if team != "Custom" else roster_tbl.iloc[0:0]
+    give_opts = list(ours.label) + [x for x in roster_tbl.label if x not in set(ours.label)]
+    st.caption(f"An offseason trade before the {SIGN_SEASON} season: players under contract for {SIGN_SEASON} (their "
+               f"real remaining contracts) and picks. Our own players are listed first.")
+    with st.form("trade_form", border=True):
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("**We give**")
+            give_lab = st.multiselect("Players", give_opts, key="tr_give_p", placeholder="Our players...")
+            give_now = st.text_input(f"Picks in the {SIGN_SEASON} draft (numbers)", key="tr_give_now")
+            give_fut = st.text_input("Future picks (e.g. '2028 R1, 2029 R2')", key="tr_give_fut")
+        with c2:
+            st.markdown("**We get**")
+            get_lab = st.multiselect("Players", list(roster_tbl.label), key="tr_get_p", placeholder="Their players...")
+            get_now = st.text_input(f"Picks in the {SIGN_SEASON} draft (numbers)", key="tr_get_now")
+            get_fut = st.text_input("Future picks (add 'middle' / 'weak' / 'strong' for the partner's)", key="tr_get_fut")
+        go = st.form_submit_button("Evaluate trade", type="primary")
+    if go:
+        lab2id = dict(zip(roster_tbl.label, roster_tbl.pfr_id))
+        id2lab = {v: k for k, v in lab2id.items()}
+        gp, gt = [lab2id[x] for x in give_lab], [lab2id[x] for x in get_lab]
+        gpk, gtk = parse_now(give_now) + parse_future(give_fut), parse_now(get_now) + parse_future(get_fut)
+        if not (gp or gt or gpk or gtk):
+            st.info("Add at least one player or pick.")
+            st.stop()
+        with st.spinner("Simulating the trade..."):
+            r = vtr.evaluate(sit, gp, gt, gpk, gtk, cap0=cap_m, ctx=trade_ctx())
+        ch = r["change"] * 100
+        verdict = "accept" if ch > 0.1 else ("decline" if ch < -0.1 else "roughly even")
+        st.metric("Change in Super Bowls over 5 seasons", f"{ch:+.2f}% of a title", verdict,
+                  delta_color="normal" if ch > 0.1 else ("inverse" if ch < -0.1 else "off"))
+        st.caption(f"Simulation noise about ±{max(r['se'] * 100 * 2, 0.05):.2f}. Each part alone (below) doesn't add up "
+                   "exactly to the total: gains combine on the title curve.")
+        rows = []
+        for a in r["assets"]:
+            if isinstance(a["asset"], str):
+                c = r["contracts"].get(("keep" if a["side"] == "give" else "get", a["asset"]))
+                yrs = f"{c['years'][0]}-{c['years'][-1]}" if c and c["years"] else "none"
+                sh = (c["acq_cost"] if a["side"] == "get" else c["keep_cost"]) if c else []
+                hits = ", ".join(f"${x * cap_m * vtr.CAP_GROWTH ** i:.1f}M" for i, x in enumerate(sh))
+                note = a["note"] or (f"we'd carry ${c['dead_if_traded'] * cap_m:.1f}M dead money in {SIGN_SEASON}"
+                                     if a["side"] == "give" and c and c["dead_if_traded"] > 0.001 else "")
+                rows.append({"side": a["side"], "asset": id2lab.get(a["asset"], a["asset"]), "under contract": yrs,
+                             "cap hits for the team holding him": hits, "titles (alone)": a["titles"] * 100, "note": note})
+            else:
+                rows.append({"side": a["side"], "asset": pick_label(a["asset"]), "under contract": "",
+                             "cap hits for the team holding him": "", "titles (alone)": a["titles"] * 100, "note": ""})
+        st.dataframe(pd.DataFrame(rows), hide_index=True, alt="Each part of the trade and what it's worth alone",
+                     column_config={"titles (alone)": st.column_config.NumberColumn(format="%+.2f",
+                                    help="Super Bowls over 5 seasons, % of one title: gained (get) or given up (give)")})
+        if gt:
+            st.info("Veterans traded in the offseason (2014-24) delivered 0.94x their forecast in their first season with "
+                    "the new team (0.86 to 1.03); starters 0.90x (0.80 to 1.01). Sellers may know a little more; "
+                    "not applied.")
+        if any(vtr.player_features(x) and vtr.player_features(x)["grp"] == "QB" for x in gp + gt):
+            st.warning("QB values use the model's QB rate, which ran high for drafted QBs: treat QB trades' "
+                       "verdicts as an upper end.")
+        st.caption(f"Cap: the acquiring team pays his cap number minus his signing-bonus proration (the old team keeps "
+                   f"that, all of it accelerating into {SIGN_SEASON}); cap grows {vtr.CAP_GROWTH - 1:.0%} a year from "
+                   f"${cap_m:.0f}M. Future picks: slot drawn from the team's likely finish. Not modeled: post-June 1 "
+                   "splits, restructures, the partner's view (each team's verdict depends on its own situation).")
     st.stop()
 
 # ---------------- player ----------------

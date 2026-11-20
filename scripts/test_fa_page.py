@@ -52,3 +52,18 @@ search = [s for s in at.selectbox if s.label == "Search"][0]
 search.set_value([o for o in search.options if o.startswith("Aaron Rodgers")][0]).run()
 assert not at.exception, at.exception
 print("Rodgers warnings:", [w.value[:40] for w in at.warning], [i.value[:30] for i in at.info])
+
+# 4. Trades: contender gets a star EDGE for #28 + next year's 1st
+at = fresh()
+at.sidebar.selectbox[0].set_value("KC").run()
+at.segmented_control[0].set_value("Trades").run()
+assert not at.exception, at.exception
+get = [m for m in at.multiselect if m.label == "Players"][1]
+get.set_value([o for o in get.options if o.startswith("Myles Garrett")])
+inputs = {(w.key): w for w in at.text_input}
+inputs["tr_give_now"].set_value("28")
+inputs["tr_give_fut"].set_value("2028 R1")
+at.button[0].click().run()
+assert not at.exception, at.exception
+print("trade:", [(m.label, m.value, m.delta) for m in at.metric])
+print("assets:", at.dataframe[0].value[["side", "asset", "under contract", "titles (alone)"]].round(2).values.tolist())

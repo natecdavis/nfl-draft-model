@@ -3970,3 +3970,27 @@ OL -2.10 (p < 0.001), LB -1.01 (p < 0.001; stronger, so not a labeling artifact)
 (other players' cap -0.46 / -0.47). Adoption check rerun (`scripts/fa_need_check.py`; slopes OL -0.57, LB -0.41, other
 -0.29): realized / forecast by fullness 1.12 / 1.04 / 1.07 without the factor, 0.99 / 1.02 / 1.18 with; value per $1
 spread +0.353 -> +0.329; MSE +0.030e-4 (-0.006 to +0.065). Same verdict: not adopted.
+
+## Free agency and trades, step 3: players in the trade calculator (`src/vet_trade.py`, Nov 20 2026)
+
+Free agency page, **Trades** view: an offseason trade before 2027 with any mix of players (under contract for 2027,
+real remaining contracts; our own listed first) and picks (2027 draft numbers; future picks "2028 R1", with "middle" /
+"weak" / "strong" for a partner's). Everything goes onto one 5-season strength path, as `trade.evaluate` does for picks.
+Shows the change in titles, each part alone, contract years and cap hits for the team holding each player, and dead
+money for players we send away.
+- Contract (`vet_trade.contract`): the player's ACTIVE OTC row, season by season from 2027 (seasons with a base salary
+  and a cap number; void / placeholder years only carry proration). Acquiring team: cap number minus signing-bonus
+  proration, guaranteed salary as dead money if cut (`veteran.team_seasons_sched`, same cut rule). Our player: full cap
+  number, cut -> remaining guarantees + proration; trading him -> all remaining proration accelerates into 2027.
+  Cap $ -> share: the 2027 cap, growing 7% a year (assumption; 2023-26 averaged ~10%).
+- Forecast: `veteran.Comps`, contract seasons = comps' seasons 2-6 (data ends 2025).
+- **Lemons check** (`scripts/traded_player_check.py`): 340 veterans traded in the offseason (Feb-Aug) 2014-24, actual /
+  forecast value: season 1 any team 0.94 (0.86 to 1.03), with the acquirer 0.93; forecast >= 3% of cap 0.90 (0.80 to
+  1.01); age 30+ 0.97; season 2 with the acquirer 0.65 (many leave; the contract / cut rule handles that). Not enough to
+  haircut traded players; shown as a caution.
+- Examples (cap $320M): contender (vet QB) gets A.J. Brown for #28: +1.6% of a title (Brown +3.7, #28 -2.1). Myles Garrett
+  for #28 + own 2028 1st: contender +2.4; rebuilding team selling him for #20 + a contender's 2028 1st: +1.1 (both win:
+  a strength point is worth far more to a contender). KC (its 2027 inputs): Garrett for #28 + 2028 R1 roughly even
+  (+0.08: his 2029-31 cap hits $33-48M).
+- Not modeled: post-June 1 designations, restructures, conditional picks; the partner's verdict (run it with their
+  situation). Test: `scripts/test_fa_page.py` part 4.

@@ -163,6 +163,27 @@ def team_seasons(V, years, apy, gtd, theta=CUT_THETA):
     return val, cost, on
 
 
+def team_seasons_sched(V, cost_y, gtd_y, extra_dead_y=None, theta=CUT_THETA):
+    """team_seasons for a real contract: cap charge cost_y[t] and guaranteed salary gtd_y[t] per season (shares of cap),
+    extra_dead_y[t] = money that turns into dead cap if he's cut before season t (the owner's remaining prorated bonus;
+    0 for a team acquiring him by trade, whose old team keeps the bonus). Same cut rule as team_seasons."""
+    n, years = V.shape[0], len(cost_y)
+    cost_y, gtd_y = np.asarray(cost_y, float), np.asarray(gtd_y, float)
+    extra = np.zeros(years) if extra_dead_y is None else np.asarray(extra_dead_y, float)
+    val, cost, on = np.zeros((n, years)), np.zeros((n, years)), np.zeros((n, years), bool)
+    alive = np.ones(n, bool)
+    for t in range(years):
+        if t > 0:
+            nongtd = cost_y[t] - min(gtd_y[t], cost_y[t])
+            cut = alive & ((V[:, t - 1] <= 0) | (V[:, t - 1] < theta * nongtd))
+            cost[cut, t] = gtd_y[t:].sum() + extra[t]  # dead money
+            alive &= ~cut
+        val[alive, t] = V[alive, t]
+        cost[alive, t] = cost_y[t]
+        on[:, t] = alive
+    return val, cost, on
+
+
 def points(val, share, cost, on, qb, rates=None, cost_rate=None):
     """(n, years) points of team strength per season, as pick_value.pick_effect."""
     from pick_value import COST_RATE
