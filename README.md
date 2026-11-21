@@ -4189,3 +4189,24 @@ only draft classes through 2024 qualify (Drake Maye, 2024, is eligible this offs
 Henderson, Kyle Williams, Farmer are not). Enforced in `offseason.roster_moves` (no extension or restructure option;
 listed under the Extensions table). Undrafted players aren't restricted here: the rule is written for drafted rookie
 contracts, not verified for undrafted deals.
+
+### Double count fixed; optimizer prototype (Nov 20 2026)
+
+**Bug: players already on the roster were counted twice.** The workbench (per-player "Titles" columns, the summary
+total) and the trade view's "players we give" scored a move as strength(baseline + his new points) - strength(baseline +
+his current points). The team's baseline strength already includes everyone on its roster, so his current points were
+added a second time, raising the team's strength level and, through the convex title curve, every move's value. Now a
+move adds only its change: strength(baseline + new - current) - strength(baseline). Signings and picks (new players)
+were right and are unchanged. NE's suggested plan: +1.9% -> +3.6% of a title, suggested cuts now Landry, Davis, Barmore,
+Milton Williams; trades sending our players away score lower than before.
+
+**Optimizer prototype** (`offseason.optimize`, not on the page). Local search over one action per player (keep / cut /
+restructure / extend) and signings (add / drop / swap; an action plus the best signing it pays for), within the budget,
+position caps and eligibility; every option drawn once per player, so a combination scores in ~1 ms; ~3 s per team.
+NE: search score +12.3%, re-scored on fresh draws +12.1% (suggested plan +3.6%). The plan cuts 4, restructures 12,
+extends 7 (including Morgan Moses at 36) and signs 8 - it leans on three model weak spots rather than finding a better
+offseason: (1) value is credited at 0.19 points per 1% of cap and cap charged at 0.10, so any fairly priced deal adds
+titles and extending everyone looks good; (2) restructures look nearly free (later seasons weigh less for NE; no cost
+for lost flexibility or player consent); (3) a QB extension is double counted against the situation's "QB second
+contract from season 2" shift, and "let his deal run out" means losing him for nothing while the baseline assumes he
+stays. Not shipped; needs constraints or model fixes first.

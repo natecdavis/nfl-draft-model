@@ -229,7 +229,8 @@ def roster_moves(team, sit, cap0, n=4000, seed=0):
             extp = pts_for(cost_y, extra, gtd_y)
             e_gtd, e_saved, e_later = g_total, conv - per_c, per_c
         idx = rng.integers(0, len(keep), n)
-        alone = lambda new: float((sb(base + new[idx]) - sb(base + keep[idx])).sum(axis=1).mean())  # noqa: E731
+        # the team's baseline strength already includes him as he is: a move adds only its change (new - keep)
+        alone = lambda new: float((sb(base + new[idx] - keep[idx]) - sb(base)).sum(axis=1).mean())  # noqa: E731
         arrays[r.pfr_id] = {"keep": keep, "cut": cut, "restr": restr, "ext": extp}
         rows.append({"pfr_id": r.pfr_id, "player": r.player, "grp": pl["grp"], "age": pl["age"] + SKIP,
                      "years_left": yrs, "cap_now": c["keep_cost"][0] * cap0, "dead_cut": dead * cap0,
@@ -274,8 +275,7 @@ def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1, exts=()):
         k = a["keep"][idx]
         kind = "cuts" if p in cuts else ("extensions" if p in exts else "restructures")
         new = a["cut"][idx] if kind == "cuts" else (a["ext"][idx] if kind == "extensions" else a["restr"][idx])
-        before += k
-        after += new
+        after += new - k  # baseline strength already includes him as he is
         parts[kind] += new - k
     for r in P.itertuples():
         yrs = int(r.yrs_pred)
@@ -285,12 +285,129 @@ def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1, exts=()):
         val, cost, on = vt.team_seasons(V, yrs, r.apy_pred, r.gshare_pred * r.apy_pred * yrs)
         pts = np.zeros((len(V), 5))
         pts[:, :yrs] = vt.points(val, S, cost, on, r.grp == "QB")
-        d = pts[rng.integers(0, len(V), n)]
+        d = pts[np.random.default_rng(zlib.crc32(str(r.pfr_id).encode()) + seed + 7).integers(0, len(V), n)]
         after += d
         parts["signings"] += d
     total = float((sb(base + after) - sb(base + before)).sum(axis=1).mean())
     alone = {k: float((sb(base + v) - sb(base)).sum(axis=1).mean()) for k, v in parts.items()}
     return total, alone
+
+
+# ---------------- optimizer: best combination of cuts, restructures, extensions and signings ----------------
+def signing_points(r):
+    """(K, 5) points for signing free agent row r at his predicted contract."""
+    yrs = int(r.yrs_pred)
+    pl = {"grp": r.grp, "age": r.age - SKIP, "v1": r.v1, "v2": r.v2, "g1": r.g1,
+          "p_share": getattr(r, "p_share", np.nan), "p_gp": getattr(r, "p_gp", np.nan)}
+    V, S = vt.comps().paths(pl, yrs, exclude=False, skip=SKIP)
+    val, cost, on = vt.team_seasons(V, yrs, r.apy_pred, r.gshare_pred * r.apy_pred * yrs)
+    pts = np.zeros((len(V), 5))
+    pts[:, :yrs] = vt.points(val, S, cost, on, r.grp == "QB")
+    return pts
+
+
+def optimize(sit, T, arrays, Cand, B, n_picks, cap0, max_signings=8, start=None, n=4000, seed=11,
+             max_per_group=None, max_iter=80):
+    """Local search for the combination with the most titles within the budget.
+    State: one action per player under contract (keep / cut / restructure / extend, where available) and a set of
+    signings from Cand (fa_market.rank rows with cost_m). Moves: change one player's action; add, drop or swap a
+    signing; change an action and add the best signing that then fits. Best improvement each step; stops when nothing
+    improves. All options are drawn once (n futures, seeded per player) so every combination is scored on the same
+    draws. Returns the chosen sets and the score on those draws (optimistic: re-score on fresh draws to report)."""
+    import pick_value as pv
+    mpg = dict(MAX_PER_GROUP if max_per_group is None else max_per_group)
+    rng = np.random.default_rng(seed)
+    base = pv.baseline_paths(sit, rng, n)
+    curve = vt._curve()
+    sb = lambda x: np.interp(x, curve.strength, curve.super_bowl)  # noqa: E731
+    b0 = sb(base).sum(axis=1).mean()
+    Tm = T.set_index("pfr_id")
+    D = {}  # (player, action) -> (n, 5) change vs keeping him as is
+    saved = {}
+    for p, a in arrays.items():
+        idx = np.random.default_rng(zlib.crc32(str(p).encode()) + seed).integers(0, len(a["keep"]), n)
+        k = a["keep"][idx]
+        for act, key, sv in (("cut", "cut", "saved_cut"), ("restr", "restr", "saved_restr"), ("ext", "ext", "saved_ext")):
+            if a.get(key) is not None and p in Tm.index:
+                D[(p, act)] = a[key][idx] - k
+                saved[(p, act)] = float(Tm.at[p, sv])
+    Cand = Cand.drop_duplicates("pfr_id").set_index("pfr_id")
+    G = {}
+    for p, r in Cand.iterrows():
+        pts = signing_points(r)
+        G[p] = pts[np.random.default_rng(zlib.crc32(str(p).encode()) + seed + 7).integers(0, len(pts), n)]
+    cost = Cand.cost_m.to_dict()
+    grp = Cand.grp.to_dict()
+    fill = lambda n_cut, n_sign: max(ROSTER - (B["n_signed"] - n_cut + n_sign) - n_picks, 0) * FILL_SHARE * cap0  # noqa: E731
+
+    def budget_left(act, signs):
+        n_cut = sum(1 for v in act.values() if v == "cut")
+        return (B["budget"] + B["fill"] - fill(n_cut, len(signs)) + sum(saved[(p, v)] for p, v in act.items())
+                - sum(cost[p] for p in signs))
+
+    def feasible(act, signs):
+        if len(signs) > max_signings or budget_left(act, signs) < -1e-9:
+            return False
+        cnt = {}
+        for p in signs:
+            cnt[grp[p]] = cnt.get(grp[p], 0) + 1
+        return all(v <= mpg.get(g, 1) for g, v in cnt.items())
+
+    def score(act, signs):
+        tot = np.zeros((n, 5))
+        for p, v in act.items():
+            tot += D[(p, v)]
+        for p in signs:
+            tot += G[p]
+        return float(sb(base + tot).sum(axis=1).mean() - b0)
+
+    act = {p: v for p, v in (start or {}).get("act", {}).items() if (p, v) in D}
+    signs = set(p for p in (start or {}).get("signs", []) if p in G)
+    if not feasible(act, signs):
+        act, signs = {}, set()
+    cur = score(act, signs)
+    players = sorted({p for p, _ in D})
+    for _ in range(max_iter):
+        best = (cur, None)
+        cands = []
+        for p in players:
+            for v in ("keep", "cut", "restr", "ext"):
+                if v == act.get(p, "keep") or (v != "keep" and (p, v) not in D):
+                    continue
+                a2 = dict(act)
+                if v == "keep":
+                    a2.pop(p, None)
+                else:
+                    a2[p] = v
+                cands.append((a2, signs))
+        free = [p for p in G if p not in signs]
+        for p in free:
+            cands.append((act, signs | {p}))
+        for p in signs:
+            cands.append((act, signs - {p}))
+            for q in free:
+                cands.append((act, (signs - {p}) | {q}))
+        for a2, s2 in cands:
+            if feasible(a2, s2):
+                sc = score(a2, s2)
+                if sc > best[0] + 1e-7:
+                    best = (sc, (a2, s2))
+            elif s2 is signs and budget_left(a2, signs) > budget_left(act, signs):  # frees money: try adding a signing
+                pass
+        # compound: a cap move that frees money, plus the best signing that then fits
+        for a2, s2 in cands:
+            if s2 is not signs or budget_left(a2, signs) <= budget_left(act, signs):
+                continue
+            for q in free:
+                s3 = signs | {q}
+                if feasible(a2, s3):
+                    sc = score(a2, s3)
+                    if sc > best[0] + 1e-7:
+                        best = (sc, (a2, s3))
+        if best[1] is None:
+            break
+        cur, (act, signs) = best[0], best[1]
+    return {"act": act, "signs": sorted(signs), "titles": cur, "budget_left": budget_left(act, signs)}
 
 
 # ---------------- dead money already on the books (entered by hand; not in the contract data) ----------------

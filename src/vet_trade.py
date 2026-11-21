@@ -123,10 +123,11 @@ def evaluate(sit, give_players=(), get_players=(), give_picks=(), get_picks=(), 
                 continue
             draw = pts[rng.integers(0, len(pts), n)]
             if side == "keep":
-                keep += draw
+                # our player is already in the team's baseline strength: trading him removes his points and adds the
+                # dead money from his accelerated proration
                 dead = np.zeros((n, WINDOW)); dead[:, 0] = -COST_RATE * c["dead_if_traded"] * 100
-                get += dead  # trading him away accelerates his remaining bonus proration
-                alone = (sb(base + dead) - sb(base + draw)).sum(axis=1).mean()
+                get += dead - draw
+                alone = (sb(base + dead - draw) - b0).sum(axis=1).mean()
             else:
                 get += draw
                 alone = (sb(base + draw) - b0).sum(axis=1).mean()
