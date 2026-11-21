@@ -106,6 +106,12 @@ def moves_for(team, start, shift_key, qb_from, cap):
     return off.roster_moves(team, s, cap)
 
 
+@st.cache_data(show_spinner="Valuing projected comp picks...", max_entries=50)
+def comp_titles(start, shift_key, qb_from, rounds, adj):
+    s = {"start": start, "shift": dict(shift_key), "qb_from": qb_from}
+    return off.comp_pick_titles(s, list(rounds), trade_ctx(), adj=None if adj is None else np.array(adj))
+
+
 @st.cache_data(show_spinner="Valuing our first pick at each position...", max_entries=20)
 def draft_values(start, shift_key, qb_from, pick):
     s = {"start": start, "shift": dict(shift_key), "qb_from": qb_from}
@@ -505,6 +511,28 @@ if view == "Offseason plan":
             st.session_state[f"plan_ver_{team}"] = ver + 1
             st.session_state.pop(f"opt_{team}", None)
             st.rerun()
+    st.subheader(f"Compensatory picks in {SIGN_SEASON + 1} (estimate, not in the totals)")
+    picks_c, cancelled_c, lost_c = off.comp_estimate(team, R, P, cap_m)
+    if len(lost_c) == 0:
+        st.caption("None of our own unrestricted free agents would qualify if they left (their predicted contracts are "
+                   "too small).")
+    else:
+        ct = comp_titles(start, tuple(sorted(sit["shift"].items())), sit["qb_from"],
+                         tuple(r_ for r_, _ in picks_c), None if team_adj is None else tuple(team_adj))
+        cc1, cc2 = st.columns([1, 2])
+        cc1.metric("Projected comp picks", f"{len(picks_c)}",
+                   ", ".join(f"round {r_}" for r_, _ in picks_c) or "none", delta_color="off")
+        cc1.metric("Worth, if they come", f"{ct * 100:+.2f}% of a title")
+        rows_c = [{"Our free agent leaving": n_, "Values to": f"round {r_}",
+                   "Result": "earns a pick" if (r_, n_) in picks_c else
+                   next((f"cancelled by {b_}" for l_, b_ in cancelled_c if l_ == n_), "")}
+                  for r_, n_ in lost_c.itertuples(index=False)]
+        cc2.dataframe(pd.DataFrame(rows_c), hide_index=True, alt="Our departing free agents and comp picks")
+    st.caption("Our unrestricted free agents not re-signed above are assumed to sign elsewhere at their predicted prices; "
+               "outside free agents in the signings list cancel them (each cancels the most valuable departure at or "
+               "below his value), at most 4 picks. The formula was fit to 2015-26 awards: out of sample 60% of picks "
+               "right by team and round, 73% within one round - an estimate, so it isn't added to the totals above.")
+
     st.subheader(f"Draft or free agency, by position (our first pick: #{picks_[0] if picks_ else '-'})")
     if picks_:
         dv = draft_values(start, tuple(sorted(sit["shift"].items())), sit["qb_from"], picks_[0])

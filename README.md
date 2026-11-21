@@ -4273,3 +4273,20 @@ Nacua, Kobie Turner, Byron Young, Dotson); NE +0.9. Taken off the team's baselin
 trades, workbench, optimizer); re-signing one of them adds him back at his new contract's cost, like any signing.
 NE: expected titles before moves 6.9% -> 5.6%; suggested moves +3.6 -> +2.9 (8.5% after); optimizer +7.3 -> +5.9 (a
 weaker starting team gets less per point on the title curve). Untested (a modeling correction, not a fitted effect).
+
+### Compensatory picks (`scripts/comp_picks.py`, `offseason.comp_estimate`, Nov 20 2026)
+
+Actual awards: picks after #32 within rounds 3-7, drafts 2015-2026 (393; 30-38 a year; since 2021 a few round-3 picks
+for minority coach / GM hires look the same), traced back to the team that earned them through the trade log (119 had
+been traded). Free-agent moves: unrestricted free agents whose previous contract expired (released players don't count)
+signing with a new team, league years 2014-25 (2,028). Formula shape (the league's isn't public): each lost / gained
+free agent valued by APY share of cap x (0.5 + 0.5 x his snap share with the new team that season) into rounds 3-7 by
+five cut-offs (fit: 5.5 / 4.1 / 2.9 / 1.2 / 0.7% of cap); each gain cancels the most valuable loss at or below his value
+(else the least valuable); remaining losses earn picks, at most 4. Leaving each free-agency year out: **60% of actual
+picks matched by team and round (APY alone 56%), 73% within one round; team-year comp value corr 0.77, no bias (2.18 vs
+2.28)**. Misses come from what the data lacks: signing dates (signings after the spring deadline don't count), honors,
+the league's own APY ranking, the special round-3 picks. Below the pre-set 70% bar, so **shown as an estimate, not added
+to the totals**: the Offseason plan view lists our unrestricted free agents not re-signed (assumed to sign elsewhere at
+their predicted prices), the round each values to, which planned outside signings cancel which, and the projected picks'
+worth in titles (next year's picks of those rounds, typical slot). NE: 4 picks (rounds 4-7), ~+0.65% of a title; LA: 4
+(two 3rds, two 4ths: Dotson, Nacua, Byron Young, Davante Adams), ~+1.8%.

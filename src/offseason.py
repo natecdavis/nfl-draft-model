@@ -545,3 +545,64 @@ def save_off_limits(team, players, path=OFF_FILE):
                        columns=["team", "pfr_id", "player", "added"])
     path.parent.mkdir(parents=True, exist_ok=True)
     pd.concat([keep, new]).sort_values(["team", "player"]).to_csv(path, index=False)
+
+
+# ---------------- compensatory picks (estimate; not in the totals) ----------------
+# scripts/comp_picks.py: lost / gained unrestricted free agents valued by APY x (0.5 + 0.5 x snap share with the new
+# team), five cut-offs fit to 2015-2026 awards; out of sample 60% of picks matched by team and round, 73% within one
+# round, team-year comp value corr 0.77 (no bias). Below the pre-set 70% bar, so shown as an estimate only.
+COMP_FILE = vt.OUT / "comp_pick_cuts.json"
+
+
+def comp_estimate(team, R, P, cap0):
+    """Projected comp picks next year for `team`: its own unrestricted pending free agents not re-signed in P (assumed to
+    sign elsewhere at their predicted price) against outside unrestricted signings in P. Returns (picks: list of
+    (round, player who earns it)), cancelled: list of (lost player, cancelled by), and the per-player table."""
+    import json
+    if not COMP_FILE.exists():
+        return [], [], pd.DataFrame()
+    meta = json.load(open(COMP_FILE))
+    cuts, alpha = meta["cuts"], meta["alpha"]
+
+    def worth(r):
+        pl = {"grp": r.grp, "age": r.age - SKIP, "v1": r.v1, "v2": r.v2, "g1": r.g1,
+              "p_share": getattr(r, "p_share", np.nan), "p_gp": getattr(r, "p_gp", np.nan)}
+        _, S = vt.comps().paths(pl, 1, exclude=False, skip=SKIP)
+        return float(r.apy_pred) * (alpha + (1 - alpha) * float(S[:, 0].mean()))
+
+    def rnd(v):
+        for k, t in zip((3, 4, 5, 6, 7), cuts):
+            if v >= t:
+                return k
+        return None
+    signed = set(P.pfr_id)
+    own = R[(R.otc_team == team) & ~R.restricted & ~R.pfr_id.isin(signed)]
+    outside = P[(P.otc_team != team) & ~P.restricted] if len(P) else P
+    lost = [(rnd(worth(r)), r.display_name) for r in own.itertuples()]
+    lost = sorted([x for x in lost if x[0] is not None])
+    gained = sorted([x for x in ((rnd(worth(r)), r.display_name) for r in outside.itertuples()) if x[0] is not None])
+    table = pd.DataFrame(lost, columns=["round", "player"])
+    if len(gained) >= len(lost):
+        return [], [(lp, "net free-agent gains") for _, lp in lost], table
+    L, cancelled = list(lost), []
+    for g, gname in gained:
+        below = [x for x in L if x[0] >= g]
+        x = min(below) if below else max(L)
+        L.remove(x)
+        cancelled.append((x[1], gname))
+    L.sort()
+    return L[:4], cancelled + [(lp, "4-pick limit") for _, lp in L[4:]], table
+
+
+def comp_pick_titles(sit, rounds, ctx, adj=None, n=8000, seed=5):
+    """Titles added by next year's picks of these rounds (typical slot in the round; comp picks sit at its end)."""
+    import pick_value as pv
+    import trade as tr
+    if not rounds:
+        return 0.0
+    rng = np.random.default_rng(seed)
+    base = pv.baseline_paths(sit, rng, n)
+    if adj is not None:
+        base = base - np.asarray(adj)
+    pts = tr.package_points(ctx, sit, [tr.Pick(rnd=r, year=1, src="typical") for r in rounds], base, rng)
+    return float((ctx.sb(base + pts) - ctx.sb(base)).sum(axis=1).mean())
