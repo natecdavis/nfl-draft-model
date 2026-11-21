@@ -155,3 +155,21 @@ ms = {m.label: (m.value, m.delta) for m in at.metric}
 print("rising + 1 void:", ms["Super Bowls added over 5 seasons"][0], ms["This structure vs the same money paid flat"])
 print("cap hits:", [c.value[:200] for c in at.caption if c.value.startswith("Total $")])
 print("season rows:", list(at.dataframe[-1].value.index) if len(at.dataframe) else None)
+
+# 9. Workbench tables list the rows checked when they open first (suggestions, then an optimizer plan)
+at = fresh()
+at.sidebar.selectbox[0].set_value("NE").run()
+at.segmented_control[0].set_value("Offseason plan").run()
+
+
+def checked_first(tag):
+    for df in [d.value for d in at.dataframe if "Do it" in d.value.columns]:
+        d = df["Do it"].astype(bool).to_numpy()
+        assert not (~d[:-1] & d[1:]).any(), f"{tag}: checked row below an unchecked one"
+        print(f"{tag}: {len(df)} rows, {d.sum()} checked first: {list(df.Player[d])[:5]}")
+
+
+checked_first("suggestions")
+[b for b in at.button if b.label == "Find the best combination"][0].click().run()
+assert not at.exception, at.exception
+checked_first("optimizer")

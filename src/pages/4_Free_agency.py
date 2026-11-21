@@ -357,9 +357,12 @@ if view == "Offseason plan":
     money = lambda x: f"{'-' if x < 0 else ''}${abs(x):.1f}M"  # noqa: E731
 
     st.subheader("Cuts")
-    Tc = T.assign(sug=T.pfr_id.isin(sug_c)).sort_values(["sug", "titles_cut"], ascending=False).reset_index(drop=True)
+    # every table: rows checked when it opens (optimizer plan or suggestions) first; order stays fixed while toggling
+    Tc = T.assign(sug=T.pfr_id.isin(sug_c))
+    Tc = Tc.assign(do0=Tc.pfr_id.map(lambda p_: opt["act"].get(p_) == "cut") if opt else Tc.sug)
+    Tc = Tc.sort_values(["do0", "sug", "titles_cut"], ascending=False).reset_index(drop=True)
     cut_ed = st.data_editor(pd.DataFrame({
-        "Do it": Tc.pfr_id.map(lambda p_: opt["act"].get(p_) == "cut") if opt else Tc.sug, "Player": Tc.player, "Pos": Tc.grp, "Age": Tc.age.round(1), "Years left": Tc.years_left,
+        "Do it": Tc.do0, "Player": Tc.player, "Pos": Tc.grp, "Age": Tc.age.round(1), "Years left": Tc.years_left,
         f"{SIGN_SEASON} cap hit": Tc.cap_now, "Dead money": Tc.dead_cut, f"{SIGN_SEASON} saved": Tc.saved_cut,
         "Titles (%)": Tc.titles_cut * 100, "Suggested": np.where(Tc.sug, "yes", "")}),
         key=f"cuts_{team}_{ver}", hide_index=True, disabled=[c for c in ["Player", "Pos", "Age", "Years left",
@@ -377,10 +380,11 @@ if view == "Offseason plan":
 
     st.subheader("Restructures")
     Tr = T[(T.saved_restr > 0.05) | (T.saved_restr_v > 0.05)].assign(sug=lambda d: d.pfr_id.isin(sug_r))
-    Tr = Tr.sort_values(["sug", "saved_restr_v"], ascending=False).reset_index(drop=True)
+    Tr = Tr.assign(do0=Tr.pfr_id.map(lambda p_: opt["act"].get(p_) in ("restr", "restr_v")) if opt else Tr.sug)
+    Tr = Tr.sort_values(["do0", "sug", "saved_restr_v"], ascending=False).reset_index(drop=True)
     plain_ok = Tr.titles_restr.notna().to_numpy()
     restr_ed = st.data_editor(pd.DataFrame({
-        "Do it": Tr.pfr_id.map(lambda p_: opt["act"].get(p_) in ("restr", "restr_v")) if opt else Tr.sug,
+        "Do it": Tr.do0,
         "Void years": Tr.pfr_id.map(lambda p_: opt["act"].get(p_) == "restr_v") if opt else ~plain_ok,
         "Player": Tr.player, "Pos": Tr.grp, "Age": Tr.age.round(1), "Years left": Tr.years_left,
         f"{SIGN_SEASON} saved": Tr.saved_restr.where(plain_ok), "Titles (%)": Tr.titles_restr * 100,
@@ -406,10 +410,12 @@ if view == "Offseason plan":
     restr_checked = set(Tr.pfr_id[restr_ed["Do it"].to_numpy()])
 
     st.subheader("Extensions")
-    Te = T[(T.ext_years > 0) & T.titles_ext.notna()].sort_values("titles_ext", ascending=False).reset_index(drop=True)
+    Te = T[(T.ext_years > 0) & T.titles_ext.notna()]
+    Te = Te.assign(do0=Te.pfr_id.map(lambda p_: opt["act"].get(p_) in ("ext", "ext_v")) if opt else False)
+    Te = Te.sort_values(["do0", "titles_ext"], ascending=False).reset_index(drop=True)
     void_ok = Te.titles_ext_v.notna().to_numpy()
     ext_ed = st.data_editor(pd.DataFrame({
-        "Do it": Te.pfr_id.map(lambda p_: opt["act"].get(p_) in ("ext", "ext_v")) if opt else np.zeros(len(Te), bool),
+        "Do it": Te.do0.astype(bool),
         "Void years": Te.pfr_id.map(lambda p_: opt["act"].get(p_) == "ext_v") if opt else np.zeros(len(Te), bool),
         "Player": Te.player, "Pos": Te.grp, "Age": Te.age.round(1),
         "Years left": Te.years_left, "New years": Te.ext_years, "New APY": Te.ext_apy, "Guaranteed": Te.ext_gtd,
