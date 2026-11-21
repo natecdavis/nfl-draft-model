@@ -336,9 +336,22 @@ def free_agents(sign_season=vt.LAST + 2):
     return fa
 
 
-def rank(fa, sit, cap_price="model", n=4000, team=None, need=False):
+# Strict cap price (scripts/fa_cap_price_robust.py): cap charged at the non-QB bridge rate, so a cap dollar costs as much
+# as a fair-priced dollar of value buys. The model's charge (pick_value.COST_RATE, 0.10) makes any fairly priced deal look
+# positive; a signing that also adds titles at the strict price is "firm", one that adds only at 0.10 "depends".
+STRICT_RATE = float(__import__("json").load(open(vt.OUT / "bridge.json"))["preseason"]["nonqb"])
+
+
+def robust_label(titles, titles_strict):
+    """firm: adds titles at both cap prices; depends: only at the model's 0.10; no: costs titles at 0.10."""
+    t, s = np.asarray(titles), np.asarray(titles_strict)
+    return np.where(t <= 0, "no", np.where(s > 0, "firm", "depends"))
+
+
+def rank(fa, sit, cap_price="model", n=4000, team=None, need=False, strict=True, break_even_=True):
     """For one team: each free agent at his predicted contract - titles added, the most he's worth per year at the
-    predicted years and guarantee share, and the gap. Same random draws for every player (fair comparison)."""
+    predicted years and guarantee share, and the gap. Same random draws for every player (fair comparison).
+    strict: also titles at the strict cap price (titles_strict) and the firm / depends label."""
     skip = vt.LAST + 2 - vt.LAST - 1
     adj = own_fa_adjust().get(team) if team is not None else None
     rows = []
@@ -354,12 +367,18 @@ def rank(fa, sit, cap_price="model", n=4000, team=None, need=False):
         P = (P[0] * f, P[1])
         e = vt.evaluate(sit, pl, yrs, r.apy_pred, r.gshare_pred * r.apy_pred * yrs, cap_price=cap_price, paths=P, n=n,
                         adj=adj)
-        be = vt.break_even(sit, pl, yrs, r.gshare_pred, skip=skip, cap_price=cap_price, paths=P, n=n, tol=0.001, adj=adj)
-        rows.append({"pfr_id": r.pfr_id, "titles": e["titles_added"], "break_even": be, "need_factor": f,
+        be = (vt.break_even(sit, pl, yrs, r.gshare_pred, skip=skip, cap_price=cap_price, paths=P, n=n, tol=0.001,
+                            adj=adj) if break_even_ else np.nan)
+        ts = (vt.evaluate(sit, pl, yrs, r.apy_pred, r.gshare_pred * r.apy_pred * yrs, cost_rate=STRICT_RATE, paths=P,
+                          n=n, adj=adj)["titles_added"] if strict else np.nan)
+        rows.append({"pfr_id": r.pfr_id, "titles": e["titles_added"], "titles_strict": ts, "break_even": be,
+                     "need_factor": f,
                      "older_than_comps": pl["age"] - vt.comps().comp_age(pl, need=yrs + skip) > 1.5,
                      "value_yr": float(e["value"].mean()), "value_y1": float(e["value"][0])})
     out = fa.merge(pd.DataFrame(rows), on="pfr_id")
     out["gap"] = out.break_even - out.apy_pred
+    if strict:
+        out["robust"] = robust_label(out.titles, out.titles_strict)
     return out
 
 

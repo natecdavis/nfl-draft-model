@@ -282,11 +282,11 @@ def evaluate(sit, player: dict, years: int, apy: float, gtd: float, n=20000, see
 
 
 def break_even(sit, player, years, gtd_share, skip=0, cap_price="model", lo=0.0, hi=0.30, tol=0.0005, paths=None,
-               n=8000, adj=None):
+               n=8000, adj=None, cost_rate=None):
     """Highest APY (share of cap) with titles added >= 0, guarantees kept at gtd_share of total value."""
     P = paths if paths is not None else comps().paths(player, int(min(years, 5)), exclude=False, skip=skip)
     f = lambda a: evaluate(sit, player, years, a, gtd_share * a * years, skip=skip, cap_price=cap_price, paths=P,
-                           n=n, adj=adj)["titles_added"]
+                           n=n, adj=adj, cost_rate=cost_rate)["titles_added"]
     if f(lo + 0.005) < 0:
         return 0.0
     if f(hi) > 0:

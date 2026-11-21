@@ -106,3 +106,21 @@ assert not at.exception, at.exception
 ms = {m.label: (m.value, m.delta) for m in at.metric}
 print("NE optimizer:", before, "->", ms["Super Bowls added over 5 seasons"][0], "|", ms["Cap moves free"], "|",
       ms["Signings (APY)"], "| left", ms["Left"][0])
+
+# 7. Cap price robustness (scripts/fa_cap_price_robust.py): firm-only filter in the ranked list and the plan
+at = fresh()
+at.sidebar.selectbox[0].set_value("NE").run()
+n_all = len(at.dataframe[0].value)
+[t for t in at.toggle if t.label.startswith("Only signings that hold")][0].set_value(True).run()
+assert not at.exception, at.exception
+df = at.dataframe[0].value
+assert (df["Cap price"] == "firm").all()
+print(f"NE ranked: {n_all} rows, firm only {len(df)}; top 5 firm:", list(df.Player[:5]))
+at.segmented_control[0].set_value("Offseason plan").run()
+ms = {m.label: (m.value, m.delta) for m in at.metric}
+print("NE all signings:", {k: ms[k] for k in ["Signings (APY)", "Left", "Super Bowls added over 5 seasons"]})
+[t for t in at.toggle if t.label == "Firm signings only"][0].set_value(True).run()
+[b for b in at.button if b.label == "Build plan"][0].click().run()
+assert not at.exception, at.exception
+ms = {m.label: (m.value, m.delta) for m in at.metric}
+print("NE firm only:", {k: ms[k] for k in ["Signings (APY)", "Left", "Super Bowls added over 5 seasons"]})

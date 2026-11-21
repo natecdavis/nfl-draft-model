@@ -149,6 +149,11 @@ rollover = st.sidebar.checkbox("Scenario: cap we don't spend rolls over and is s
                                     "average don't re-spend saved cap (scripts/cap_rollover_test.py), so this is a "
                                     "plan you'd have to carry out, not the default.")
 cap_price = "rollover" if rollover else "model"
+FIRM_HELP = (f"firm: adds titles both at the model's cap charge (0.10 points per 1% of cap) and at a strict "
+             f"{fm.STRICT_RATE:.2f} (a cap dollar costs as much as the value it buys at fair prices). depends: adds titles "
+             "only at 0.10, i.e. only if cap you don't spend would otherwise be wasted. The right charge isn't settled "
+             "by the data (scripts/cap_rollover_test.py); at 0.10 about 3 in 4 free agents look worth their predicted "
+             "price, at the strict charge about 2 in 5 (scripts/fa_cap_price_robust.py).")
 
 
 @st.cache_data(show_spinner="Valuing every team's own pending free agents...")
@@ -202,7 +207,9 @@ if view == "Ranked free agents":
     show_rfa = g1_.toggle("Include likely restricted free agents", value=False,
                           help="3 or fewer seasons since he entered the league: his team can match offers.")
     show_neg = g2_.toggle("Include players who cost titles at their predicted price", value=True)
-    D = R[R.grp.isin(pos) & (R.apy_pred * cap_m <= max_apy) & (show_rfa | ~R.restricted) & (show_neg | (R.titles > 0))]
+    firm_only = st.toggle("Only signings that hold at both cap prices (firm)", value=False, help=FIRM_HELP)
+    D = R[R.grp.isin(pos) & (R.apy_pred * cap_m <= max_apy) & (show_rfa | ~R.restricted) & (show_neg | (R.titles > 0))
+          & ((not firm_only) | (R.robust == "firm"))]
     D = D.sort_values("titles" if sort == "Titles added" else "gap", ascending=False).reset_index(drop=True)
     st.session_state.fa_shown = D
     T = pd.DataFrame({
@@ -211,7 +218,8 @@ if view == "Ranked free agents":
         "Predicted APY ($M)": D.apy_pred * cap_m, "Yrs": D.yrs_pred,
         "Worth to us up to ($M / yr)": D.break_even * cap_m, "Gap ($M / yr)": D.gap * cap_m,
         "Our depth": [None if room_row is None or g not in room_row else round(float(room_row[g]), 2) for g in D.grp],
-        "Titles added (%)": D.titles * 100, "Notes": D.note})
+        "Titles added (%)": D.titles * 100, "Cap price": D.robust, "Titles, strict cap (%)": D.titles_strict * 100,
+        "Notes": D.note})
     st.caption(f"{len(D)} of {len(R)} players out of contract after {SIGN_SEASON - 1} (no {SIGN_SEASON} salary in the "
                "contract data). Each is priced at his predicted market contract (years and guarantees too). "
                "Select a row to open that signing.")
@@ -227,6 +235,10 @@ if view == "Ranked free agents":
                          help="Worth to us minus predicted price: room to outbid the market"),
                      "Titles added (%)": st.column_config.NumberColumn(format="%+.2f",
                          help="Super Bowls added over 5 seasons at the predicted contract, % of one title"),
+                     "Cap price": st.column_config.TextColumn(help=FIRM_HELP),
+                     "Titles, strict cap (%)": st.column_config.NumberColumn(format="%+.2f",
+                         help=f"Titles added with cap charged at {fm.STRICT_RATE:.2f} points per 1% (a cap dollar "
+                              "costs a fair-priced dollar of value)"),
                      "Age": st.column_config.NumberColumn(format="%.1f")})
     with st.expander("How the contract predictions work"):
         st.markdown(f"""
@@ -264,9 +276,11 @@ if view == "Offseason plan":
                                     f"{SIGN_SEASON - 1} are needed (void-year acceleration is already in 'Committed'). "
                                     f"Read it off the team's OverTheCap or Spotrac cap page; save it below to keep it.")
         reserve = a4.number_input("Reserve (% of cap)", 0.0, 10.0, 3.0, 0.5, help="In-season signings, injuries.")
-        b1, b2 = st.columns(2)
+        b1, b2, b3 = st.columns([2, 2, 2])
         max_n = b1.slider("Most signings", 1, 15, 8)
         flagged = b2.toggle("Include players likely to be extended or tagged first", value=False)
+        firm_plan = b3.toggle("Firm signings only", value=False, help=FIRM_HELP + " On: the plan, the optimizer and "
+                              "the signings table use only firm signings.")
         st.form_submit_button("Build plan", type="primary")
     picks_ = sorted({int(x) for x in picks_txt.replace(" ", "").split(",") if x.isdigit()})
     with st.container(horizontal=True, vertical_alignment="center"):
@@ -293,6 +307,8 @@ if view == "Offseason plan":
                team, need_on)
     # free agents marked off limits for this team (the "Off limits" column in the signings table; saved per team)
     off_set = set(off.load_off_limits(team))
+    if firm_plan:
+        R = R[R.robust == "firm"]
     R_all = R
     R = R[~R.pfr_id.isin(off_set)]
     T, arrays = moves_for(team, start, tuple(sorted(sit["shift"].items())), sit["qb_from"], cap_m)
@@ -306,7 +322,7 @@ if view == "Offseason plan":
     Cand_full["per_10m"] = Cand_full.titles * 100 / Cand_full.cost_m * 10
     Cand_all = Cand_full[~Cand_full.pfr_id.isin(off_set)]  # what the plan and the optimizer may sign
     opt = st.session_state.get(f"opt_{team}")
-    opt = opt if opt and opt.get("ver") == ver else None
+    opt = opt if opt and opt.get("ver") == ver and opt.get("firm") == firm_plan else None
     with st.container(border=True):
         o1, o2, o3 = st.columns([1, 1, 2], vertical_alignment="bottom")
         # typical team: median 1, 90th percentile 3 restructures a year (README); teams with cap room default to 2
@@ -324,7 +340,7 @@ if view == "Offseason plan":
                           "signs": list(st_plan.pfr_id)}
                 res = off.optimize(sit, T, arrays, pool, B, len(picks_), cap_m, max_signings=max_n, start=start_,
                                    max_restr=int(max_r), max_ext=int(max_e), adj=team_adj)
-            st.session_state[f"opt_{team}"] = {**res, "ver": ver + 1,
+            st.session_state[f"opt_{team}"] = {**res, "ver": ver + 1, "firm": firm_plan,
                                                "sver": st.session_state.get(f"sign_ver_{team}", 0)}
             st.session_state[f"plan_ver_{team}"] = ver + 1
             st.rerun()
@@ -459,9 +475,10 @@ if view == "Offseason plan":
         "Pos": Cand.grp.to_numpy(), "Age": Cand.age.round(1).to_numpy(), "Predicted APY": Cand.cost_m.to_numpy(),
         "Worth to us": (Cand.break_even * cap_m).to_numpy(),
         "Yrs": Cand.yrs_pred.to_numpy(), "Titles (%)": (Cand.titles * 100).to_numpy(),
-        "Per $10M": Cand.per_10m.to_numpy(), "Notes": Cand.note.to_numpy()}),
+        "Cap price": Cand.robust.to_numpy(), "Per $10M": Cand.per_10m.to_numpy(), "Notes": Cand.note.to_numpy()}),
         key=skey, hide_index=True,
-        disabled=["Player", "Pos", "Age", "Predicted APY", "Worth to us", "Yrs", "Titles (%)", "Per $10M", "Notes"],
+        disabled=["Player", "Pos", "Age", "Predicted APY", "Worth to us", "Yrs", "Titles (%)", "Cap price", "Per $10M",
+                  "Notes"],
         column_config={"Do it": st.column_config.CheckboxColumn(width="small"),
                        "Worth to us": st.column_config.NumberColumn(format="$%.1f",
                            help="The most he's worth per year to us at his predicted years and guarantee share (adds "
@@ -471,6 +488,7 @@ if view == "Offseason plan":
                                 f"optimizer. Saved for this team in inputs/{off.OFF_FILE.name}."),
                        "Predicted APY": st.column_config.NumberColumn(format="$%.1f"),
                        "Titles (%)": st.column_config.NumberColumn(format="%+.2f"),
+                       "Cap price": st.column_config.TextColumn(help=FIRM_HELP),
                        "Per $10M": st.column_config.NumberColumn(format="%.2f", help="% of a title per $10M of APY")})
     st.caption("Checked at first: the greedy plan for the budget after the suggested moves (best titles per dollar, at "
                "most 2 at OL / DB / WR / DL and 1 elsewhere). Toggle anything; 'Re-plan' redoes it for the budget after "
@@ -495,7 +513,10 @@ if view == "Offseason plan":
                     f"{len(cuts)} cuts, {len(restrs)} restructures ({len(voids)} void), {len(exts)} extensions "
                     f"({len(ext_voids & exts)} void)",
                     delta_color="off")
-        k[2].metric("Signings (APY)", money(spend), f"{len(P)} players", delta_color="off")
+        n_dep = int((P.robust == "depends").sum()) if "robust" in P else 0
+        k[2].metric("Signings (APY)", money(spend), f"{len(P)} players"
+                    + (f", {n_dep} depend on the cap price" if n_dep else ", all firm" if len(P) else ""),
+                    delta_color="off", help=FIRM_HELP)
         k[3].metric("Left", money(budget_after - spend))
         k[4].metric("Super Bowls added over 5 seasons", f"{total * 100:+.2f}%")
         t1, t2, t3 = st.columns([1, 1, 2])
@@ -721,6 +742,10 @@ if room_row is not None and grp in room_row:
 r = vt.evaluate(sit, player, int(years), apy, gtd, cap_price=cap_price, paths=paths, adj=team_adj)
 be = vt.break_even(sit, player, int(years), gtd / max(apy * years, 1e-9), skip=SKIP, cap_price=cap_price, paths=paths,
                    adj=team_adj)
+r_s = vt.evaluate(sit, player, int(years), apy, gtd, cost_rate=fm.STRICT_RATE, paths=paths, adj=team_adj)
+be_s = vt.break_even(sit, player, int(years), gtd / max(apy * years, 1e-9), skip=SKIP, paths=paths, adj=team_adj,
+                     cost_rate=fm.STRICT_RATE)
+robust = str(fm.robust_label([r["titles_added"]], [r_s["titles_added"]])[0])
 
 m1, m2, m3 = st.columns(3)
 m1.metric("Super Bowls added over 5 seasons", f"{r['titles_added'] * 100:+.2f}% of one title")
@@ -736,6 +761,14 @@ ratio = r["value"].mean() / paid if paid > 0 else float("nan")
 even = 0.10 / (0.336 if grp == "QB" else 0.187)  # cap charge / value rate: the ratio that adds nothing
 m3.metric("Value delivered per $1 of cap charged", f"${ratio:.2f}",
           f"breaks even at ${even:.2f}; typical free agent at this price ${typical:.2f}", delta_color="off")
+s1, s2, s3 = st.columns(3)
+s1.metric("Cap price verdict", robust, help=FIRM_HELP, border=False)
+s2.metric(f"Super Bowls added, strict cap charge ({fm.STRICT_RATE:.2f})", f"{r_s['titles_added'] * 100:+.2f}% of one title")
+s3.metric("Worth signing up to, strict cap charge", f"${be_s * cap_m:.1f}M / yr",
+          f"breaks even at $1.00 of value per $1 for non-QBs" if grp != "QB" else "QB: value rate 0.34", delta_color="off")
+if robust == "depends":
+    st.info(f"This signing adds titles only at the model's cap charge (0.10). If the cap it uses would otherwise buy "
+            f"value at fair prices, it costs titles: worth it up to ${be_s * cap_m:.1f}M / yr on that view.")
 
 seasons = list(range(SIGN_SEASON, SIGN_SEASON + int(years)))
 lo, med, hi = r["value_pct"]
@@ -756,8 +789,9 @@ name = p.display_name if p is not None else f"Custom {grp}, {age:.0f}"
 if st.button("Add this signing to the comparison"):
     st.session_state.fa_compare.append({
         "player": name, "pos": grp, "years": int(years), "APY $M": apy_m, "guaranteed $M": gtd_m,
-        "titles added %": r["titles_added"] * 100, "per $10M of APY": r["titles_added"] * 100 / apy_m * 10,
-        "worth up to $M/yr": be * cap_m, "cap price": cap_price})
+        "titles added %": r["titles_added"] * 100, "titles, strict cap %": r_s["titles_added"] * 100,
+        "cap price": robust, "per $10M of APY": r["titles_added"] * 100 / apy_m * 10,
+        "worth up to $M/yr": be * cap_m, "scenario": cap_price})
 if st.session_state.fa_compare:
     C = pd.DataFrame(st.session_state.fa_compare)
     dup = C.pos.value_counts()

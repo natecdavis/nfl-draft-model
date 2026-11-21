@@ -4334,3 +4334,27 @@ jumps > $1M; undercounts) mean 1.4, median 1, 90th percentile 3.
   Keion White, Jake Andrews and Kayshon Boutte (now SF, HOU, HOU) were counted as NE free agents. `fa_market.under_contract`
   now takes the team from the latest weekly roster (2026 wk 11), then OTC's season history, then the string. Affects the
   ranked list's team column, own free agents, the own-FA baseline adjustment, the comp-pick estimate and trade rosters.
+
+### Free agency: firm or depends on the cap price (`scripts/fa_cap_price_robust.py`, Nov 20 2026)
+
+Complaint #1 of the free-agency list ("your tool says to spend on almost everyone"): value is credited at the bridge
+rate (0.19 per 1% of cap non-QB, 0.34 QB) but cap is charged at the model's 0.10, so a fairly priced deal adds titles
+(break-even $0.53 of value per $1; the market delivers $0.88 / $0.72 / $0.53). The right charge isn't settled
+(cap_rollover_test). Every 2027 unrestricted free agent (721) at his predicted contract, also scored with cap charged at
+the strict 0.187 (`fa_market.STRICT_RATE`: a cap dollar costs a fair-priced dollar of value), same draws:
+
+| | no (costs titles at 0.10) | depends (adds only at 0.10) | firm (adds at both) |
+|---|---|---|---|
+| each of the 4 situations | 23-24% | 37-38% | 38-40% |
+
+Firm share of those positive at 0.10, by predicted APY: <1% of cap 0.58, 1-2% 0.53, 2-5% 0.26, 5%+ 0.26; by group QB
+0.85 (value rate 0.34), EDGE 0.60, WR 0.55 ... LB 0.28. The labels hardly move with the situation (a sign test).
+Where it bites: the greedy plan (titles per $) already picks only firm signings (NE, MIA, KC at $44M and $100M budgets);
+the ranked list's default sort (total titles) puts depends players near the top (George Pickens at $35.0M x 4: +1.07%
+at 0.10, -1.42% strict; worth up to $47.7M vs $25.2M); the optimizer took 1 (NE) and 3 (MIA) depends signings.
+**Adopted as a label** (as the simulator's firm / depends, "Position pricing"): "Cap price" column in the ranked list and
+the Signings table, strict titles and strict break-even in One signing (with a note when it depends), "Only firm"
+filter in the ranked list, "Firm signings only" switch for the plan / optimizer (MIA optimizer $117.5M +4.55% ->
+$73.9M +3.43%; NE unchanged in suggestions), signings summary counts the depends ones. Defaults unchanged (0.10).
+Not changed: cuts, restructures and extensions still use 0.10 only (a strict charge would make cuts look better and
+restructures' timing effects larger). Test: `scripts/test_fa_page.py` part 7.
