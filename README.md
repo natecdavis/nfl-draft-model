@@ -4472,3 +4472,19 @@ until "Build plan" was clicked - running the optimizer right after flipping it s
 the ranked list had a separate switch the plan ignored. Now one sidebar switch, "Firm signings only", outside any form,
 applies at once to the ranked list, the plan, the signings table and the optimizer (and drops an optimizer plan made
 under the other setting). MIA: optimizer $117.5M with 2 depends -> $76.8M all firm. Test: `scripts/test_fa_page.py` part 7.
+
+### Teams over the cap: suggestions and optimizer get under it (Nov 21 2026)
+
+Three fixes after KC, DAL and MIA plans showed "Over the 2027 cap" after "Find the best combination":
+- **Optimizer kept the suggested moves.** It searched only actions adding at least 0.02% of a title on their own, so the
+  suggested restructures (often slightly negative alone) were dropped, the start was over the cap, and it reset to an
+  empty plan it couldn't leave (every change still over the cap = infeasible). Now the suggested moves stay available,
+  and a start that's over the cap or the limits is repaired first: from no moves, add the cap move (cut, restructure,
+  extension, with or without void years) costing the fewest titles per $ freed until under the cap; the restructure /
+  extension limits rise to what that took (shown on the page). KC +0.22% (suggestions) -> +1.37%; DAL +0.21% -> +3.47%.
+- **Suggestions clear the cap.** When plain restructures of players under 32 aren't enough: void years on those (most
+  extra room first), then older players / last seasons (void years where they save more). DAL was -$3.2M after them.
+- **One roster-spot rule.** The budget sets aside a minimum salary (0.35% of cap) for every open spot of 51; a signing
+  takes one. The optimizer counted that, the page and the greedy plan didn't, so the optimizer's plans showed up to
+  ~$8M over (MIA -$7.7M with 8 signings). Now all three count it (`offseason.slot_credit`, `open_slots`).
+Test: `scripts/test_fa_page.py` part 10.

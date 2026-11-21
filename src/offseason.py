@@ -29,6 +29,16 @@ SKIP = SIGN_SEASON - vt.LAST - 1
 MAX_PER_GROUP = {"OL": 2, "DB": 2, "WR": 2, "DL": 2, "EDGE": 1, "LB": 1, "RB": 1, "TE": 1, "QB": 1}
 ROSTER = 51
 FILL_SHARE = 0.0035  # about the 2027 minimum salary, share of cap
+
+
+def slot_credit(cap0):
+    """$M a signing frees by taking a roster spot the budget had set aside for a minimum-salary player."""
+    return FILL_SHARE * cap0
+
+
+def open_slots(n_signed, n_cuts, n_picks):
+    """Roster spots (of 51) the budget fills with minimum-salary players."""
+    return max(ROSTER - (n_signed - n_cuts) - n_picks, 0)
 # draft position for each veteran pricing group (the best of these at our pick is shown)
 DRAFT_POS = {"QB": ["QB"], "RB": ["RB"], "WR": ["WR"], "TE": ["TE"], "OL": ["T", "G", "C"], "DL": ["IDL"],
              "EDGE": ["ED"], "LB": ["LB"], "DB": ["CB", "S"]}
@@ -87,8 +97,9 @@ def budget(team, cap0, picks, rollover=0.0, dead=0.0, reserve_share=0.03):
             "fill": fill, "reserve": reserve_share * cap0, "budget": b, "committed_players": lst}
 
 
-def plan(R, budget_m, cap0, max_signings=8, qb_need=False, include_flagged=False, max_per_group=None):
-    """Greedy plan from a ranked free-agent table (fa_market.rank output with notes): titles per $ first."""
+def plan(R, budget_m, cap0, max_signings=8, qb_need=False, include_flagged=False, max_per_group=None, open_slots=0):
+    """Greedy plan from a ranked free-agent table (fa_market.rank output with notes): titles per $ first. Each of the
+    first `open_slots` signings fills a roster spot the budget set aside for a minimum-salary player (slot_credit)."""
     mpg = dict(MAX_PER_GROUP if max_per_group is None else max_per_group)
     C = R[(R.titles > 0) & ~R.restricted].copy()
     if not qb_need:
@@ -102,9 +113,10 @@ def plan(R, budget_m, cap0, max_signings=8, qb_need=False, include_flagged=False
     for r in C.itertuples():
         if len(chosen) >= max_signings:
             break
-        if r.cost_m <= left and used.get(r.grp, 0) < mpg.get(r.grp, 1):
+        net = r.cost_m - (slot_credit(cap0) if len(chosen) < open_slots else 0.0)
+        if net <= left and used.get(r.grp, 0) < mpg.get(r.grp, 1):
             chosen.append(r.Index)
-            left -= r.cost_m
+            left -= net
             used[r.grp] = used.get(r.grp, 0) + 1
     return C.loc[chosen]
 
@@ -305,17 +317,36 @@ def roster_moves(team, sit, cap0, n=4000, seed=0):
 
 def suggest(T, base_budget):
     """Suggested cuts (cutting adds titles on its own and saves cap) and, only if the budget is still negative,
-    restructures (largest savings first, age < 32, 2+ seasons left) until it isn't."""
+    restructures until it isn't: plain ones first (largest savings first, age < 32, 2+ seasons left), then void years
+    on those (most extra room first), then anyone else (age 32+ or in his last season; void years where they save more).
+    Returns (cuts, restructures, the restructures with void years)."""
     cuts = set(T[(T.titles_cut > SUGGEST_CUT) & (T.saved_cut > 0)].pfr_id)
     b = base_budget + T[T.pfr_id.isin(cuts)].saved_cut.sum()
-    restr = set()
+    restr, voids = set(), set()
     if b < 0:
         for r in T[~T.pfr_id.isin(cuts) & (T.saved_restr > 0) & (T.age < 32)].sort_values("saved_restr", ascending=False).itertuples():
             if b >= 0:
                 break
             restr.add(r.pfr_id)
             b += r.saved_restr
-    return cuts, restr
+    if b < 0:
+        Tr = T[T.pfr_id.isin(restr)].assign(extra=lambda d: d.saved_restr_v - d.saved_restr)
+        for r in Tr[Tr.extra > 0].sort_values("extra", ascending=False).itertuples():
+            if b >= 0:
+                break
+            voids.add(r.pfr_id)
+            b += r.extra
+    if b < 0:
+        rest = T[~T.pfr_id.isin(cuts | restr)].assign(
+            best=lambda d: np.fmax(d.saved_restr.fillna(0), d.saved_restr_v.fillna(0)))
+        for r in rest[rest.best > 0].sort_values("best", ascending=False).itertuples():
+            if b >= 0:
+                break
+            restr.add(r.pfr_id)
+            if not (r.saved_restr >= r.saved_restr_v):  # NaN plain (last season) -> void years
+                voids.add(r.pfr_id)
+            b += r.best
+    return cuts, restr, voids
 
 
 def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1, exts=(), detail=False, voids=(), ext_voids=(),
@@ -403,6 +434,7 @@ def optimize(sit, T, arrays, Cand, B, n_picks, cap0, max_signings=8, start=None,
     Tm = T.set_index("pfr_id")
     D = {}  # (player, action) -> (n, 5) change vs keeping him as is
     saved = {}
+    ok = set()  # actions the search may choose freely (add min_gain on their own); others only to get under the cap
     for p, a in arrays.items():
         idx = np.random.default_rng(zlib.crc32(str(p).encode()) + seed).integers(0, len(a["keep"]), n)
         k = a["keep"][idx]
@@ -410,10 +442,12 @@ def optimize(sit, T, arrays, Cand, B, n_picks, cap0, max_signings=8, start=None,
                                    ("restr_v", "restr_v", "saved_restr_v", "titles_restr_v"),
                                    ("ext", "ext", "saved_ext", "titles_ext"),
                                    ("ext_v", "ext_v", "saved_ext_v", "titles_ext_v")):
-            if a.get(key) is not None and p in Tm.index and float(Tm.at[p, tcol]) >= min_gain:
+            if a.get(key) is not None and p in Tm.index and pd.notna(Tm.at[p, tcol]) and pd.notna(Tm.at[p, sv]):
                 ref = a["ext_alt"][idx] if act in ("ext", "ext_v") else k
                 D[(p, act)] = a[key][idx] - ref
                 saved[(p, act)] = float(Tm.at[p, sv])
+                if float(Tm.at[p, tcol]) >= min_gain:
+                    ok.add((p, act))
     Cand = Cand.drop_duplicates("pfr_id").set_index("pfr_id")
     G = {}
     for p, r in Cand.iterrows():
@@ -428,11 +462,17 @@ def optimize(sit, T, arrays, Cand, B, n_picks, cap0, max_signings=8, start=None,
         return (B["budget"] + B["fill"] - fill(n_cut, len(signs)) + sum(saved[(p, v)] for p, v in act.items())
                 - sum(cost[p] for p in signs))
 
+    lim = {"restr": max_restr, "ext": max_ext}
+
+    def counts(act):
+        kinds = list(act.values())
+        return kinds.count("restr") + kinds.count("restr_v"), kinds.count("ext") + kinds.count("ext_v")
+
     def feasible(act, signs):
         if len(signs) > max_signings or budget_left(act, signs) < -1e-9:
             return False
-        kinds = list(act.values())
-        if kinds.count("restr") + kinds.count("restr_v") > max_restr or kinds.count("ext") + kinds.count("ext_v") > max_ext:
+        n_r, n_e = counts(act)
+        if n_r > lim["restr"] or n_e > lim["ext"]:
             return False
         cnt = {}
         for p in signs:
@@ -449,8 +489,35 @@ def optimize(sit, T, arrays, Cand, B, n_picks, cap0, max_signings=8, start=None,
 
     act = {p: v for p, v in (start or {}).get("act", {}).items() if (p, v) in D}
     signs = set(p for p in (start or {}).get("signs", []) if p in G)
+    ok |= set(act.items())  # the suggested moves stay available even when they cost a little on their own
+    repaired = []
     if not feasible(act, signs):
         act, signs = {}, set()
+        # over the cap with no moves: get under first, each step the cap move (any action that saves money, limits
+        # ignored) costing the fewest titles per $ freed; then the limits rise to what that needed
+        cur = score(act, signs)
+        while budget_left(act, signs) < -1e-9:
+            best = None
+            for (p, v), sv in saved.items():
+                if act.get(p) == v or sv <= 0:
+                    continue
+                a2 = {**act, p: v}
+                gain = budget_left(a2, signs) - budget_left(act, signs)
+                if gain <= 1e-9:
+                    continue
+                r = (cur - score(a2, signs)) / gain
+                if best is None or r < best[0]:
+                    best = (r, a2, (p, v))
+            if best is None:
+                break
+            act, cur = best[1], score(best[1], signs)
+            ok.add(best[2])
+            repaired.append(best[2])
+        n_r, n_e = counts(act)
+        lim = {"restr": max(max_restr, n_r), "ext": max(max_ext, n_e)}
+        if budget_left(act, signs) < -1e-9:  # can't get under even with every move: return the closest plan
+            return {"act": act, "signs": [], "titles": cur, "budget_left": budget_left(act, signs),
+                    "repaired": repaired, "limits": lim}
     cur = score(act, signs)
     players = sorted({p for p, _ in D})
     for _ in range(max_iter):
@@ -458,7 +525,7 @@ def optimize(sit, T, arrays, Cand, B, n_picks, cap0, max_signings=8, start=None,
         cands = []
         for p in players:
             for v in ("keep", "cut", "restr", "restr_v", "ext", "ext_v"):
-                if v == act.get(p, "keep") or (v != "keep" and (p, v) not in D):
+                if v == act.get(p, "keep") or (v != "keep" and (p, v) not in ok):
                     continue
                 a2 = dict(act)
                 if v == "keep":
@@ -493,7 +560,8 @@ def optimize(sit, T, arrays, Cand, B, n_picks, cap0, max_signings=8, start=None,
         if best[1] is None:
             break
         cur, (act, signs) = best[0], best[1]
-    return {"act": act, "signs": sorted(signs), "titles": cur, "budget_left": budget_left(act, signs)}
+    return {"act": act, "signs": sorted(signs), "titles": cur, "budget_left": budget_left(act, signs),
+            "repaired": repaired, "limits": lim}
 
 
 # ---------------- dead money already on the books (entered by hand; not in the contract data) ----------------

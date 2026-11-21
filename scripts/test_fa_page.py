@@ -173,3 +173,18 @@ checked_first("suggestions")
 [b for b in at.button if b.label == "Find the best combination"][0].click().run()
 assert not at.exception, at.exception
 checked_first("optimizer")
+
+# 10. Teams starting over the cap (KC, DAL): the suggestions and the optimizer both end under it (the optimizer used
+# to drop suggested restructures that cost a little on their own, start from nothing and stay over); the page credits
+# each signing with the minimum-salary roster spot it fills, as the optimizer does
+for team in ["KC", "DAL", "MIA"]:
+    at = fresh()
+    at.sidebar.selectbox[0].set_value(team).run()
+    at.segmented_control[0].set_value("Offseason plan").run()
+    over = lambda: [w.value for w in at.warning if w.value.startswith("Over the")]  # noqa: E731
+    left = lambda: {m.label: m.value for m in at.metric}["Left"]  # noqa: E731
+    assert not over(), (team, "suggested", over())
+    [b for b in at.button if b.label == "Find the best combination"][0].click().run()
+    assert not at.exception, at.exception
+    print(f"{team} over-cap check: optimizer left {left()}")
+    assert not over(), (team, "optimizer", over())

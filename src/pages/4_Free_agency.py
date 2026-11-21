@@ -314,7 +314,7 @@ if view == "Offseason plan":
     R_all = R
     R = R[~R.pfr_id.isin(off_set)]
     T, arrays = moves_for(team, start, tuple(sorted(sit["shift"].items())), sit["qb_from"], cap_m)
-    sug_c, sug_r = off.suggest(T, B["budget"])
+    sug_c, sug_r, sug_v = off.suggest(T, B["budget"])
     ver = st.session_state.setdefault(f"plan_ver_{team}", 0)
     summary = st.container(border=True)
     # signing candidates (independent of the toggles): the optimizer searches these, the signings table lists them
@@ -336,9 +336,14 @@ if view == "Offseason plan":
             with st.spinner("Searching cuts, restructures, extensions and signings..."):
                 pool = pd.concat([Cand_all.sort_values("per_10m", ascending=False).head(40),
                                   Cand_all.sort_values("titles", ascending=False).head(20)]).drop_duplicates("pfr_id")
-                b_s = B["budget"] + T[T.pfr_id.isin(sug_c)].saved_cut.sum() + T[T.pfr_id.isin(sug_r)].saved_restr.sum()
-                st_plan = off.plan(R, b_s, cap_m, max_n, qb_need=qb_need, include_flagged=flagged) if b_s > 0 else R.iloc[0:0]
-                start_ = {"act": {**{p_: "cut" for p_ in sug_c}, **{p_: "restr" for p_ in sug_r}},
+                b_s = (B["budget"] + T[T.pfr_id.isin(sug_c)].saved_cut.sum()
+                       + T[T.pfr_id.isin(sug_r - sug_v)].saved_restr.sum() + T[T.pfr_id.isin(sug_v)].saved_restr_v.sum()
+                       - (off.open_slots(B["n_signed"], len(sug_c), len(picks_)) * off.slot_credit(cap_m) - B["fill"]))
+                st_plan = off.plan(R, b_s, cap_m, max_n, qb_need=qb_need, include_flagged=flagged,
+                                   open_slots=off.open_slots(B["n_signed"], len(sug_c), len(picks_))) \
+                    if b_s > 0 else R.iloc[0:0]
+                start_ = {"act": {**{p_: "cut" for p_ in sug_c},
+                                  **{p_: "restr_v" if p_ in sug_v else "restr" for p_ in sug_r}},
                           "signs": list(st_plan.pfr_id)}
                 res = off.optimize(sit, T, arrays, pool, B, len(picks_), cap_m, max_signings=max_n, start=start_,
                                    max_restr=int(max_r), max_ext=int(max_e), adj=team_adj)
@@ -354,6 +359,21 @@ if view == "Offseason plan":
                    "offseasons; it picks what the model is most optimistic about, so read its total as an upper end."
                    + (" **Showing the optimizer's plan** (search score "
                       f"{opt['titles'] * 100:+.2f}%; the total above re-scores it on fresh draws)." if opt else ""))
+        if opt and opt.get("repaired"):
+            nm = T.set_index("pfr_id").player
+            lab = {"cut": "cut", "restr": "restructure", "restr_v": "restructure with void years", "ext": "extend",
+                   "ext_v": "extend with void years"}
+            lim = opt.get("limits", {})
+            st.info("The suggested moves didn't fit the limits or the cap, so the optimizer first got under the cap "
+                    "with the moves that cost the fewest titles per dollar freed: "
+                    + ", ".join(f"{lab[v]} {nm.get(p_, p_)}" for p_, v in opt["repaired"]) + "."
+                    + (f" That took more than the limits allow, so they rose to {lim['restr']} restructures and "
+                       f"{lim['ext']} extensions for this plan." if lim.get("restr", 0) > max_r or lim.get("ext", 0) > max_e
+                       else ""))
+        if opt and opt.get("budget_left", 0) < -0.05:
+            st.warning(f"Even with every cut, restructure and extension the optimizer could find, the team stays "
+                       f"${-opt['budget_left']:.1f}M over the {SIGN_SEASON} cap. Check the dead money and rollover "
+                       "above, or plan trades (Trades view).")
     money = lambda x: f"{'-' if x < 0 else ''}${abs(x):.1f}M"  # noqa: E731
 
     st.subheader("Cuts")
@@ -385,7 +405,8 @@ if view == "Offseason plan":
     plain_ok = Tr.titles_restr.notna().to_numpy()
     restr_ed = st.data_editor(pd.DataFrame({
         "Do it": Tr.do0,
-        "Void years": Tr.pfr_id.map(lambda p_: opt["act"].get(p_) == "restr_v") if opt else ~plain_ok,
+        "Void years": Tr.pfr_id.map(lambda p_: opt["act"].get(p_) == "restr_v") if opt
+                      else Tr.pfr_id.isin(sug_v) | ~plain_ok,
         "Player": Tr.player, "Pos": Tr.grp, "Age": Tr.age.round(1), "Years left": Tr.years_left,
         f"{SIGN_SEASON} saved": Tr.saved_restr.where(plain_ok), "Titles (%)": Tr.titles_restr * 100,
         f"{SIGN_SEASON} saved, void years": Tr.saved_restr_v, "Dead when it voids": Tr.void_dead,
@@ -461,15 +482,16 @@ if view == "Offseason plan":
     saved = (T[T.pfr_id.isin(cuts)].saved_cut.sum() + T[T.pfr_id.isin(restrs - voids)].saved_restr.sum()
              + T[T.pfr_id.isin(voids)].saved_restr_v.sum()
              + T[T.pfr_id.isin(exts - ext_voids)].saved_ext.sum() + T[T.pfr_id.isin(ext_voids & exts)].saved_ext_v.sum())
-    fill_after = max(off.ROSTER - (B["n_signed"] - len(cuts)) - len(picks_), 0) * off.FILL_SHARE * cap_m
+    n_open = off.open_slots(B["n_signed"], len(cuts), len(picks_))  # roster spots the budget fills at the minimum
+    fill_after = n_open * off.slot_credit(cap_m)
     budget_after = B["budget"] + saved - (fill_after - B["fill"])
 
     st.subheader("Signings")
     sver = st.session_state.setdefault(f"sign_ver_{team}", 0)
     if st.button("Re-plan signings for the current budget", icon=":material/refresh:"):
         st.session_state[f"sign_ver_{team}"] = sver = sver + 1
-    plan_now = off.plan(R, budget_after, cap_m, max_n, qb_need=qb_need, include_flagged=flagged) if budget_after > 0 \
-        else R.iloc[0:0]
+    plan_now = off.plan(R, budget_after, cap_m, max_n, qb_need=qb_need, include_flagged=flagged, open_slots=n_open) \
+        if budget_after > 0 else R.iloc[0:0]
     pre = set(opt["signs"]) if opt and opt.get("sver") == sver else set(plan_now.pfr_id)  # re-plan -> greedy plan
     skey = f"sign_{team}_{ver}_{sver}"
     # rows stay fixed for this table: the plan, the top 60 by titles per dollar, and players off limits when it opened
@@ -511,6 +533,7 @@ if view == "Offseason plan":
                    + ". Off limits wins: not counted as signings.")
     P = Cand[(sign_ed["Do it"] & ~sign_ed["Off limits"]).to_numpy()]
     spend = P.cost_m.sum()
+    left = budget_after + min(len(P), n_open) * off.slot_credit(cap_m) - spend  # each signing takes a minimum-salary spot
     total, alone, odds = off.evaluate_moves(sit, arrays, cuts, restrs, P, exts=exts, detail=True, voids=voids, adj=team_adj,
                                             ext_voids=ext_voids & exts)
     with summary:
@@ -525,7 +548,8 @@ if view == "Offseason plan":
         k[2].metric("Signings (APY)", money(spend), f"{len(P)} players"
                     + (f", {n_dep} depend on the cap price" if n_dep else ", all firm" if len(P) else ""),
                     delta_color="off", help=FIRM_HELP)
-        k[3].metric("Left", money(budget_after - spend))
+        k[3].metric("Left", money(left), help="Budget after the cap moves, minus the signings' APY; each signing also "
+                    f"frees the minimum-salary spot (${off.slot_credit(cap_m):.2f}M) the budget had set aside for him")
         k[4].metric("Super Bowls added over 5 seasons", f"{total * 100:+.2f}%")
         t1, t2, t3 = st.columns([1, 1, 2])
         t1.metric(f"Expected titles, {SIGN_SEASON}-{SIGN_SEASON + 4}", f"{odds['after_exp'] * 100:.1f}% of one",
@@ -550,8 +574,8 @@ if view == "Offseason plan":
                    f"signings {alone['signings'] * 100:+.2f}% of a title; the total scores everything together on one "
                    "strength path. Not modeled: post-June 1 cuts, trades "
                    "(Trades view), re-signing our own free agents as such (they're in the signings list).")
-        if budget_after - spend < 0:
-            st.warning(f"Over the {SIGN_SEASON} cap by {money(spend - budget_after)}: free more room or drop a signing.")
+        if left < -0.05:
+            st.warning(f"Over the {SIGN_SEASON} cap by {money(-left)}: free more room or drop a signing.")
         if st.button("Reset to suggestions", icon=":material/restart_alt:"):
             st.session_state[f"plan_ver_{team}"] = ver + 1
             st.session_state.pop(f"opt_{team}", None)
