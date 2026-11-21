@@ -437,3 +437,12 @@ def predict_extension(pfr_ids, Y=vt.LAST + 2):
     F = F[F.grp.notna()]
     P = predict(ext_models(), F, EXT_SMEAR)
     return pd.concat([F[["pfr_id"]], P], axis=1).set_index("pfr_id")
+
+
+def predict_fa_price(pfr_ids, Y=vt.LAST + 2):
+    """What each player would get on the open market (the free-agent contract model, ufa = 1): APY share of cap and
+    guaranteed share. Used as the alternative to extending him: re-sign him at this price when his deal ends."""
+    F = features(list(pfr_ids), Y, 2)
+    F = F[F.grp.notna()]
+    P = predict(models(2), F, SMEAR[2])
+    return pd.concat([F[["pfr_id"]], P], axis=1).set_index("pfr_id")

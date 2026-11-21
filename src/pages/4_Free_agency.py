@@ -277,12 +277,45 @@ if view == "Offseason plan":
     sug_c, sug_r = off.suggest(T, B["budget"])
     ver = st.session_state.setdefault(f"plan_ver_{team}", 0)
     summary = st.container(border=True)
+    # signing candidates (independent of the toggles): the optimizer searches these, the signings table lists them
+    Cand_all = R[(R.titles > 0) & ~R.restricted & ((R.grp != "QB") | qb_need) &
+                 (flagged | ~R.note.str.contains("likely extended"))].copy()
+    Cand_all["cost_m"] = Cand_all.apy_pred * cap_m
+    Cand_all["per_10m"] = Cand_all.titles * 100 / Cand_all.cost_m * 10
+    opt = st.session_state.get(f"opt_{team}")
+    opt = opt if opt and opt.get("ver") == ver else None
+    with st.container(border=True):
+        o1, o2, o3 = st.columns([1, 1, 2], vertical_alignment="bottom")
+        max_r = o1.number_input("Most restructures", 0, 15, 3, key=f"opt_mr_{team}")
+        max_e = o2.number_input("Most extensions", 0, 10, 2, key=f"opt_me_{team}")
+        if o3.button("Find the best combination", type="primary", icon=":material/auto_awesome:", width="stretch"):
+            with st.spinner("Searching cuts, restructures, extensions and signings..."):
+                pool = pd.concat([Cand_all.sort_values("per_10m", ascending=False).head(40),
+                                  Cand_all.sort_values("titles", ascending=False).head(20)]).drop_duplicates("pfr_id")
+                b_s = B["budget"] + T[T.pfr_id.isin(sug_c)].saved_cut.sum() + T[T.pfr_id.isin(sug_r)].saved_restr.sum()
+                st_plan = off.plan(R, b_s, cap_m, max_n, qb_need=qb_need, include_flagged=flagged) if b_s > 0 else R.iloc[0:0]
+                start_ = {"act": {**{p_: "cut" for p_ in sug_c}, **{p_: "restr" for p_ in sug_r}},
+                          "signs": list(st_plan.pfr_id)}
+                res = off.optimize(sit, T, arrays, pool, B, len(picks_), cap_m, max_signings=max_n, start=start_,
+                                   max_restr=int(max_r), max_ext=int(max_e))
+            st.session_state[f"opt_{team}"] = {**res, "ver": ver + 1,
+                                               "sver": st.session_state.get(f"sign_ver_{team}", 0)}
+            st.session_state[f"plan_ver_{team}"] = ver + 1
+            st.rerun()
+        st.caption("Searches for the combination with the most titles within the budget: one action per player (keep, "
+                   "cut, restructure, extend), signings from the top candidates, position limits, eligibility; each "
+                   "action must add at least 0.02% of a title on its own. Extensions are judged against re-signing him "
+                   "later at the same price. The limits keep it from restructuring and extending everyone, which the "
+                   "model rewards (later seasons weigh less, and fairly priced deals add titles). Untested against past "
+                   "offseasons; it picks what the model is most optimistic about, so read its total as an upper end."
+                   + (" **Showing the optimizer's plan** (search score "
+                      f"{opt['titles'] * 100:+.2f}%; the total above re-scores it on fresh draws)." if opt else ""))
     money = lambda x: f"{'-' if x < 0 else ''}${abs(x):.1f}M"  # noqa: E731
 
     st.subheader("Cuts")
     Tc = T.assign(sug=T.pfr_id.isin(sug_c)).sort_values(["sug", "titles_cut"], ascending=False).reset_index(drop=True)
     cut_ed = st.data_editor(pd.DataFrame({
-        "Do it": Tc.sug, "Player": Tc.player, "Pos": Tc.grp, "Age": Tc.age.round(1), "Years left": Tc.years_left,
+        "Do it": Tc.pfr_id.map(lambda p_: opt["act"].get(p_) == "cut") if opt else Tc.sug, "Player": Tc.player, "Pos": Tc.grp, "Age": Tc.age.round(1), "Years left": Tc.years_left,
         f"{SIGN_SEASON} cap hit": Tc.cap_now, "Dead money": Tc.dead_cut, f"{SIGN_SEASON} saved": Tc.saved_cut,
         "Titles (%)": Tc.titles_cut * 100, "Suggested": np.where(Tc.sug, "yes", "")}),
         key=f"cuts_{team}_{ver}", hide_index=True, disabled=[c for c in ["Player", "Pos", "Age", "Years left",
@@ -302,7 +335,7 @@ if view == "Offseason plan":
     Tr = T[(T.years_left >= 2) & (T.saved_restr > 0.05)].assign(sug=lambda d: d.pfr_id.isin(sug_r))
     Tr = Tr.sort_values(["sug", "saved_restr"], ascending=False).reset_index(drop=True)
     restr_ed = st.data_editor(pd.DataFrame({
-        "Do it": Tr.sug, "Player": Tr.player, "Pos": Tr.grp, "Age": Tr.age.round(1), "Years left": Tr.years_left,
+        "Do it": Tr.pfr_id.map(lambda p_: opt["act"].get(p_) == "restr") if opt else Tr.sug, "Player": Tr.player, "Pos": Tr.grp, "Age": Tr.age.round(1), "Years left": Tr.years_left,
         "Salary converted": Tr.restr_amount, f"{SIGN_SEASON} saved": Tr.saved_restr,
         "Added each later year": Tr.later_restr, "Titles (%)": Tr.titles_restr * 100,
         "Suggested": np.where(Tr.sug, "yes", "")}),
@@ -320,7 +353,8 @@ if view == "Offseason plan":
     st.subheader("Extensions")
     Te = T[(T.ext_years > 0) & T.titles_ext.notna()].sort_values("titles_ext", ascending=False).reset_index(drop=True)
     ext_ed = st.data_editor(pd.DataFrame({
-        "Do it": np.zeros(len(Te), bool), "Player": Te.player, "Pos": Te.grp, "Age": Te.age.round(1),
+        "Do it": Te.pfr_id.map(lambda p_: opt["act"].get(p_) == "ext") if opt else np.zeros(len(Te), bool),
+        "Player": Te.player, "Pos": Te.grp, "Age": Te.age.round(1),
         "Years left": Te.years_left, "New years": Te.ext_years, "New APY": Te.ext_apy, "Guaranteed": Te.ext_gtd,
         f"{SIGN_SEASON} saved": Te.saved_ext, "Titles (%)": Te.titles_ext * 100}),
         key=f"ext_{team}_{ver}", hide_index=True, disabled=["Player", "Pos", "Age", "Years left", "New years",
@@ -363,14 +397,11 @@ if view == "Offseason plan":
         st.session_state[f"sign_ver_{team}"] = sver = sver + 1
     plan_now = off.plan(R, budget_after, cap_m, max_n, qb_need=qb_need, include_flagged=flagged) if budget_after > 0 \
         else R.iloc[0:0]
-    Cand = R[(R.titles > 0) & ~R.restricted & ((R.grp != "QB") | qb_need) &
-             (flagged | ~R.note.str.contains("likely extended"))].copy()
-    Cand["cost_m"] = Cand.apy_pred * cap_m
-    Cand["per_10m"] = Cand.titles * 100 / Cand.cost_m * 10
-    Cand = Cand.sort_values("per_10m", ascending=False)
-    Cand = pd.concat([Cand[Cand.pfr_id.isin(plan_now.pfr_id)], Cand[~Cand.pfr_id.isin(plan_now.pfr_id)].head(60)])
+    pre = set(opt["signs"]) if opt and opt.get("sver") == sver else set(plan_now.pfr_id)  # re-plan -> greedy plan
+    Cand = Cand_all.sort_values("per_10m", ascending=False)
+    Cand = pd.concat([Cand[Cand.pfr_id.isin(pre)], Cand[~Cand.pfr_id.isin(pre)].head(60)])
     sign_ed = st.data_editor(pd.DataFrame({
-        "Do it": Cand.pfr_id.isin(plan_now.pfr_id).to_numpy(), "Player": Cand.display_name.to_numpy(),
+        "Do it": Cand.pfr_id.isin(pre).to_numpy(), "Player": Cand.display_name.to_numpy(),
         "Pos": Cand.grp.to_numpy(), "Age": Cand.age.round(1).to_numpy(), "Predicted APY": Cand.cost_m.to_numpy(),
         "Yrs": Cand.yrs_pred.to_numpy(), "Titles (%)": (Cand.titles * 100).to_numpy(),
         "Per $10M": Cand.per_10m.to_numpy(), "Notes": Cand.note.to_numpy()}),
@@ -404,6 +435,7 @@ if view == "Offseason plan":
             st.warning(f"Over the {SIGN_SEASON} cap by {money(spend - budget_after)}: free more room or drop a signing.")
         if st.button("Reset to suggestions", icon=":material/restart_alt:"):
             st.session_state[f"plan_ver_{team}"] = ver + 1
+            st.session_state.pop(f"opt_{team}", None)
             st.rerun()
     st.subheader(f"Draft or free agency, by position (our first pick: #{picks_[0] if picks_ else '-'})")
     if picks_:

@@ -95,3 +95,14 @@ at.button(key=None) if False else None
 [b for b in at.button if b.label.startswith("Re-plan")][0].click().run()
 assert not at.exception, at.exception
 print("after re-plan:", {m.label: m.value for m in at.metric if m.label in ("Signings (APY)", "Left")})
+
+# 7. Optimizer: NE, find the best combination with default limits
+at = fresh()
+at.sidebar.selectbox[0].set_value("NE").run()
+at.segmented_control[0].set_value("Offseason plan").run()
+before = {m.label: m.value for m in at.metric}["Super Bowls added over 5 seasons"]
+[b for b in at.button if b.label.startswith("Find the best")][0].click().run()
+assert not at.exception, at.exception
+ms = {m.label: (m.value, m.delta) for m in at.metric}
+print("NE optimizer:", before, "->", ms["Super Bowls added over 5 seasons"][0], "|", ms["Cap moves free"], "|",
+      ms["Signings (APY)"], "| left", ms["Left"][0])

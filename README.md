@@ -4210,3 +4210,25 @@ titles and extending everyone looks good; (2) restructures look nearly free (lat
 for lost flexibility or player consent); (3) a QB extension is double counted against the situation's "QB second
 contract from season 2" shift, and "let his deal run out" means losing him for nothing while the baseline assumes he
 stays. Not shipped; needs constraints or model fixes first.
+
+### Extensions judged against re-signing later; optimizer on the page (Nov 20 2026)
+
+**Extension comparison** (`offseason.roster_moves`, arrays["ext_alt"]): an extension was credited with the player's
+whole value over a minimum-salary player in the new seasons, while "keep" meant losing him for nothing when his deal
+ends - but the team's baseline strength already assumes a player of his level stays. Now an extension is judged
+against keeping his deal and re-signing him for the same new seasons at the same predicted price and guarantees,
+without restructuring his current year: it's credited with what doing it now changes (his current salary spread over
+more seasons, more guaranteed money at risk). Same price on purpose - the free-agent model underprices young stars
+(Drake Maye: $35.0M open market vs $71.7M extension), so a price gap between the two models would be an artifact; the
+open-market price is kept (`ext_fa_apy`, `fa_market.predict_fa_price`) for information. A QB's second contract (already in
+the situation's shift) is now paid in both versions. NE: Milton Williams +0.20%, Barmore +0.18% (now his best option),
+Maye ~0 (almost no rookie salary to spread).
+
+**Optimizer** (`offseason.optimize`, "Find the best combination" on the Offseason plan view): local search over one
+action per player and signings from the top 60 candidates, within budget (signings count toward the 51), position caps
+and eligibility; each action must add >= 0.02% of a title alone; at most 3 restructures and 2 extensions by default
+(editable). Its result fills the tables; toggle from there; "Reset to suggestions" clears it. NE: +3.6% (suggestions) ->
++6.9% (cut Landry, Davis; extend Barmore, Williams; restructure Gonzalez, Doubs, Dre'Mont Jones; 8 signings; $0.4M left);
+search score 7.15 vs fresh draws 7.02 (small optimizer's curse). With no limits it restructures / extends nearly
+everyone (+8.0%): later seasons weigh less for NE and any fairly priced deal adds titles (value credited at 0.19, cap
+charged at 0.10) - the limits are judgment, not fitted. Untested against past offseasons.
