@@ -30,6 +30,10 @@ FEATS_STATS2 = FEATS_STATS1 + [f"s2_{c}" for c in STAT_COLS]
 # share of team games played, counting stats per 17 team games - for planning a year ahead (lag 2)
 PARTIAL_W = 11
 FEATS_PARTIAL = FEATS_BASE + ["p_share", "p_gp"] + [f"p_{c}" for c in STAT_COLS]
+# why he missed games (scripts/availability_split.py): last full season (i1 injured, h1 healthy no-play, o1 other) and,
+# planning a year ahead, the season in progress so far (pi, ph, po)
+FEATS_AVAIL1 = FEATS_BASE + ["i1", "h1", "o1"]
+FEATS_AVAIL2 = FEATS_PARTIAL + ["i1", "h1", "o1", "pi", "ph", "po"]
 FEATS = FEATS_BASE
 
 
@@ -229,6 +233,13 @@ def features(pfr_ids, Y, lag):
         vals = S.reindex(idx).fillna(0.0).to_numpy()
         for j, c in enumerate(STAT_COLS):
             d[f"{k}_{c}"] = vals[:, j]
+    Av = vt.availability(Y - lag)
+    d = d.join(Av.rename(columns={"a_inj": "i1", "a_healthy": "h1", "a_other": "o1"})[["i1", "h1", "o1"]], on="pfr_id")
+    if lag >= 2:
+        Ap = vt.availability(Y - 1, PARTIAL_W)
+        d = d.join(Ap.rename(columns={"a_inj": "pi", "a_healthy": "ph", "a_other": "po"})[["pi", "ph", "po"]], on="pfr_id")
+    else:
+        d[["pi", "ph", "po"]] = np.nan
     pcols = ["p_share", "p_gp"] + [f"p_{c}" for c in STAT_COLS]
     Pt = partial(Y - 1) if lag >= 2 else pd.DataFrame()
     if len(Pt):

@@ -328,3 +328,62 @@ def _curve():
     from simulate import league_params, load_schedules
     sched = load_schedules()
     return pv.strength_curve(sched, pd.read_parquet(RAW / "teams.parquet"), league_params(sched))
+
+
+# ---------------- why a player missed games (scripts/availability_split.py) ----------------
+INJ_CODES = {"R01", "R48", "R04", "R05"}  # injured reserve (incl. designated to return), PUP, non-football injury
+
+
+@lru_cache(maxsize=64)
+def availability(season, weeks=None):
+    """pfr_id -> a_play, a_inj, a_healthy, a_other: shares of his team's games (weeks 1..weeks) he played (any snaps),
+    missed injured (IR / PUP / NFI, or out / doubtful on the injury report), missed healthy (on the roster or practice
+    squad, no injury designation, no snaps), or other (suspended, other reserve lists, off the roster).
+    Weekly rosters and injury reports: nflverse, 2013-2026."""
+    import sys
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import roster_need as rn
+    ro = pd.read_parquet(RAW / "rosters_weekly.parquet")
+    ro = ro[(ro.season == season) & ro.pfr_id.notna()]
+    if weeks is not None:
+        ro = ro[ro.week <= weeks]
+    if ro.empty:
+        return pd.DataFrame(columns=["a_play", "a_inj", "a_healthy", "a_other"])
+    ro = ro.assign(team=ro.team.map(rn.team))
+    f = RAW / f"snap_counts_{season}.parquet"
+    sc = pd.read_parquet(f if f.exists() else RAW / "snap_counts.parquet")
+    sc = sc[(sc.game_type == "REG") & (sc.season == season)]
+    if weeks is not None:
+        sc = sc[sc.week <= weeks]
+    sc = sc.assign(team=sc.team.map(rn.team))
+    games = sc.groupby("team").week.agg(lambda w: set(w)).to_dict()  # weeks each team played
+    pct = sc[["offense_pct", "defense_pct", "st_pct"]].max(axis=1).astype(float)
+    played = set(zip(sc.pfr_player_id[pct > 0], sc.week[pct > 0]))
+    inj = pd.read_parquet(RAW / "injuries.parquet")
+    inj = inj[(inj.season == season) & inj.report_status.isin(["Out", "Doubtful"])]
+    g2p = dict(zip(ro.gsis_id, ro.pfr_id))
+    reported = {(g2p.get(g), int(w)) for g, w in zip(inj.gsis_id, inj.week)}
+    # one row per player-week: an active-roster row wins over others
+    rank = {"ACT": 0, "INA": 1, "RES": 2, "DEV": 3}
+    ro = ro.assign(r=ro.status.map(rank).fillna(9)).sort_values("r").drop_duplicates(["pfr_id", "week"])
+    main = ro.groupby("pfr_id").team.agg(lambda x: x.mode().iloc[0])
+    rows = []
+    for p, d in ro.groupby("pfr_id"):
+        wk = games.get(main[p], set())
+        if not wk:
+            continue
+        st = dict(zip(d.week, zip(d.status, d.status_description_abbr)))
+        n = {"play": 0, "inj": 0, "healthy": 0, "other": 0}
+        for w in wk:
+            s, code = st.get(w, (None, None))
+            if (p, w) in played:
+                n["play"] += 1
+            elif s == "RES" and code in INJ_CODES or (s in ("ACT", "INA") and (p, w) in reported):
+                n["inj"] += 1
+            elif s in ("ACT", "INA", "DEV"):
+                n["healthy"] += 1
+            else:
+                n["other"] += 1
+        tot = len(wk)
+        rows.append((p, n["play"] / tot, n["inj"] / tot, n["healthy"] / tot, n["other"] / tot))
+    return pd.DataFrame(rows, columns=["pfr_id", "a_play", "a_inj", "a_healthy", "a_other"]).set_index("pfr_id")

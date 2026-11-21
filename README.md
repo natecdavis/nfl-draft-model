@@ -4290,3 +4290,20 @@ to the totals**: the Offseason plan view lists our unrestricted free agents not 
 their predicted prices), the round each values to, which planned outside signings cancel which, and the projected picks'
 worth in titles (next year's picks of those rounds, typical slot). NE: 4 picks (rounds 4-7), ~+0.65% of a title; LA: 4
 (two 3rds, two 4ths: Dotson, Nacua, Byron Young, Davante Adams), ~+1.8%.
+
+### Why a player missed games: injured vs healthy (`scripts/availability_split.py`, `veteran.availability`, Nov 20 2026)
+
+Data added: nflverse weekly rosters 2013-2026 (wk 11) and injury reports (`data/raw/rosters_weekly.parquet`,
+`injuries.parquet`). Each team game a player missed is classed injured (IR / PUP / non-football injury, or out /
+doubtful on the injury report), healthy no-play (on the roster or practice squad, no snaps, no injury designation) or
+other (suspended, other reserve, off the roster). E.g. Harold Landry 2026 wk 1-11: 100% injured; Myles Garrett 70%.
+- Contract model (R2 / median miss): lag 1 0.626 / 30.9% -> 0.624 / 31.5%; lag 2 0.596 / 32.4% -> 0.598 / 32.3%;
+  forward lag 2 0.605 / 30.8% -> 0.609 / 30.7%. Not adopted (pre-set: better in all three).
+- Value forecast: season-2 RMSE 1.264 -> 1.263 (-0.001e-4, -0.005 to +0.003), season 3 unchanged. Not adopted.
+- The snap share / games played (both seasons) and the comps already carry most of it. Lead: the current forecast
+  overrates players who missed 25%+ of games healthy (benched, scratched, practice squad): actual / forecast season 2
+  0.77 (n 438) vs 0.97 for those who missed time injured and 0.96 for the rest; the split's linear shift doesn't fix it.
+  The market goes the other way at signing (those players got 1.13x the contract prediction). A group-specific
+  correction would need its own year-by-year test.
+Comp-pick late-signing proxy (first game with the new team after week 2 / 4, or played elsewhere first): matched
+54-57% vs 60% - worse (it also drops spring signings later traded, cut or hurt). Not adopted.
