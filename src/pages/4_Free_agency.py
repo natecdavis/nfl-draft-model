@@ -291,27 +291,20 @@ if view == "Offseason plan":
                      column_config={"cap_m": st.column_config.NumberColumn("cap hit ($M)", format="$%.1f")})
     R = ranked(start, tuple(sorted(sit["shift"].items())), sit["qb_from"], cap_price,
                team, need_on)
-    fa_names = dict(zip(R.pfr_id, R.display_name + " (" + R.grp + ", " + R.otc_team.fillna("FA").astype(str) + ")"))
-
-    def _save_off():
-        off.save_off_limits(team, [(p_, R.set_index("pfr_id").display_name.get(p_, p_))
-                                   for p_ in st.session_state[f"off_{team}"]])
-    off_lim = st.multiselect("Off limits: free agents who won't sign with us", list(fa_names),
-                             default=[p_ for p_ in off.load_off_limits(team) if p_ in fa_names],
-                             format_func=lambda p_: fa_names[p_], key=f"off_{team}", on_change=_save_off,
-                             placeholder="Type a name...",
-                             help="Left out of the suggested signings, the signings table and the optimizer. Saved "
-                                  f"for this team in inputs/{off.OFF_FILE.name}.")
-    R = R[~R.pfr_id.isin(off_lim)]
+    # free agents marked off limits for this team (the "Off limits" column in the signings table; saved per team)
+    off_set = set(off.load_off_limits(team))
+    R_all = R
+    R = R[~R.pfr_id.isin(off_set)]
     T, arrays = moves_for(team, start, tuple(sorted(sit["shift"].items())), sit["qb_from"], cap_m)
     sug_c, sug_r = off.suggest(T, B["budget"])
     ver = st.session_state.setdefault(f"plan_ver_{team}", 0)
     summary = st.container(border=True)
     # signing candidates (independent of the toggles): the optimizer searches these, the signings table lists them
-    Cand_all = R[(R.titles > 0) & ~R.restricted & ((R.grp != "QB") | qb_need) &
-                 (flagged | ~R.note.str.contains("likely extended"))].copy()
-    Cand_all["cost_m"] = Cand_all.apy_pred * cap_m
-    Cand_all["per_10m"] = Cand_all.titles * 100 / Cand_all.cost_m * 10
+    Cand_full = R_all[(R_all.titles > 0) & ~R_all.restricted & ((R_all.grp != "QB") | qb_need) &
+                      (flagged | ~R_all.note.str.contains("likely extended"))].copy()
+    Cand_full["cost_m"] = Cand_full.apy_pred * cap_m
+    Cand_full["per_10m"] = Cand_full.titles * 100 / Cand_full.cost_m * 10
+    Cand_all = Cand_full[~Cand_full.pfr_id.isin(off_set)]  # what the plan and the optimizer may sign
     opt = st.session_state.get(f"opt_{team}")
     opt = opt if opt and opt.get("ver") == ver else None
     with st.container(border=True):
@@ -454,23 +447,43 @@ if view == "Offseason plan":
     plan_now = off.plan(R, budget_after, cap_m, max_n, qb_need=qb_need, include_flagged=flagged) if budget_after > 0 \
         else R.iloc[0:0]
     pre = set(opt["signs"]) if opt and opt.get("sver") == sver else set(plan_now.pfr_id)  # re-plan -> greedy plan
-    Cand = Cand_all.sort_values("per_10m", ascending=False)
-    Cand = pd.concat([Cand[Cand.pfr_id.isin(pre)], Cand[~Cand.pfr_id.isin(pre)].head(60)])
+    skey = f"sign_{team}_{ver}_{sver}"
+    # rows stay fixed for this table: the plan, the top 60 by titles per dollar, and players off limits when it opened
+    shown_off = st.session_state.setdefault(f"{skey}_off", set(off_set))
+    Cand = Cand_full.sort_values("per_10m", ascending=False)
+    top = Cand[~Cand.pfr_id.isin(pre) & ~Cand.pfr_id.isin(shown_off)].head(60)
+    Cand = pd.concat([Cand[Cand.pfr_id.isin(pre)], top, Cand[Cand.pfr_id.isin(shown_off) & ~Cand.pfr_id.isin(pre)]])
     sign_ed = st.data_editor(pd.DataFrame({
-        "Do it": Cand.pfr_id.isin(pre).to_numpy(), "Player": Cand.display_name.to_numpy(),
+        "Do it": (Cand.pfr_id.isin(pre) & ~Cand.pfr_id.isin(off_set)).to_numpy(),
+        "Off limits": Cand.pfr_id.isin(off_set).to_numpy(), "Player": Cand.display_name.to_numpy(),
         "Pos": Cand.grp.to_numpy(), "Age": Cand.age.round(1).to_numpy(), "Predicted APY": Cand.cost_m.to_numpy(),
+        "Worth to us": (Cand.break_even * cap_m).to_numpy(),
         "Yrs": Cand.yrs_pred.to_numpy(), "Titles (%)": (Cand.titles * 100).to_numpy(),
         "Per $10M": Cand.per_10m.to_numpy(), "Notes": Cand.note.to_numpy()}),
-        key=f"sign_{team}_{ver}_{sver}", hide_index=True,
-        disabled=["Player", "Pos", "Age", "Predicted APY", "Yrs", "Titles (%)", "Per $10M", "Notes"],
+        key=skey, hide_index=True,
+        disabled=["Player", "Pos", "Age", "Predicted APY", "Worth to us", "Yrs", "Titles (%)", "Per $10M", "Notes"],
         column_config={"Do it": st.column_config.CheckboxColumn(width="small"),
+                       "Worth to us": st.column_config.NumberColumn(format="$%.1f",
+                           help="The most he's worth per year to us at his predicted years and guarantee share (adds "
+                                "titles up to this price)"),
+                       "Off limits": st.column_config.CheckboxColumn(width="small",
+                           help="Won't sign with us: never counted as a signing, left out of re-plans and the "
+                                f"optimizer. Saved for this team in inputs/{off.OFF_FILE.name}."),
                        "Predicted APY": st.column_config.NumberColumn(format="$%.1f"),
                        "Titles (%)": st.column_config.NumberColumn(format="%+.2f"),
                        "Per $10M": st.column_config.NumberColumn(format="%.2f", help="% of a title per $10M of APY")})
     st.caption("Checked at first: the greedy plan for the budget after the suggested moves (best titles per dollar, at "
                "most 2 at OL / DB / WR / DL and 1 elsewhere). Toggle anything; 'Re-plan' redoes it for the budget after "
                "your current cuts and restructures. Predicted prices miss by ~37% either way.")
-    P = Cand[sign_ed["Do it"].to_numpy()]
+    marked = set(Cand.pfr_id[sign_ed["Off limits"].to_numpy()]) | (off_set - set(Cand.pfr_id))
+    if marked != off_set:  # save, then rerun so the plan and the optimizer leave them out
+        off.save_off_limits(team, [(p_, R_all.set_index("pfr_id").display_name.get(p_, p_)) for p_ in sorted(marked)])
+        st.rerun()
+    both_ = Cand[(sign_ed["Do it"] & sign_ed["Off limits"]).to_numpy()]
+    if len(both_):
+        st.warning("Checked to sign but marked off limits: " + ", ".join(both_.display_name)
+                   + ". Off limits wins: not counted as signings.")
+    P = Cand[(sign_ed["Do it"] & ~sign_ed["Off limits"]).to_numpy()]
     spend = P.cost_m.sum()
     total, alone, odds = off.evaluate_moves(sit, arrays, cuts, restrs, P, exts=exts, detail=True, voids=voids, adj=team_adj,
                                             ext_voids=ext_voids & exts)
@@ -515,7 +528,7 @@ if view == "Offseason plan":
             st.session_state.pop(f"opt_{team}", None)
             st.rerun()
     st.subheader(f"Compensatory picks in {SIGN_SEASON + 1} (estimate, not in the totals)")
-    picks_c, cancelled_c, lost_c = off.comp_estimate(team, R, P, cap_m)
+    picks_c, cancelled_c, lost_c = off.comp_estimate(team, R_all, P, cap_m)  # off-limits own FAs still leave
     if len(lost_c) == 0:
         st.caption("None of our own unrestricted free agents would qualify if they left (their predicted contracts are "
                    "too small).")

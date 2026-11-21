@@ -4322,3 +4322,15 @@ backup QBs (Anthony Richardson, Davis Mills, Mac Jones, Joe Flacco).
 Optimizer restructure limit default (Nov 20 2026): 2 for teams with cap room before moves, 3 when over the cap.
 Per team-year 2018-25 (OTC): extensions mean 2.3, median 2, 90th percentile 4; restructures (proxy: in-contract bonus
 jumps > $1M; undercounts) mean 1.4, median 1, 90th percentile 3.
+
+**Signings table: "Off limits" and "Worth to us" columns; current teams from weekly rosters** (Nov 20 2026).
+- The off-limits search box is gone: the Signings table has an "Off limits" checkbox right after "Do it". Marked
+  players stay listed (so they can be unmarked), are never counted as signings (off limits wins over "Do it", with a
+  warning), and are left out of re-plans and the optimizer; saved per team in `inputs/off_limits_2027.csv` as before. Own
+  free agents marked off limits still count as departures in the comp-pick estimate.
+- "Worth to us" (the most he's worth per year to the team at his predicted years and guarantee share) added after
+  Predicted APY, as in the ranked list.
+- Bug fixed: a free agent's team came from OTC's multi-team strings ("SF/NE", "HOU/NE"), whose order isn't reliable, so
+  Keion White, Jake Andrews and Kayshon Boutte (now SF, HOU, HOU) were counted as NE free agents. `fa_market.under_contract`
+  now takes the team from the latest weekly roster (2026 wk 11), then OTC's season history, then the string. Affects the
+  ranked list's team column, own free agents, the own-FA baseline adjustment, the comp-pick estimate and trade rosters.

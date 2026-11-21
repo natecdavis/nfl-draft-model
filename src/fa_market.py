@@ -118,12 +118,25 @@ def under_contract(season):
     sn = pd.read_parquet(f if f.exists() else RAW / "snap_counts.parquet", columns=["season", "player", "pfr_player_id", "team"])
     sn = sn[sn.season == season - 1].assign(team=lambda d: d.team.map(rn.team)).drop_duplicates(["player", "team"])
     by_name = {(nm, tm): p for nm, tm, p in zip(sn.player, sn.team, sn.pfr_player_id)}
+    # current team: the latest weekly roster first (OTC's multi-team strings like "SF/NE" have no reliable order -
+    # Keion White, Jake Andrews and Kayshon Boutte were read as NE), then OTC's season history, then the string
+    rw = RAW / "rosters_weekly.parquet"
+    latest = {}
+    if rw.exists():
+        ro = pd.read_parquet(rw, columns=["season", "week", "team", "pfr_id", "gsis_id"])
+        ro = ro[ro.season == season - 1].sort_values("week")
+        latest = {**dict(zip(ro.gsis_id, ro.team.map(rn.team))), **dict(zip(ro.pfr_id, ro.team.map(rn.team)))}
     rows = []
     for nm, g, pos, team, ys, yrs, sh, ch in zip(act.player, act.gsis_id, act.position, act.team, act.year_signed,
                                                   act.years, act.season_history, act.contract_history):
         end = fresh_deal_end(ch)
         years_rows = [x for x in (sh if sh is not None else []) if str(x.get("year", "")).isdigit()]
-        cur_team = to_abbr(str(team).split("/")[-1])
+        cur_team = to_abbr(str(team).split("/")[0])
+        prev = [x for x in years_rows if int(x["year"]) == season - 1 and x.get("team")]
+        if prev:
+            cur_team = to_abbr(prev[0]["team"])
+        if g in latest:
+            cur_team = latest[g]
         if years_rows:
             nxt = [x for x in years_rows if int(x["year"]) == season]
             signed = bool(nxt) and real_season(nxt[0], end)
@@ -132,6 +145,8 @@ def under_contract(season):
         else:
             signed = pd.notna(ys) and pd.notna(yrs) and ys + yrs - 1 >= season
         pfr = g2p.get(g) or by_name.get((nm, cur_team))
+        if not signed and pfr in latest:  # a free agent belongs to the team he's on now
+            cur_team = latest[pfr]
         rows.append((pfr, nm, cur_team, OTC_TO_G.get(pos), bool(signed), not years_rows))
     return pd.DataFrame(rows, columns=["pfr_id", "player", "team", "g", "signed", "no_history"])
 
