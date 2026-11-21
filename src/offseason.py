@@ -233,6 +233,7 @@ def roster_moves(team, sit, cap0, n=4000, seed=0):
         # SIGN_SEASON base above the minimum turned into a bonus spread over all seasons in the window (the usual way
         # an extension lowers the current cap hit)
         extp, ext_alt, e_apy, e_gtd, e_saved, e_later, e_fa_apy = None, None, 0.0, 0.0, 0.0, 0.0, 0.0
+        ext_v, ev_saved, ev_dead = None, 0.0, 0.0
         if n_new and n_tot > yrs:
             e_apy = float(ext.apy_pred)
             m_new = n_tot - yrs
@@ -248,6 +249,24 @@ def roster_moves(team, sit, cap0, n=4000, seed=0):
             extra = np.array([pro_new[t:].sum() + c["void_pro"] for t in range(n_tot)])
             extp = pts_for(cost_y, extra, gtd_y)
             e_gtd, e_saved, e_later = g_total, conv - per_c, per_c
+            # with void years: when the extended contract is shorter than 5 seasons (current + new), the converted
+            # salary is spread over 5 instead, void years filling the gap; at the end of the real contract the proration
+            # left on the void years lands as dead money the next season
+            n_real = yrs + n_new
+            if n_real < 5:
+                per_v = conv / 5
+                vleft = per_v * (5 - n_real)
+                cy = np.concatenate([c["keep_cost"], np.full(m_new, e_apy)])
+                cy[0] -= conv - per_v
+                cy[1:] += per_v
+                pv_ = np.concatenate([c["pro"], np.zeros(m_new)]) + per_v
+                xv = np.array([pv_[t:].sum() + c["void_pro"] + vleft for t in range(n_tot)])
+                val, cost, on = vt.team_seasons_sched(V[:, :n_tot], cy, gtd_y, xv)
+                ext_v = np.zeros((len(V), 5))
+                ext_v[:, :n_tot] = vt.points(val, S[:, :n_tot], cost, on, qb)
+                if n_tot < 5:
+                    ext_v[:, n_tot] -= np.where(on[:, -1], COST_RATE * vleft * 100, 0.0)
+                ev_saved, ev_dead = conv - per_v, vleft
             # the alternative an extension is judged against: keep his deal, then re-sign him for the same new seasons
             # at the same predicted price and guarantees, without restructuring his current year. The baseline strength
             # already assumes a player of his level stays, so an extension is credited only with what doing it now
@@ -264,7 +283,8 @@ def roster_moves(team, sit, cap0, n=4000, seed=0):
         idx = rng.integers(0, len(keep), n)
         # the team's baseline strength already includes him as he is: a move adds only its change (new - keep)
         alone = lambda new: float((sb(base + new[idx] - keep[idx]) - sb(base)).sum(axis=1).mean())  # noqa: E731
-        arrays[r.pfr_id] = {"keep": keep, "cut": cut, "restr": restr, "restr_v": restr_v, "ext": extp, "ext_alt": ext_alt}
+        arrays[r.pfr_id] = {"keep": keep, "cut": cut, "restr": restr, "restr_v": restr_v, "ext": extp, "ext_v": ext_v,
+                            "ext_alt": ext_alt}
         rows.append({"pfr_id": r.pfr_id, "player": r.player, "grp": pl["grp"], "age": pl["age"] + SKIP,
                      "years_left": yrs, "cap_now": c["keep_cost"][0] * cap0, "dead_cut": dead * cap0,
                      "saved_cut": (c["keep_cost"][0] - dead) * cap0, "titles_cut": alone(cut), "renegotiable": r.pfr_id not in too_early,
@@ -276,7 +296,9 @@ def roster_moves(team, sit, cap0, n=4000, seed=0):
                      "saved_ext": e_saved * cap0, "later_ext": e_later * cap0,
                      "ext_fa_apy": e_fa_apy * cap0,
                      # extension vs re-signing him later at the free-agent price (both relative to keeping him as is)
-                     "titles_ext": (alone(extp) - alone(ext_alt)) if extp is not None else np.nan})
+                     "titles_ext": (alone(extp) - alone(ext_alt)) if extp is not None else np.nan,
+                     "saved_ext_v": ev_saved * cap0, "void_dead_ext": ev_dead * cap0,
+                     "titles_ext_v": (alone(ext_v) - alone(ext_alt)) if ext_v is not None else np.nan})
     return pd.DataFrame(rows), arrays
 
 
@@ -295,7 +317,7 @@ def suggest(T, base_budget):
     return cuts, restr
 
 
-def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1, exts=(), detail=False, voids=()):
+def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1, exts=(), detail=False, voids=(), ext_voids=()):
     """Titles added (share of one) by doing all the moves together, and by each kind alone. detail=True also returns
     the team's title odds before and after: expected titles over the 5 seasons, chance of at least one, by season."""
     import pick_value as pv
@@ -314,7 +336,8 @@ def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1, exts=(), detai
         # an extension is judged against re-signing him later at the free-agent price, the others against keeping him
         k = a["ext_alt"][idx] if kind == "extensions" else a["keep"][idx]
         rkey = "restr_v" if (p in voids or a["restr"] is None) else "restr"  # void-year version where chosen / only one
-        new = a["cut"][idx] if kind == "cuts" else (a["ext"][idx] if kind == "extensions" else a[rkey][idx])
+        ekey = "ext_v" if (p in ext_voids and a.get("ext_v") is not None) else "ext"
+        new = a["cut"][idx] if kind == "cuts" else (a[ekey][idx] if kind == "extensions" else a[rkey][idx])
         after += new - k  # baseline strength already includes him as he is
         parts[kind] += new - k
     for r in P.itertuples():
@@ -377,9 +400,10 @@ def optimize(sit, T, arrays, Cand, B, n_picks, cap0, max_signings=8, start=None,
         k = a["keep"][idx]
         for act, key, sv, tcol in (("cut", "cut", "saved_cut", "titles_cut"), ("restr", "restr", "saved_restr", "titles_restr"),
                                    ("restr_v", "restr_v", "saved_restr_v", "titles_restr_v"),
-                                   ("ext", "ext", "saved_ext", "titles_ext")):
+                                   ("ext", "ext", "saved_ext", "titles_ext"),
+                                   ("ext_v", "ext_v", "saved_ext_v", "titles_ext_v")):
             if a.get(key) is not None and p in Tm.index and float(Tm.at[p, tcol]) >= min_gain:
-                ref = a["ext_alt"][idx] if act == "ext" else k
+                ref = a["ext_alt"][idx] if act in ("ext", "ext_v") else k
                 D[(p, act)] = a[key][idx] - ref
                 saved[(p, act)] = float(Tm.at[p, sv])
     Cand = Cand.drop_duplicates("pfr_id").set_index("pfr_id")
@@ -400,7 +424,7 @@ def optimize(sit, T, arrays, Cand, B, n_picks, cap0, max_signings=8, start=None,
         if len(signs) > max_signings or budget_left(act, signs) < -1e-9:
             return False
         kinds = list(act.values())
-        if kinds.count("restr") + kinds.count("restr_v") > max_restr or kinds.count("ext") > max_ext:
+        if kinds.count("restr") + kinds.count("restr_v") > max_restr or kinds.count("ext") + kinds.count("ext_v") > max_ext:
             return False
         cnt = {}
         for p in signs:
@@ -425,7 +449,7 @@ def optimize(sit, T, arrays, Cand, B, n_picks, cap0, max_signings=8, start=None,
         best = (cur, None)
         cands = []
         for p in players:
-            for v in ("keep", "cut", "restr", "restr_v", "ext"):
+            for v in ("keep", "cut", "restr", "restr_v", "ext", "ext_v"):
                 if v == act.get(p, "keep") or (v != "keep" and (p, v) not in D):
                     continue
                 a2 = dict(act)

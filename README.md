@@ -4247,3 +4247,10 @@ optimizer may use either (counted toward its restructure limit). NE: Milton Will
 +0.22%, $11.9M dead when it voids); optimizer +6.9% -> +7.4% with 2 void-year restructures. The void version always
 scores better (later seasons weigh less), and carrying dead money forward has no cost beyond its cap charge: read the
 gain as the model's timing view.
+**Void-year extensions** (Nov 20 2026; arrays["ext_v"], `evaluate_moves(ext_voids=)`): when the extended contract
+(current + new seasons) is shorter than 5 seasons, the converted 2027 salary can be spread over 5, void years filling
+the gap; the proration on the void years lands as dead money the season after the real contract ends. Extensions table:
+"Void years" checkbox and both versions' numbers (blank when the contract already reaches 5). Optimizer: counted toward
+its extension limit. NE: Milton Williams $14.9M -> $15.9M freed ($4.0M dead when it voids), Harold Landry $7.9M -> $9.5M;
+small gains, since an extension already spreads most of the salary. Optimizer +7.3% (local search: adding options can
+move where it stops by a few hundredths).
