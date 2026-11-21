@@ -416,7 +416,7 @@ if view == "Offseason plan":
                "your current cuts and restructures. Predicted prices miss by ~37% either way.")
     P = Cand[sign_ed["Do it"].to_numpy()]
     spend = P.cost_m.sum()
-    total, alone = off.evaluate_moves(sit, arrays, cuts, restrs, P, exts=exts)
+    total, alone, odds = off.evaluate_moves(sit, arrays, cuts, restrs, P, exts=exts, detail=True)
     with summary:
         st.markdown("**This offseason, as toggled below**")
         k = st.columns(5)
@@ -426,6 +426,22 @@ if view == "Offseason plan":
         k[2].metric("Signings (APY)", money(spend), f"{len(P)} players", delta_color="off")
         k[3].metric("Left", money(budget_after - spend))
         k[4].metric("Super Bowls added over 5 seasons", f"{total * 100:+.2f}%")
+        t1, t2, t3 = st.columns([1, 1, 2])
+        t1.metric(f"Expected titles, {SIGN_SEASON}-{SIGN_SEASON + 4}", f"{odds['after_exp'] * 100:.1f}% of one",
+                  f"{(odds['after_exp'] - odds['before_exp']) * 100:+.1f} from {odds['before_exp'] * 100:.1f}% before moves",
+                  help="The five seasons' title chances added up (expected Super Bowls x 100)")
+        t2.metric("Chance of at least one title", f"{odds['after_any'] * 100:.1f}%",
+                  f"{(odds['after_any'] - odds['before_any']) * 100:+.1f} from {odds['before_any'] * 100:.1f}%",
+                  help="Slightly below expected titles: two titles in one future count twice there")
+        t3.dataframe(pd.DataFrame({"season": [str(SIGN_SEASON + i) for i in range(5)],
+                                   "before moves": odds["before_season"] * 100,
+                                   "after moves": odds["after_season"] * 100}).set_index("season").T,
+                     width="stretch", alt="Title chance by season before and after the moves",
+                     column_config={str(SIGN_SEASON + i): st.column_config.NumberColumn(format="%.1f%%")
+                                    for i in range(5)})
+        st.caption("Before moves = the team as it stands (strength from the betting market, QB situation from the "
+                   "sidebar), drifting toward average. The added titles are an upper end for an optimized plan: it "
+                   "picks what the model is most optimistic about.")
         st.caption(f"Each kind alone: cuts {alone['cuts'] * 100:+.2f}%, restructures {alone['restructures'] * 100:+.2f}%, "
                    f"extensions {alone['extensions'] * 100:+.2f}%, "
                    f"signings {alone['signings'] * 100:+.2f}% of a title; the total scores everything together on one "

@@ -4232,3 +4232,8 @@ and eligibility; each action must add >= 0.02% of a title alone; at most 3 restr
 search score 7.15 vs fresh draws 7.02 (small optimizer's curse). With no limits it restructures / extends nearly
 everyone (+8.0%): later seasons weigh less for NE and any fairly priced deal adds titles (value credited at 0.19, cap
 charged at 0.10) - the limits are judgment, not fitted. Untested against past offseasons.
+**Title odds on the plan** (Nov 20 2026): the workbench summary now shows the team's title odds before and after the
+checked moves, from the same simulation that scores them (`offseason.evaluate_moves(detail=True)`): expected titles over
+2027-31 (the five seasons' chances added up), chance of at least one title, and each season's chance. NE, suggested
+moves: expected titles 6.9% -> 10.4% of one; at least one title 6.5% -> 9.7%; 2027 2.0% -> 4.6% (the gain lands where
+the team is strongest and the signings are best). For an optimized plan the gain is an upper end.

@@ -274,8 +274,9 @@ def suggest(T, base_budget):
     return cuts, restr
 
 
-def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1, exts=()):
-    """Titles added (share of one) by doing all the moves together, and by each kind alone."""
+def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1, exts=(), detail=False):
+    """Titles added (share of one) by doing all the moves together, and by each kind alone. detail=True also returns
+    the team's title odds before and after: expected titles over the 5 seasons, chance of at least one, by season."""
     import pick_value as pv
     rng = np.random.default_rng(seed)
     base = pv.baseline_paths(sit, rng, n)
@@ -307,7 +308,14 @@ def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1, exts=()):
         parts["signings"] += d
     total = float((sb(base + after) - sb(base + before)).sum(axis=1).mean())
     alone = {k: float((sb(base + v) - sb(base)).sum(axis=1).mean()) for k, v in parts.items()}
-    return total, alone
+    if not detail:
+        return total, alone
+    p0, p1 = sb(base + before), sb(base + after)
+    info = {"before_exp": float(p0.sum(axis=1).mean()), "after_exp": float(p1.sum(axis=1).mean()),
+            "before_any": float((1 - np.prod(1 - p0, axis=1)).mean()),
+            "after_any": float((1 - np.prod(1 - p1, axis=1)).mean()),
+            "before_season": p0.mean(axis=0), "after_season": p1.mean(axis=0)}
+    return total, alone, info
 
 
 # ---------------- optimizer: best combination of cuts, restructures, extensions and signings ----------------
