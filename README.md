@@ -4307,3 +4307,10 @@ other (suspended, other reserve, off the roster). E.g. Harold Landry 2026 wk 1-1
   correction would need its own year-by-year test.
 Comp-pick late-signing proxy (first game with the new team after week 2 / 4, or played elsewhere first): matched
 54-57% vs 60% - worse (it also drops spring signings later traded, cut or hurt). Not adopted.
+
+**Healthy-absence correction** (`scripts/healthy_absence_test.py`). Production forecast, 4000 anchors 2014-24; group =
+missed 25%+ of team games healthy (last season or season so far; 491, 12%; mean forecast 0.56% of cap vs 1.28%).
+Factors fit leaving the anchor's season out. Group factor: group actual / forecast 0.75 -> 1.00, others 0.96 unchanged,
+but season-2 RMSE 1.264 -> 1.265 (+0.004e-4, -0.018 to +0.036); slope on the share: 1.267. Season 3 the same. Not adopted
+(pre-set: RMSE gain). The over-forecast sits mostly with players who sat out nearly all season healthy (0.46, n 169;
+25-50% 0.85, 50-75% 0.97) - fringe players whose small forecasts barely move overall error.
