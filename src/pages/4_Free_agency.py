@@ -713,10 +713,65 @@ apy_m = k2.number_input("Average per year ($M)", 0.5, 80.0, round(float(apy0), 1
 g0 = pred.gshare_pred * apy_m * years if pred is not None else apy_m * min(years, 2)
 gtd_m = k3.number_input("Guaranteed ($M, assumed paid first)", 0.0, 400.0, round(float(g0), 1), 0.5)
 apy, gtd = apy_m / cap_m, gtd_m / cap_m
+
+
+def default_structure(preset, years, apy_m, gtd_m, bonus_m):
+    """Base salary and its guaranteed part by season, keeping total cash = APY x years and total guarantees (bonus
+    included) = gtd_m. Flat: equal base; rising: base grows ~30% of the average a season; front-loaded: falls ~20%."""
+    slope = {"Flat": 0.0, "Signing bonus + rising salaries": 0.3, "Front-loaded": -0.2}[preset]
+    w = np.clip(np.array([1 + slope * (t - (years - 1) / 2) for t in range(years)]), 0.2, None)
+    base = max(apy_m * years - bonus_m, 0.0) * w / w.sum()
+    left, gb = max(gtd_m - bonus_m, 0.0), []
+    for b in base:
+        g = min(left, b)
+        gb.append(g)
+        left -= g
+    return base, np.array(gb)
+
+
+sched = sched_flat = None
+structured = st.toggle("Set the structure: signing bonus, salary by season, void years", value=False,
+                       help="Cap hits by season instead of a flat APY with guarantees paid first. Dollars become shares "
+                            f"of each season's cap (growing {vtr.CAP_GROWTH - 1:.0%} a year).")
+if structured:
+    q1, q2, q3 = st.columns(3)
+    preset = q1.selectbox("Start from", ["Signing bonus + rising salaries", "Front-loaded", "Flat"])
+    bonus0 = 0.0 if preset == "Flat" else round(min(gtd_m, apy_m * years) * (0.5 if preset != "Front-loaded" else 0.3), 1)
+    bonus_m = q2.number_input("Signing bonus ($M)", 0.0, 400.0, bonus0, 0.5,
+                              key=f"bonus_{preset}_{years}_{apy_m}_{gtd_m}",
+                              help="Paid at signing, fully guaranteed, charged to the cap evenly over the contract's "
+                                   f"seasons plus void years (at most {vt.MAX_PRORATION}).")
+    void = q3.number_input("Void years", 0, max(vt.MAX_PRORATION - int(years), 0), 0,
+                           help="Seasons added only to spread the bonus: lower cap hits now; the proration left on them "
+                                "becomes dead money the season after the real contract ends.")
+    base0, gb0 = default_structure(preset, int(years), apy_m, gtd_m, bonus_m)
+    ed = st.data_editor(pd.DataFrame({"Season": [str(SIGN_SEASON + t) for t in range(int(years))],
+                                      "Base salary ($M)": base0.round(1), "Guaranteed base ($M)": gb0.round(1)}),
+                        hide_index=True, disabled=["Season"], key=f"struct_{preset}_{years}_{apy_m}_{gtd_m}_{bonus_m}",
+                        column_config={c: st.column_config.NumberColumn(format="$%.1f", min_value=0.0)
+                                       for c in ["Base salary ($M)", "Guaranteed base ($M)"]})
+    base_m = ed["Base salary ($M)"].fillna(0).to_numpy(float)
+    gb_m = np.minimum(ed["Guaranteed base ($M)"].fillna(0).to_numpy(float), base_m)
+    sched = vt.structure(base_m, gb_m, bonus_m, void, cap_m, vtr.CAP_GROWTH)
+    cash, gtd_tot = bonus_m + base_m.sum(), bonus_m + gb_m.sum()
+    # the same money paid flat (equal base, guarantees first, no bonus), same cap growth: isolates the structure
+    fb, fg = default_structure("Flat", int(years), cash / years, gtd_tot, 0.0)
+    sched_flat = vt.structure(fb, fg, 0.0, 0, cap_m, vtr.CAP_GROWTH)
+    hits = sched["cost_y"] * cap_m * vtr.CAP_GROWTH ** np.arange(int(years))
+    st.caption(f"Total ${cash:.1f}M (${cash / years:.1f}M / yr), guaranteed ${gtd_tot:.1f}M. Cap hits: "
+               + ", ".join(f"{SIGN_SEASON + t} ${h:.1f}M ({c * 100:.1f}%)" for t, (h, c) in enumerate(zip(hits, sched["cost_y"])))
+               + (f"; void-year dead money {SIGN_SEASON + int(years)} ${sched['void_dead'] * cap_m * vtr.CAP_GROWTH ** int(years):.1f}M"
+                  if void and int(years) < 5 else "")
+               + ". Cut before a season: the guaranteed base left plus all remaining bonus proration.")
+    if abs(cash - apy_m * years) > 0.5 or abs(gtd_tot - gtd_m) > 0.5:
+        st.caption(f"The structure differs from the APY / guarantee inputs above (${apy_m * years:.1f}M, "
+                   f"${gtd_m:.1f}M); the structure is used.")
+    apy_m, gtd_m = cash / years, gtd_tot
+    apy, gtd = apy_m / cap_m, gtd_m / cap_m
 comp_age = vt.comps().comp_age(player, need=int(years) + SKIP)
 if age - SKIP - comp_age > 1.5:
     st.warning(f"Few past players this old: his comparable players averaged {comp_age + SKIP:.0f}. The forecast "
-               "likely runs high (players 31+ were already over-forecast by ~10-20% from the third season on).")
+               "likely runs high.")
 if p is not None and fm.healthy_absence([p.pfr_id]).iloc[0] >= fm.HEALTHY_FLAG:
     st.warning(f"{p.display_name} sat out most of a season healthy ({vt.LAST} or {vt.LAST + 1} so far: a backup who "
                "didn't play, benched, scratched or on the practice squad). Players like that delivered about half their forecast "
@@ -739,10 +794,10 @@ if room_row is not None and grp in room_row:
                f"share so far: {listed or 'nobody'})." + (f" Experimental depth factor on his value: x{nf:.2f}." if need_on else ""))
     if nf != 1.0:
         paths = (paths[0] * nf, paths[1])
-r = vt.evaluate(sit, player, int(years), apy, gtd, cap_price=cap_price, paths=paths, adj=team_adj)
+r = vt.evaluate(sit, player, int(years), apy, gtd, cap_price=cap_price, paths=paths, adj=team_adj, sched=sched)
 be = vt.break_even(sit, player, int(years), gtd / max(apy * years, 1e-9), skip=SKIP, cap_price=cap_price, paths=paths,
                    adj=team_adj)
-r_s = vt.evaluate(sit, player, int(years), apy, gtd, cost_rate=fm.STRICT_RATE, paths=paths, adj=team_adj)
+r_s = vt.evaluate(sit, player, int(years), apy, gtd, cost_rate=fm.STRICT_RATE, paths=paths, adj=team_adj, sched=sched)
 be_s = vt.break_even(sit, player, int(years), gtd / max(apy * years, 1e-9), skip=SKIP, paths=paths, adj=team_adj,
                      cost_rate=fm.STRICT_RATE)
 robust = str(fm.robust_label([r["titles_added"]], [r_s["titles_added"]])[0])
@@ -750,7 +805,7 @@ robust = str(fm.robust_label([r["titles_added"]], [r_s["titles_added"]])[0])
 m1, m2, m3 = st.columns(3)
 m1.metric("Super Bowls added over 5 seasons", f"{r['titles_added'] * 100:+.2f}% of one title")
 gap = (be - apy) * cap_m
-m2.metric("Worth signing up to (same guarantee share)", f"${be * cap_m:.1f}M / yr",
+m2.metric("Worth signing up to (same guarantee share" + (", flat contract)" if structured else ")"), f"${be * cap_m:.1f}M / yr",
           f"${abs(gap):.1f}M {'of room under' if gap >= 0 else 'too much in'} this offer",
           delta_color="normal" if gap >= 0 else "inverse")
 # value per dollar of pay, against past free agents at the same price (scripts/vet_value.py: value with the team /
@@ -766,11 +821,19 @@ s1.metric("Cap price verdict", robust, help=FIRM_HELP, border=False)
 s2.metric(f"Super Bowls added, strict cap charge ({fm.STRICT_RATE:.2f})", f"{r_s['titles_added'] * 100:+.2f}% of one title")
 s3.metric("Worth signing up to, strict cap charge", f"${be_s * cap_m:.1f}M / yr",
           f"breaks even at $1.00 of value per $1 for non-QBs" if grp != "QB" else "QB: value rate 0.34", delta_color="off")
+if structured:
+    r_f = vt.evaluate(sit, player, int(years), apy, gtd, cap_price=cap_price, paths=paths, adj=team_adj, sched=sched_flat)
+    dlt = (r["titles_added"] - r_f["titles_added"]) * 100
+    st.metric("This structure vs the same money paid flat", f"{dlt:+.2f}% of a title",
+              f"flat: {r_f['titles_added'] * 100:+.2f}%", delta_color="off",
+              help="Same total cash and guarantees, equal base salaries, guarantees paid first, no bonus, same cap "
+                   "growth. Moving cap into later seasons helps when we're stronger now than later (title odds rise "
+                   "faster at the top), and costs a team whose good seasons are ahead.")
 if robust == "depends":
     st.info(f"This signing adds titles only at the model's cap charge (0.10). If the cap it uses would otherwise buy "
             f"value at fair prices, it costs titles: worth it up to ${be_s * cap_m:.1f}M / yr on that view.")
 
-seasons = list(range(SIGN_SEASON, SIGN_SEASON + int(years)))
+seasons = [str(SIGN_SEASON + t) + (" (void)" if t >= int(years) else "") for t in range(len(r["value"]))]
 lo, med, hi = r["value_pct"]
 T = pd.DataFrame({"season": seasons, "still on roster": r["on_team"], "expected value ($M)": r["value"] * cap_m,
                   "range 10-90% ($M)": [f"{a * cap_m:.1f} - {b * cap_m:.1f}" for a, b in zip(lo, hi)],
@@ -789,6 +852,7 @@ name = p.display_name if p is not None else f"Custom {grp}, {age:.0f}"
 if st.button("Add this signing to the comparison"):
     st.session_state.fa_compare.append({
         "player": name, "pos": grp, "years": int(years), "APY $M": apy_m, "guaranteed $M": gtd_m,
+        "structure": (f"bonus ${bonus_m:.0f}M" + (f" + {void} void" if void else "")) if structured else "flat",
         "titles added %": r["titles_added"] * 100, "titles, strict cap %": r_s["titles_added"] * 100,
         "cap price": robust, "per $10M of APY": r["titles_added"] * 100 / apy_m * 10,
         "worth up to $M/yr": be * cap_m, "scenario": cap_price})
@@ -815,5 +879,10 @@ with st.expander("How this works and how far to trust it"):
   realized +0.131 points over the contract (gap -0.01, -0.05 to +0.03); about zero at every age (31-32 +0.02, 33+ +0.02)
   and for contracts of 5%+ of cap (about ${0.05 * cap_m:.0f}M+ / yr: -0.04, -0.25 to +0.17). QBs -0.22 (not significant):
   treat QB verdicts as an upper end.
-- **Not modeled**: backloaded cap hits, void years, restructures (the cap charge is the average per year); trade costs.
+- **Contract**: flat by default (APY as the same share of the cap every season, guarantees paid first). "Set the
+  structure" takes a signing bonus, base salary and its guaranteed part by season, and void years; dollars become shares
+  of each season's cap (+{vtr.CAP_GROWTH - 1:.0%} a year); a cut costs the guaranteed base left plus all remaining bonus
+  proration; void-year proration lands the season after the contract. The structured cut rule (cut only when it saves cap
+  that season) is the trade and workbench rule, untested against history.
+- **Not modeled**: roster and workout bonuses, incentives, offsets, post-June 1 cuts, restructures later; trade costs.
 """)

@@ -4426,3 +4426,23 @@ chasing last year's ratio adds year-to-year noise. With the current features the
 0.99 / 1.03 (the ~10% came from the older feature set). By segment (fixed, 2020-26): off rookie deal and worth 6%+ of
 cap 1.18 (0.83-1.67, n 7 - already flagged "likely extended/tagged"), 3-6% 0.95, < 3% 0.94; veterans 6%+ 0.97, 3-6% 0.91
 (0.85-0.97); 2024-26 0.96-0.99 in every segment. If anything the fixed scale runs a little high for 2020-24. No change.
+
+### Contract structure in One signing (`veteran.structure`, `evaluate(sched=)`, Nov 21 2026)
+
+Complaint #4 of the free-agency list ("real contracts aren't flat"). One signing has a "Set the structure" switch:
+signing bonus, base salary and its guaranteed part by season (editable table), void years; presets "Signing bonus +
+rising salaries" (bonus = half the guarantees, base rising ~30% of the average a season), "Front-loaded" (bonus 30%,
+base falling ~20%), "Flat"; all keep total cash = APY x years and the guarantee total. `veteran.structure` turns it into
+shares of each season's cap (2027 cap, +7% a year as in the trade view): cap hit = base + bonus / (seasons + void years,
+at most 5); cut before season t = guaranteed base left + all remaining proration (void years too), cut rule of
+`team_seasons_sched` (now told the proration, which a cut doesn't save; other callers unchanged); void-year proration is
+dead money the season after the contract (inside the 5-season window). The page shows the structured verdict, "this
+structure vs the same money paid flat" (equal base, guarantees first, no bonus, same cap growth), a cap-hit line and a
+void season row; break-evens stay on the flat model. Check: a flat structure with no cap growth reproduces the flat model
+exactly (Pickens $35M x 4, $70M gtd: +2.64 / +0.43 contender / rebuilding).
+Examples (George Pickens, $140M / 4 yrs, $70M guaranteed): KC flat model +1.07%; structured flat +1.36% (cap growth);
+bonus + rising +1.45% (+0.09 vs same money flat), + 1 void year +1.50%, front-loaded +1.21% (-0.15). Generic contender
+(vet QB): flat +3.13 -> bonus + rising +3.94, + void +4.16; rebuilding +0.63 -> +0.44 (cap pushed into its better years).
+**Open: the flat model ignores cap growth** - it charges APY as the same share of the cap every season, so later seasons
+of every multi-year deal are charged ~7% / yr too much (Pickens for KC +1.07 -> +1.36). Its validation shares the
+assumption (realized cost also at the signing-year share), so the realized check can't see it. Not changed here.

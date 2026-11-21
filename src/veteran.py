@@ -208,18 +208,21 @@ def team_seasons(V, years, apy, gtd, theta=CUT_THETA):
     return val, cost, on
 
 
-def team_seasons_sched(V, cost_y, gtd_y, extra_dead_y=None, theta=CUT_THETA):
+def team_seasons_sched(V, cost_y, gtd_y, extra_dead_y=None, theta=CUT_THETA, prorate_y=None):
     """team_seasons for a real contract: cap charge cost_y[t] and guaranteed salary gtd_y[t] per season (shares of cap),
     extra_dead_y[t] = money that turns into dead cap if he's cut before season t (the owner's remaining prorated bonus;
-    0 for a team acquiring him by trade, whose old team keeps the bonus). Same cut rule as team_seasons."""
+    0 for a team acquiring him by trade, whose old team keeps the bonus). Same cut rule as team_seasons.
+    prorate_y[t]: bonus proration inside cost_y[t] (not saved by a cut, so not part of the non-guaranteed pay the cut
+    rule weighs); default 0 (the trade and workbench callers)."""
     n, years = V.shape[0], len(cost_y)
     cost_y, gtd_y = np.asarray(cost_y, float), np.asarray(gtd_y, float)
     extra = np.zeros(years) if extra_dead_y is None else np.asarray(extra_dead_y, float)
+    pr = np.zeros(years) if prorate_y is None else np.asarray(prorate_y, float)
     val, cost, on = np.zeros((n, years)), np.zeros((n, years)), np.zeros((n, years), bool)
     alive = np.ones(n, bool)
     for t in range(years):
         if t > 0:
-            nongtd = cost_y[t] - min(gtd_y[t], cost_y[t])
+            nongtd = max(cost_y[t] - pr[t] - gtd_y[t], 0.0)
             dead = gtd_y[t:].sum() + extra[t]
             # out of football -> gone; otherwise cut only when it saves cap this season (dead money below his cap hit):
             # a team doesn't cut a player whose guarantees (e.g. a fresh extension) would cost more than keeping him
@@ -230,6 +233,25 @@ def team_seasons_sched(V, cost_y, gtd_y, extra_dead_y=None, theta=CUT_THETA):
         cost[alive, t] = cost_y[t]
         on[:, t] = alive
     return val, cost, on
+
+
+MAX_PRORATION = 5  # CBA: a signing bonus is prorated over at most 5 seasons (void years included)
+
+
+def structure(base_m, gbase_m, bonus_m, void, cap_m, growth=1.07):
+    """A structured contract in shares of each season's cap (cap_m in the first season, growing `growth` a year).
+    base_m[t] base salary, gbase_m[t] its guaranteed part, bonus_m signing bonus prorated over the real seasons plus
+    `void` void years (at most MAX_PRORATION). Returns the arrays veteran.evaluate(sched=) takes."""
+    n = len(base_m)
+    P = min(n + int(void), MAX_PRORATION)
+    pr = bonus_m / P
+    cap = cap_m * growth ** np.arange(n + 1)
+    base, gb = np.asarray(base_m, float), np.minimum(np.asarray(gbase_m, float), np.asarray(base_m, float))
+    return {"cost_y": (base + pr) / cap[:n], "gtd_y": gb / cap[:n], "prorate_y": np.full(n, pr) / cap[:n],
+            # if cut before season t: the proration not yet charged (t..P-1, void years too), in season t's cap
+            "extra_y": np.array([pr * (P - t) for t in range(n)]) / cap[:n],
+            # proration on void years: dead money the season after the real contract ends
+            "void_dead": pr * (P - n) / cap[n]}
 
 
 def points(val, share, cost, on, qb, rates=None, cost_rate=None):
@@ -247,17 +269,29 @@ ROLLOVER_YIELD = 0.12  # points per 1% of cap that market free agency buys (scri
 
 
 def evaluate(sit, player: dict, years: int, apy: float, gtd: float, n=20000, seed=0, exclude=False,
-             cost_rate=None, skip=0, cap_price="model", paths=None, adj=None) -> dict:
+             cost_rate=None, skip=0, cap_price="model", paths=None, adj=None, sched=None) -> dict:
     """Titles added over 5 seasons by signing `player` (grp, age, v1, v2, g1) for `years` at `apy` (share of
     cap per season) with `gtd` guaranteed (share of cap, paid first). Situation as pick_value.SITUATIONS.
     cap_price "model": cap charged at COST_RATE points in the season it's used (the draft model's charge);
     "rollover": charged at ROLLOVER_YIELD x the best titles-per-point from that season on (unused cap rolls over and
-    is spent at market rates later; scripts/cap_rollover_test.py found real teams don't, so it's a scenario)."""
+    is spent at market rates later; scripts/cap_rollover_test.py found real teams don't, so it's a scenario).
+    sched: a structured contract (veteran.structure): cap hits, guaranteed salary and bonus proration by season; the
+    cut rule of team_seasons_sched; void-year proration charged the season after it ends (inside the 5 seasons)."""
     import pick_value as pv
     sit = pv.SITUATIONS[sit] if isinstance(sit, str) else sit
-    years = int(min(years, 5))
+    years = int(min(len(sched["cost_y"]) if sched is not None else years, 5))
     V, S = paths if paths is not None else comps().paths(player, years, exclude=exclude, skip=skip)
-    val, cost, on = team_seasons(V, years, apy, gtd)
+    if sched is None:
+        val, cost, on = team_seasons(V, years, apy, gtd)
+    else:
+        val, cost, on = team_seasons_sched(V, sched["cost_y"], sched["gtd_y"], sched["extra_y"],
+                                           prorate_y=sched["prorate_y"])
+        if years < 5 and sched.get("void_dead", 0) > 0:  # one more season: void proration as dead money
+            k = len(V)
+            val, S = np.column_stack([val, np.zeros(k)]), np.column_stack([S[:, :years], np.zeros(k)])
+            cost = np.column_stack([cost, np.where(on[:, -1], sched["void_dead"], 0.0)])
+            on = np.column_stack([on, np.zeros(k, bool)])
+            years += 1
     qb = player["grp"] == "QB"
     rng = np.random.default_rng(seed)
     base = pv.baseline_paths(sit, rng, n)

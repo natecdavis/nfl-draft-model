@@ -124,3 +124,26 @@ print("NE all signings:", {k: ms[k] for k in ["Signings (APY)", "Left", "Super B
 assert not at.exception, at.exception
 ms = {m.label: (m.value, m.delta) for m in at.metric}
 print("NE firm only:", {k: ms[k] for k in ["Signings (APY)", "Left", "Super Bowls added over 5 seasons"]})
+
+# 8. Structured contract in One signing (veteran.structure): presets, void year, vs the same money flat
+at = fresh()
+at.sidebar.selectbox[0].set_value("KC").run()
+at.segmented_control[0].set_value("One signing").run()
+search = [s for s in at.selectbox if s.label == "Search"][0]
+search.set_value([o for o in search.options if o.startswith("George Pickens")][0]).run()
+flat = {m.label: m.value for m in at.metric}["Super Bowls added over 5 seasons"]
+[t for t in at.toggle if t.label.startswith("Set the structure")][0].set_value(True).run()
+assert not at.exception, at.exception
+for preset in ["Signing bonus + rising salaries", "Front-loaded", "Flat"]:
+    [s for s in at.selectbox if s.label == "Start from"][0].set_value(preset).run()
+    assert not at.exception, at.exception
+    ms = {m.label: (m.value, m.delta) for m in at.metric}
+    print(f"structure {preset}: {ms['Super Bowls added over 5 seasons'][0]} (flat model {flat}); "
+          f"vs same money flat {ms['This structure vs the same money paid flat']}")
+[s for s in at.selectbox if s.label == "Start from"][0].set_value("Signing bonus + rising salaries").run()
+[n for n in at.number_input if n.label == "Void years"][0].set_value(1).run()
+assert not at.exception, at.exception
+ms = {m.label: (m.value, m.delta) for m in at.metric}
+print("rising + 1 void:", ms["Super Bowls added over 5 seasons"][0], ms["This structure vs the same money paid flat"])
+print("cap hits:", [c.value[:200] for c in at.caption if c.value.startswith("Total $")])
+print("season rows:", list(at.dataframe[-1].value.index) if len(at.dataframe) else None)
