@@ -26,7 +26,7 @@ import veteran as vt
 
 SIGN_SEASON = vt.LAST + 2
 SKIP = SIGN_SEASON - vt.LAST - 1
-CAP_GROWTH = 1.07
+CAP_GROWTH = vt.CAP_GROWTH  # one projection for every page (veteran.CAP_GROWTH)
 WINDOW = 5
 
 

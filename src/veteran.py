@@ -190,20 +190,23 @@ def comps() -> Comps:
     return Comps(A)
 
 
-def team_seasons(V, years, apy, gtd, theta=CUT_THETA):
-    """Apply the contract to value paths V (n, years): returns value to the team, cap charged, on-roster flag."""
+def team_seasons(V, years, apy, gtd, theta=CUT_THETA, growth=1.0):
+    """Apply the contract to value paths V (n, years): returns value to the team, cap charged, on-roster flag.
+    apy, gtd: shares of the first season's cap. growth: the cap's yearly growth - a contract's dollars are fixed, so
+    season t is charged apy / growth**t of that season's cap (1.0 = the same share every season, the old setup)."""
     n = V.shape[0]
     val, cost, on = np.zeros((n, years)), np.zeros((n, years)), np.zeros((n, years), bool)
     alive = np.ones(n, bool)
     for t in range(years):
+        d = growth ** t
         remaining_gtd = max(gtd - apy * t, 0.0)  # guarantees not yet paid at the start of season t+1
         if t > 0:
-            nongtd = apy - min(remaining_gtd, apy)
+            nongtd = (apy - min(remaining_gtd, apy)) / d
             cut = alive & ((V[:, t - 1] <= 0) | (V[:, t - 1] < theta * nongtd))
-            cost[cut, t] = remaining_gtd  # dead money
+            cost[cut, t] = remaining_gtd / d  # dead money
             alive &= ~cut
         val[alive, t] = V[alive, t]
-        cost[alive, t] = apy
+        cost[alive, t] = apy / d
         on[:, t] = alive
     return val, cost, on
 
@@ -235,13 +238,18 @@ def team_seasons_sched(V, cost_y, gtd_y, extra_dead_y=None, theta=CUT_THETA, pro
     return val, cost, on
 
 
+# projected yearly cap growth (2023-26 averaged ~10%, 2015-23 ~6%). Contract dollars are fixed, so the flat model charges
+# season t at apy / CAP_GROWTH**t of that season's cap (scripts/cap_growth_check.py: calibrated against realized costs
+# at real caps, gap -0.015 vs +0.017 without growth; 3+ year deals +0.012 vs +0.082)
+CAP_GROWTH = 1.07
 MAX_PRORATION = 5  # CBA: a signing bonus is prorated over at most 5 seasons (void years included)
 
 
-def structure(base_m, gbase_m, bonus_m, void, cap_m, growth=1.07):
+def structure(base_m, gbase_m, bonus_m, void, cap_m, growth=None):
     """A structured contract in shares of each season's cap (cap_m in the first season, growing `growth` a year).
     base_m[t] base salary, gbase_m[t] its guaranteed part, bonus_m signing bonus prorated over the real seasons plus
     `void` void years (at most MAX_PRORATION). Returns the arrays veteran.evaluate(sched=) takes."""
+    growth = CAP_GROWTH if growth is None else growth
     n = len(base_m)
     P = min(n + int(void), MAX_PRORATION)
     pr = bonus_m / P
@@ -282,7 +290,7 @@ def evaluate(sit, player: dict, years: int, apy: float, gtd: float, n=20000, see
     years = int(min(len(sched["cost_y"]) if sched is not None else years, 5))
     V, S = paths if paths is not None else comps().paths(player, years, exclude=exclude, skip=skip)
     if sched is None:
-        val, cost, on = team_seasons(V, years, apy, gtd)
+        val, cost, on = team_seasons(V, years, apy, gtd, growth=CAP_GROWTH)
     else:
         val, cost, on = team_seasons_sched(V, sched["cost_y"], sched["gtd_y"], sched["extra_y"],
                                            prorate_y=sched["prorate_y"])

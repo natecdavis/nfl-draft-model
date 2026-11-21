@@ -4443,6 +4443,27 @@ exactly (Pickens $35M x 4, $70M gtd: +2.64 / +0.43 contender / rebuilding).
 Examples (George Pickens, $140M / 4 yrs, $70M guaranteed): KC flat model +1.07%; structured flat +1.36% (cap growth);
 bonus + rising +1.45% (+0.09 vs same money flat), + 1 void year +1.50%, front-loaded +1.21% (-0.15). Generic contender
 (vet QB): flat +3.13 -> bonus + rising +3.94, + void +4.16; rebuilding +0.63 -> +0.44 (cap pushed into its better years).
-**Open: the flat model ignores cap growth** - it charges APY as the same share of the cap every season, so later seasons
-of every multi-year deal are charged ~7% / yr too much (Pickens for KC +1.07 -> +1.36). Its validation shares the
-assumption (realized cost also at the signing-year share), so the realized check can't see it. Not changed here.
+The flat model ignored cap growth (APY as the same share of the cap every season); fixed next section.
+
+### Cap growth in the flat contract model (`scripts/cap_growth_check.py`, `veteran.CAP_GROWTH`, Nov 21 2026)
+
+Contract dollars are fixed while the cap grows (real caps 2015-26: 142.9 ... 181.5 in 2021 ... 299.2; ~6% a year 2015-23,
+~10% 2023-26), but the flat model charged APY as the same share of the cap every season - later seasons of every
+multi-year deal were overcharged. Its realized check shared the assumption. Check on the as-used sample
+(`scripts/fa_realized_asused.py`, 1,362 UFA contracts 2016-23): realized points with each season's pay and dead money
+divided by that season's real cap ("dollars"), vs the old fixed share; predicted with growth 1.00 and 1.07 (cut-rule
+theta refit to retention: 0.4 / 0.5):
+
+| realized | growth | predicted | realized | gap (95%) | 1-2% | 2-5% | 5%+ | 1-2 yrs | 3+ yrs |
+|---|---|---|---|---|---|---|---|---|---|
+| fixed share | 1.00 | 0.135 | 0.131 | -0.005 (-0.045 to +0.037) | -0.019 | +0.012 | -0.014 | -0.030 | +0.034 |
+| dollars | 1.00 | 0.135 | 0.152 | +0.017 (-0.025 to +0.058) | -0.015 | +0.032 | +0.059 | -0.027 | +0.082 |
+| dollars | **1.07** | 0.167 | 0.152 | **-0.015 (-0.056 to +0.028)** | -0.019 | +0.006 | -0.057 | -0.032 | **+0.012** |
+
+Pre-set rule (dollar-realized gap covers 0 and is no larger than without growth): met. **Adopted**: `veteran.team_seasons(...,
+growth=)`, `veteran.CAP_GROWTH = 1.07` used by `evaluate` (One signing, ranked list, break-evens), the planner's signings
+(`offseason`), `veteran.structure` and the trade view (`vet_trade.CAP_GROWTH` now points to it); theta stays 0.5.
+Validation scripts keep growth 1.0 (their default). Effects: KC top 5 Nacua +1.57, Downs +1.50, Pickens +1.38 (was
++1.30 / +1.37 / +1.08); Pickens's KC break-even $47.7M -> $51.2M, strict $25.2M -> $27.5M, still "depends"; firm share
+38-40% -> 39-42%; MIA suggested plan $59.9M / +3.02% -> $101.2M / +5.01% (8 signings, 1 depends); NE suggestions +3.77 ->
++3.84, optimizer +7.47 -> +7.57; KC and trades unchanged.

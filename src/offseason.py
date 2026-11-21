@@ -122,7 +122,8 @@ def joint_titles(sit, P, n=20000, seed=0):
         pl = {"grp": r.grp, "age": r.age - SKIP, "v1": r.v1, "v2": r.v2, "g1": r.g1,
               "p_share": getattr(r, "p_share", np.nan), "p_gp": getattr(r, "p_gp", np.nan)}
         V, S = vt.comps().paths(pl, yrs, exclude=False, skip=SKIP)
-        val, cost, on = vt.team_seasons(V, yrs, r.apy_pred, r.gshare_pred * r.apy_pred * yrs)
+        val, cost, on = vt.team_seasons(V, yrs, r.apy_pred, r.gshare_pred * r.apy_pred * yrs,
+                                     growth=vt.CAP_GROWTH)
         pts = np.zeros((len(V), 5))
         pts[:, :yrs] = vt.points(val, S, cost, on, r.grp == "QB")
         total += pts[rng.integers(0, len(V), n)]
@@ -348,7 +349,8 @@ def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1, exts=(), detai
         pl = {"grp": r.grp, "age": r.age - SKIP, "v1": r.v1, "v2": r.v2, "g1": r.g1,
               "p_share": getattr(r, "p_share", np.nan), "p_gp": getattr(r, "p_gp", np.nan)}
         V, S = vt.comps().paths(pl, yrs, exclude=False, skip=SKIP)
-        val, cost, on = vt.team_seasons(V, yrs, r.apy_pred, r.gshare_pred * r.apy_pred * yrs)
+        val, cost, on = vt.team_seasons(V, yrs, r.apy_pred, r.gshare_pred * r.apy_pred * yrs,
+                                     growth=vt.CAP_GROWTH)
         pts = np.zeros((len(V), 5))
         pts[:, :yrs] = vt.points(val, S, cost, on, r.grp == "QB")
         d = pts[np.random.default_rng(zlib.crc32(str(r.pfr_id).encode()) + seed + 7).integers(0, len(V), n)]
@@ -373,7 +375,8 @@ def signing_points(r):
     pl = {"grp": r.grp, "age": r.age - SKIP, "v1": r.v1, "v2": r.v2, "g1": r.g1,
           "p_share": getattr(r, "p_share", np.nan), "p_gp": getattr(r, "p_gp", np.nan)}
     V, S = vt.comps().paths(pl, yrs, exclude=False, skip=SKIP)
-    val, cost, on = vt.team_seasons(V, yrs, r.apy_pred, r.gshare_pred * r.apy_pred * yrs)
+    val, cost, on = vt.team_seasons(V, yrs, r.apy_pred, r.gshare_pred * r.apy_pred * yrs,
+                                     growth=vt.CAP_GROWTH)
     pts = np.zeros((len(V), 5))
     pts[:, :yrs] = vt.points(val, S, cost, on, r.grp == "QB")
     return pts
