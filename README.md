@@ -4358,3 +4358,48 @@ filter in the ranked list, "Firm signings only" switch for the plan / optimizer 
 $73.9M +3.43%; NE unchanged in suggestions), signings summary counts the depends ones. Defaults unchanged (0.10).
 Not changed: cuts, restructures and extensions still use 0.10 only (a strict charge would make cuts look better and
 restructures' timing effects larger). Test: `scripts/test_fa_page.py` part 7.
+
+### Old players and big contracts: is the free-agent forecast too optimistic? (`scripts/age_forecast_test.py`, `scripts/fa_realized_asused.py`, Nov 21 2026)
+
+Complaint #2 of the free-agency list: step 1 found players 31+ over-forecast ~10-20% from season 3 and contracts of 5%+
+of cap ~0.2 points optimistic, and neither was corrected.
+
+**All anchors** (`scripts/age_forecast_test.py`; production forecast, 2014-24, 6000 random + all 5,222 aged 30+,
+weighted): actual / forecast by age and horizon (k = comps' season; the tool's contract seasons are k 2-6):
+
+| age | k 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|
+| <28 | 0.99 | 1.00 | 1.01 | 1.03 | 1.02 |
+| 28-30 | 0.92 | 0.83 | 0.71 | 0.68 | 0.61 |
+| 31-32 | 0.92 | 0.83 | 0.74 | 0.71 | 0.69 |
+| 33+ | 0.86 | 0.78 | 0.71 | 0.60 | 0.51 |
+
+Wider than step 1 said (28-30 too). Pre-set rule (pooled k 3-6 MSE falls with 95% interval below 0, 31+ within 0.9-1.1,
+under-31 moves <= 0.02): age-band factors fix calibration (1.00) but MSE +0.031e-4 (-0.028 to +0.099); a ramp
+(1 - b x (age - 29)) +0.019e-4 (-0.032 to +0.091). **Fails.** Probe (`scripts/age_forecast_probe.py`): the bias sits in
+small forecasts - k 3, forecast < 0.5% of cap: 0.46 / 0.39 / 0.24 (28-30 / 31-32 / 33+), 1-2%: 0.82 / 0.84 / 0.59, 2%+:
+0.94 / 0.99 / 0.92 - fringe players who retire (zeros) after shifted comps are clipped at 0. The season-in-progress
+features lower actual / forecast ~0.05 at every age (not the cause).
+
+**Players who signed, forecast as the tool does** (`scripts/fa_realized_asused.py`). Note: since the season-in-progress
+features were added, `scripts/vet_value.py`'s lag-1 realized check leaks (an anchor's p_share is from its own season,
+contract season 1); it now reads +0.254 predicted vs +0.137 realized - a setup artifact. As used: UFA contracts signed in
+Y = 2016-23 (APY >= 1% of cap, finished by 2025; 1,362), forecast from the player's Y-1 anchor with skip 1 (data through
+Y-2 + weeks 1-11 of Y-1), cut rule theta 0.5, points vs realized (value with the team, APY while there, dead-money proxy):
+
+| | n | predicted | realized | gap (95%) | gap without season in progress |
+|---|---|---|---|---|---|
+| all | 1362 | +0.142 | +0.131 | **-0.011 (-0.05 to +0.03)** | +0.058 (+0.02 to +0.10) |
+| <28 | 673 | +0.098 | +0.069 | -0.029 (-0.08 to +0.02) | +0.014 |
+| 28-30 | 453 | +0.109 | +0.110 | +0.001 (-0.06 to +0.06) | +0.078 |
+| 31-32 | 123 | +0.265 | +0.283 | +0.018 (-0.19 to +0.26) | +0.137 |
+| 33+ | 113 | +0.403 | +0.418 | +0.015 (-0.18 to +0.20) | +0.152 |
+| 5%+ of cap | 215 | +0.054 | +0.014 | -0.040 (-0.25 to +0.17) | +0.071 |
+| non-QB 2-5% | 551 | +0.110 | +0.163 | +0.052 (+0.01 to +0.10) | +0.120 |
+| QB | 94 | +0.906 | +0.684 | -0.222 (-0.65 to +0.21) | -0.014 |
+
+Signed players' value anywhere ran 1.14x the forecast (the signing itself is information: teams sign the ones still
+playing well). **Reading: the complaint doesn't hold for the tool as used** - no age or big-contract optimism in the
+verdicts for players who sign; the population-wide age bias is fringe players who retire or go unsigned. No correction
+adopted; the page's "how far to trust it" text updated (it repeated the step-1 caveats). The season-in-progress
+features are confirmed (without them verdicts run 0.06 low). Mid-size non-QB deals (2-5%) run slightly pessimistic.

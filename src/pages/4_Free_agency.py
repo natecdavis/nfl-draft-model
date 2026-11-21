@@ -805,13 +805,15 @@ if st.session_state.fa_compare:
 with st.expander("How this works and how far to trust it"):
     st.markdown(f"""
 - **Forecast**: the 60 most similar past players at his position (age, value in each of his last two seasons, games
-  played), with their next seasons adjusted to his level. Checked out of sample: actual / forecast 1.00 in each of
-  the next five seasons. Players 31+ are over-forecast by ~10-20% from the third season on.
+  played, snaps so far this season), with their next seasons adjusted to his level. Across all veterans, players 28+
+  are over-forecast (more so the older and the further out), but that sits in fringe players who retire or go unsigned:
+  for players who actually signed, the verdicts came out right at every age (below).
 - **Team strength**: value is turned into points per game at the draft model's rates (QB 0.34, others 0.19 per 1% of
   cap of value over a minimum-salary player); cap used costs 0.10 points per 1% (the draft model's charge). Assumes he
   takes snaps that would otherwise go to a minimum-salary player (fills a need).
-- **Checked on 1,510 past free-agent contracts (2015-23)**: predicted +0.150 vs realized +0.137 points over the
-  contract. Contracts of 5%+ of cap (about ${0.05 * cap_m:.0f}M+ / yr) came out ~0.2 points worse than predicted: read big
-  deals as somewhat optimistic.
+- **Checked on 1,362 past free-agent contracts (2016-23), forecast a year ahead as here**: predicted +0.142 vs
+  realized +0.131 points over the contract (gap -0.01, -0.05 to +0.03); about zero at every age (31-32 +0.02, 33+ +0.02)
+  and for contracts of 5%+ of cap (about ${0.05 * cap_m:.0f}M+ / yr: -0.04, -0.25 to +0.17). QBs -0.22 (not significant):
+  treat QB verdicts as an upper end.
 - **Not modeled**: backloaded cap hits, void years, restructures (the cap charge is the average per year); trade costs.
 """)
