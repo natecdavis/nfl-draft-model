@@ -4254,3 +4254,10 @@ the gap; the proration on the void years lands as dead money the season after th
 its extension limit. NE: Milton Williams $14.9M -> $15.9M freed ($4.0M dead when it voids), Harold Landry $7.9M -> $9.5M;
 small gains, since an extension already spreads most of the salary. Optimizer +7.3% (local search: adding options can
 move where it stops by a few hundredths).
+
+**Off-limits free agents** (Nov 20 2026; `inputs/off_limits_2027.csv`, `offseason.load_off_limits` / `save_off_limits`):
+on the Offseason plan view, pick free agents who won't sign with the team (e.g. a player unlikely to return); they're
+left out of the suggested signings, the signings table and the optimizer, and flagged "off limits for us" in the ranked
+list. Saved per team when the selection changes (team, pfr_id, player, date added; tracked in git, empty to start).
+Open issue noted: a team's own pending free agents (e.g. Mike Onwenu for NE) are treated like any outside signing -
+the "before moves" baseline doesn't drop them if they leave - so re-signing them is undervalued relative to losing them.

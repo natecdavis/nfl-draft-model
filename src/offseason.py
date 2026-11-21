@@ -516,3 +516,27 @@ def save_dead(team, amount, source, checked=None, path=DEAD_FILE):
         d = pd.concat([d, pd.DataFrame([row])], ignore_index=True)
     path.parent.mkdir(parents=True, exist_ok=True)
     d.sort_values("team").to_csv(path, index=False)
+
+
+# ---------------- free agents marked off limits for a team (entered by hand) ----------------
+OFF_FILE = vt.ROOT / "inputs" / f"off_limits_{SIGN_SEASON}.csv"
+
+
+def load_off_limits(team, path=OFF_FILE):
+    """pfr_ids a team has marked as not signing with it (won't come back, other plans)."""
+    if not path.exists():
+        return []
+    d = pd.read_csv(path, dtype=str)
+    return list(d[d.team == team].pfr_id)
+
+
+def save_off_limits(team, players, path=OFF_FILE):
+    """Replace a team's list: players = [(pfr_id, name), ...]."""
+    d = pd.read_csv(path, dtype=str) if path.exists() else pd.DataFrame(columns=["team", "pfr_id", "player", "added"])
+    keep = d[d.team != team]
+    today = pd.Timestamp.today().strftime("%Y-%m-%d")
+    old = dict(zip(d[d.team == team].pfr_id, d[d.team == team].added))
+    new = pd.DataFrame([{"team": team, "pfr_id": p, "player": n, "added": old.get(p, today)} for p, n in players],
+                       columns=["team", "pfr_id", "player", "added"])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pd.concat([keep, new]).sort_values(["team", "player"]).to_csv(path, index=False)

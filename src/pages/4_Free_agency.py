@@ -176,6 +176,9 @@ if view == "Ranked free agents":
                        "accounted for, except that OL and LB rooms have fixed starting spots.")
     R = ranked(start, tuple(sorted(sit["shift"].items())), sit["qb_from"], cap_price,
                team if team != "Custom" else None, need_on and team != "Custom")
+    if team != "Custom":
+        _off = set(off.load_off_limits(team))
+        R = R.assign(note=[("off limits for us; " + n_) if p_ in _off else n_ for p_, n_ in zip(R.pfr_id, R.note)])
     f1, f2, f3 = st.columns([3, 2, 2], vertical_alignment="bottom")
     pos = f1.pills("Positions", GROUPS, selection_mode="multi", default=[g for g in GROUPS if g != "QB" or qb_need])
     sort = f2.segmented_control("Rank by", ["Titles added", "Value gap ($)"], default="Titles added", required=True)
@@ -273,6 +276,18 @@ if view == "Offseason plan":
                      column_config={"cap_m": st.column_config.NumberColumn("cap hit ($M)", format="$%.1f")})
     R = ranked(start, tuple(sorted(sit["shift"].items())), sit["qb_from"], cap_price,
                team, need_on)
+    fa_names = dict(zip(R.pfr_id, R.display_name + " (" + R.grp + ", " + R.otc_team.fillna("FA").astype(str) + ")"))
+
+    def _save_off():
+        off.save_off_limits(team, [(p_, R.set_index("pfr_id").display_name.get(p_, p_))
+                                   for p_ in st.session_state[f"off_{team}"]])
+    off_lim = st.multiselect("Off limits: free agents who won't sign with us", list(fa_names),
+                             default=[p_ for p_ in off.load_off_limits(team) if p_ in fa_names],
+                             format_func=lambda p_: fa_names[p_], key=f"off_{team}", on_change=_save_off,
+                             placeholder="Type a name...",
+                             help="Left out of the suggested signings, the signings table and the optimizer. Saved "
+                                  f"for this team in inputs/{off.OFF_FILE.name}.")
+    R = R[~R.pfr_id.isin(off_lim)]
     T, arrays = moves_for(team, start, tuple(sorted(sit["shift"].items())), sit["qb_from"], cap_m)
     sug_c, sug_r = off.suggest(T, B["budget"])
     ver = st.session_state.setdefault(f"plan_ver_{team}", 0)
