@@ -4403,3 +4403,26 @@ playing well). **Reading: the complaint doesn't hold for the tool as used** - no
 verdicts for players who sign; the population-wide age bias is fringe players who retire or go unsigned. No correction
 adopted; the page's "how far to trust it" text updated (it repeated the step-1 caveats). The season-in-progress
 features are confirmed (without them verdicts run 0.06 low). Mid-size non-QB deals (2-5%) run slightly pessimistic.
+
+### Is the contract model behind a rising market? (`scripts/contract_trend.py`, Nov 21 2026)
+
+Complaint #3 of the free-agency list ("nobody gets Nacua for $26M"; the recency test found 2025-26 signings ~10% above
+forward predictions). Forward-chained with the production lag-2 model (season in progress included): fit on UFA signings
+before Y, predict Y (2017-26; scored 2020-26, 2,138 signings). Actual / typical (exp of predicted log) by year: 1.19 1.26
+1.22 1.11 1.03 1.08 1.04 1.01 1.15 1.19 (2017-26) - swings, no trend that carries. Scale variants vs the fixed
+`SMEAR[2]` (1.153):
+
+| variant | MSE change vs fixed x1e-4 (95%) | median miss | sd of year log(a/p) | all a/p | 2025 | 2026 | 2027 scale |
+|---|---|---|---|---|---|---|---|
+| fixed | - | 32.3% | 0.061 | 0.94 | 0.99 | 1.03 | 1.153 |
+| cumulative | +0.014 (-0.008 to +0.036) | 32.4% | 0.080 | 0.94 | 1.04 | 1.08 | 1.115 |
+| last year | -0.015 (-0.062 to +0.030) | 31.6% | 0.080 | 0.99 | 1.14 | 1.04 | 1.191 |
+| last 2 years | +0.004 (-0.040 to +0.049) | 31.9% | 0.095 | 0.98 | 1.12 | 1.11 | 1.166 |
+| last 2, rookie-deal / vet | +0.014 (-0.035 to +0.064) | 31.6% | 0.095 | 0.98 | 1.12 | 1.11 | 1.218 / 1.137 |
+| linear trend | +0.020 (-0.042 to +0.084) | 32.2% | 0.111 | 1.02 | 1.18 | 1.17 | 1.061 |
+
+Pre-set rule (MSE falls with interval below 0, year spread shrinks, median miss <= 0.5 pt worse): **none adopted** -
+chasing last year's ratio adds year-to-year noise. With the current features the fixed scale already prices 2025-26 at
+0.99 / 1.03 (the ~10% came from the older feature set). By segment (fixed, 2020-26): off rookie deal and worth 6%+ of
+cap 1.18 (0.83-1.67, n 7 - already flagged "likely extended/tagged"), 3-6% 0.95, < 3% 0.94; veterans 6%+ 0.97, 3-6% 0.91
+(0.85-0.97); 2024-26 0.96-0.99 in every segment. If anything the fixed scale runs a little high for 2020-24. No change.
