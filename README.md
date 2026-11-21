@@ -4314,3 +4314,8 @@ Factors fit leaving the anchor's season out. Group factor: group actual / foreca
 but season-2 RMSE 1.264 -> 1.265 (+0.004e-4, -0.018 to +0.036); slope on the share: 1.267. Season 3 the same. Not adopted
 (pre-set: RMSE gain). The over-forecast sits mostly with players who sat out nearly all season healthy (0.46, n 169;
 25-50% 0.85, 50-75% 0.97) - fringe players whose small forecasts barely move overall error.
+**Healthy-absence flag** (Nov 20 2026; `fa_market.healthy_absence`, `HEALTHY_FLAG` = 0.75): instead of a correction, free
+agents who missed 75%+ of their team's games healthy (2025, or 2026 weeks 1-11: a backup who didn't play, benched,
+scratched or practice squad) get the note "forecast likely ~2x too high" in the ranked list and the plan's signings
+table, and a warning in "One signing" (that group delivered 0.46x its forecast). 184 of 922 free agents; many are
+backup QBs (Anthony Richardson, Davis Mills, Mac Jones, Joe Flacco).

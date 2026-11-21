@@ -316,7 +316,9 @@ def free_agents(sign_season=vt.LAST + 2):
     fa = fa.merge(F[["pfr_id", "age", "prev_apy", "prev_rookie", "grp_c", "fpos_c", "ufa"]
                     + [c for c in F.columns if c.startswith(("s1_", "s2_", "p_")) and c not in fa.columns]], on="pfr_id")
     P = predict(models(lag), fa, SMEAR[lag])
-    return pd.concat([fa, P], axis=1)
+    fa = pd.concat([fa, P], axis=1)
+    fa["h_absent"] = healthy_absence(fa.pfr_id, sign_season - 1).to_numpy()
+    return fa
 
 
 def rank(fa, sit, cap_price="model", n=4000, team=None, need=False):
@@ -346,6 +348,19 @@ def rank(fa, sit, cap_price="model", n=4000, team=None, need=False):
     return out
 
 
+# players who missed this share of team games healthy (benched / scratched / practice squad) in their last season or
+# the season so far delivered 0.46x their forecast (scripts/healthy_absence_test.py; a correction didn't improve overall
+# accuracy, so it's a flag, not an adjustment)
+HEALTHY_FLAG = 0.75
+
+
+def healthy_absence(pfr_ids, season=vt.LAST + 1):
+    """Largest healthy-absence share: last full season of data or the season in progress so far."""
+    a1 = vt.availability(season - 1).a_healthy
+    ap = vt.availability(season, PARTIAL_W).a_healthy
+    return pd.Series([max(float(a1.get(p, 0.0)), float(ap.get(p, 0.0))) for p in pfr_ids], index=pfr_ids)
+
+
 def notes(r):
     """Short caveats for a ranked row."""
     n = []
@@ -357,6 +372,8 @@ def notes(r):
         n.append("tag candidate")
     if r.older_than_comps:
         n.append("older than comps: forecast high")
+    if getattr(r, "h_absent", 0.0) >= HEALTHY_FLAG:
+        n.append("sat out most of a season healthy (backup / benched / scratched): forecast likely ~2x too high")
     if r.grp == "QB":
         n.append("QB: upper end")
     return "; ".join(n)

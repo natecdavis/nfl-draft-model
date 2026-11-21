@@ -680,6 +680,10 @@ comp_age = vt.comps().comp_age(player, need=int(years) + SKIP)
 if age - SKIP - comp_age > 1.5:
     st.warning(f"Few past players this old: his comparable players averaged {comp_age + SKIP:.0f}. The forecast "
                "likely runs high (players 31+ were already over-forecast by ~10-20% from the third season on).")
+if p is not None and fm.healthy_absence([p.pfr_id]).iloc[0] >= fm.HEALTHY_FLAG:
+    st.warning(f"{p.display_name} sat out most of a season healthy ({vt.LAST} or {vt.LAST + 1} so far: a backup who "
+               "didn't play, benched, scratched or on the practice squad). Players like that delivered about half their forecast "
+               "(scripts/healthy_absence_test.py): read his numbers as roughly 2x too high.")
 if grp == "QB":
     st.info("QB values use the model's QB rate (0.34 points per 1% of cap), which ran high for drafted QBs "
             "(round 1 QB recommendations delivered ~0.57x predicted). Past free-agent QBs: +0.86 predicted vs +0.61 "
