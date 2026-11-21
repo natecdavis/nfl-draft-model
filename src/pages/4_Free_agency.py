@@ -149,6 +149,10 @@ rollover = st.sidebar.checkbox("Scenario: cap we don't spend rolls over and is s
                                     "average don't re-spend saved cap (scripts/cap_rollover_test.py), so this is a "
                                     "plan you'd have to carry out, not the default.")
 cap_price = "rollover" if rollover else "model"
+# one switch for the ranked list, the plan, the signings table and the optimizer (outside any form: applies at once)
+firm_only = st.sidebar.toggle("Firm signings only", value=False, key="firm_only",
+                              help="Only free agents who add titles at both cap prices (see the Cap price column). "
+                                   "Applies to the ranked list, the offseason plan, its signings table and the optimizer.")
 FIRM_HELP = (f"firm: adds titles both at the model's cap charge (0.10 points per 1% of cap) and at a strict "
              f"{fm.STRICT_RATE:.2f} (a cap dollar costs as much as the value it buys at fair prices). depends: adds titles "
              "only at 0.10, i.e. only if cap you don't spend would otherwise be wasted. The right charge isn't settled "
@@ -207,7 +211,6 @@ if view == "Ranked free agents":
     show_rfa = g1_.toggle("Include likely restricted free agents", value=False,
                           help="3 or fewer seasons since he entered the league: his team can match offers.")
     show_neg = g2_.toggle("Include players who cost titles at their predicted price", value=True)
-    firm_only = st.toggle("Only signings that hold at both cap prices (firm)", value=False, help=FIRM_HELP)
     D = R[R.grp.isin(pos) & (R.apy_pred * cap_m <= max_apy) & (show_rfa | ~R.restricted) & (show_neg | (R.titles > 0))
           & ((not firm_only) | (R.robust == "firm"))]
     D = D.sort_values("titles" if sort == "Titles added" else "gap", ascending=False).reset_index(drop=True)
@@ -276,12 +279,11 @@ if view == "Offseason plan":
                                     f"{SIGN_SEASON - 1} are needed (void-year acceleration is already in 'Committed'). "
                                     f"Read it off the team's OverTheCap or Spotrac cap page; save it below to keep it.")
         reserve = a4.number_input("Reserve (% of cap)", 0.0, 10.0, 3.0, 0.5, help="In-season signings, injuries.")
-        b1, b2, b3 = st.columns([2, 2, 2])
+        b1, b2 = st.columns(2)
         max_n = b1.slider("Most signings", 1, 15, 8)
         flagged = b2.toggle("Include players likely to be extended or tagged first", value=False)
-        firm_plan = b3.toggle("Firm signings only", value=False, help=FIRM_HELP + " On: the plan, the optimizer and "
-                              "the signings table use only firm signings.")
         st.form_submit_button("Build plan", type="primary")
+    firm_plan = firm_only  # sidebar switch, outside the form: applies without "Build plan"
     picks_ = sorted({int(x) for x in picks_txt.replace(" ", "").split(",") if x.isdigit()})
     with st.container(horizontal=True, vertical_alignment="center"):
         if d0[1]:

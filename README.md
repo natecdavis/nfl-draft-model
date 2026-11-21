@@ -4467,3 +4467,8 @@ Validation scripts keep growth 1.0 (their default). Effects: KC top 5 Nacua +1.5
 +1.30 / +1.37 / +1.08); Pickens's KC break-even $47.7M -> $51.2M, strict $25.2M -> $27.5M, still "depends"; firm share
 38-40% -> 39-42%; MIA suggested plan $59.9M / +3.02% -> $101.2M / +5.01% (8 signings, 1 depends); NE suggestions +3.77 ->
 +3.84, optimizer +7.47 -> +7.57; KC and trades unchanged.
+**Firm switch fix** (Nov 21 2026): the plan's "Firm signings only" switch sat inside the plan form, so it did nothing
+until "Build plan" was clicked - running the optimizer right after flipping it still picked "depends" signings (MIA: 2);
+the ranked list had a separate switch the plan ignored. Now one sidebar switch, "Firm signings only", outside any form,
+applies at once to the ranked list, the plan, the signings table and the optimizer (and drops an optimizer plan made
+under the other setting). MIA: optimizer $117.5M with 2 depends -> $76.8M all firm. Test: `scripts/test_fa_page.py` part 7.

@@ -107,23 +107,31 @@ ms = {m.label: (m.value, m.delta) for m in at.metric}
 print("NE optimizer:", before, "->", ms["Super Bowls added over 5 seasons"][0], "|", ms["Cap moves free"], "|",
       ms["Signings (APY)"], "| left", ms["Left"][0])
 
-# 7. Cap price robustness (scripts/fa_cap_price_robust.py): firm-only filter in the ranked list and the plan
+# 7. Cap price robustness (scripts/fa_cap_price_robust.py): one sidebar "Firm signings only" switch for the ranked list,
+# the plan and the optimizer; applies at once (no Build plan click), also after an optimizer run
 at = fresh()
-at.sidebar.selectbox[0].set_value("NE").run()
+at.sidebar.selectbox[0].set_value("MIA").run()
 n_all = len(at.dataframe[0].value)
-[t for t in at.toggle if t.label.startswith("Only signings that hold")][0].set_value(True).run()
+firm = lambda: [t for t in at.sidebar.toggle if t.label == "Firm signings only"][0]  # noqa: E731
+firm().set_value(True).run()
 assert not at.exception, at.exception
 df = at.dataframe[0].value
 assert (df["Cap price"] == "firm").all()
-print(f"NE ranked: {n_all} rows, firm only {len(df)}; top 5 firm:", list(df.Player[:5]))
+print(f"MIA ranked: {n_all} rows, firm only {len(df)}; top 5 firm:", list(df.Player[:5]))
 at.segmented_control[0].set_value("Offseason plan").run()
-ms = {m.label: (m.value, m.delta) for m in at.metric}
-print("NE all signings:", {k: ms[k] for k in ["Signings (APY)", "Left", "Super Bowls added over 5 seasons"]})
-[t for t in at.toggle if t.label == "Firm signings only"][0].set_value(True).run()
-[b for b in at.button if b.label == "Build plan"][0].click().run()
+sig = lambda: {m.label: (m.value, m.delta) for m in at.metric}["Signings (APY)"]  # noqa: E731
+print("MIA plan, firm only:", sig())
+assert "depend" not in sig()[1]
+[b for b in at.button if b.label == "Find the best combination"][0].click().run()
 assert not at.exception, at.exception
-ms = {m.label: (m.value, m.delta) for m in at.metric}
-print("NE firm only:", {k: ms[k] for k in ["Signings (APY)", "Left", "Super Bowls added over 5 seasons"]})
+print("MIA optimizer, firm only:", sig())
+assert "depend" not in sig()[1]
+firm().set_value(False).run()
+[b for b in at.button if b.label == "Find the best combination"][0].click().run()
+print("MIA optimizer, all:", sig())
+firm().set_value(True).run()
+print("after switching back on (stale optimizer plan dropped):", sig())
+assert "depend" not in sig()[1]
 
 # 8. Structured contract in One signing (veteran.structure): presets, void year, vs the same money flat
 at = fresh()
