@@ -316,7 +316,10 @@ if view == "Offseason plan":
     opt = opt if opt and opt.get("ver") == ver else None
     with st.container(border=True):
         o1, o2, o3 = st.columns([1, 1, 2], vertical_alignment="bottom")
-        max_r = o1.number_input("Most restructures", 0, 15, 3, key=f"opt_mr_{team}")
+        # typical team: median 1, 90th percentile 3 restructures a year (README); teams with cap room default to 2
+        max_r = o1.number_input("Most restructures", 0, 15, 2 if B["budget"] > 0 else 3, key=f"opt_mr_{team}",
+                                help="Default 2 with cap room, 3 when over the cap. Teams restructure 1 a year (median), "
+                                     "3 at the 90th percentile.")
         max_e = o2.number_input("Most extensions", 0, 10, 2, key=f"opt_me_{team}")
         if o3.button("Find the best combination", type="primary", icon=":material/auto_awesome:", width="stretch"):
             with st.spinner("Searching cuts, restructures, extensions and signings..."):

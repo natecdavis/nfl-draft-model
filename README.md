@@ -4319,3 +4319,6 @@ agents who missed 75%+ of their team's games healthy (2025, or 2026 weeks 1-11: 
 scratched or practice squad) get the note "forecast likely ~2x too high" in the ranked list and the plan's signings
 table, and a warning in "One signing" (that group delivered 0.46x its forecast). 184 of 922 free agents; many are
 backup QBs (Anthony Richardson, Davis Mills, Mac Jones, Joe Flacco).
+Optimizer restructure limit default (Nov 20 2026): 2 for teams with cap room before moves, 3 when over the cap.
+Per team-year 2018-25 (OTC): extensions mean 2.3, median 2, 90th percentile 4; restructures (proxy: in-contract bonus
+jumps > $1M; undercounts) mean 1.4, median 1, 90th percentile 3.
