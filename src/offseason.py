@@ -165,7 +165,7 @@ def roster_moves(team, sit, cap0, n=4000, seed=0):
     import vet_trade as vtr
     from pick_value import COST_RATE
     rng = np.random.default_rng(seed)
-    base = pv.baseline_paths(sit, rng, n)
+    base = pv.baseline_paths(sit, rng, n) - fm.own_fa_adjust().get(team, 0.0)  # our pending free agents leaving
     curve = vt._curve()
     sb = lambda x: np.interp(x, curve.strength, curve.super_bowl)  # noqa: E731
     R = vtr.roster()
@@ -317,12 +317,15 @@ def suggest(T, base_budget):
     return cuts, restr
 
 
-def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1, exts=(), detail=False, voids=(), ext_voids=()):
+def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1, exts=(), detail=False, voids=(), ext_voids=(),
+                   adj=None):
     """Titles added (share of one) by doing all the moves together, and by each kind alone. detail=True also returns
     the team's title odds before and after: expected titles over the 5 seasons, chance of at least one, by season."""
     import pick_value as pv
     rng = np.random.default_rng(seed)
     base = pv.baseline_paths(sit, rng, n)
+    if adj is not None:  # our pending free agents leaving, vs a typical team (fa_market.own_fa_adjust)
+        base = base - np.asarray(adj)
     curve = vt._curve()
     sb = lambda x: np.interp(x, curve.strength, curve.super_bowl)  # noqa: E731
     before, after = np.zeros((n, 5)), np.zeros((n, 5))
@@ -377,7 +380,7 @@ def signing_points(r):
 
 
 def optimize(sit, T, arrays, Cand, B, n_picks, cap0, max_signings=8, start=None, n=4000, seed=11,
-             max_per_group=None, max_iter=80, max_restr=3, max_ext=2, min_gain=SUGGEST_CUT):
+             max_per_group=None, max_iter=80, max_restr=3, max_ext=2, min_gain=SUGGEST_CUT, adj=None):
     """Local search for the combination with the most titles within the budget.
     State: one action per player under contract (keep / cut / restructure / extend, where available and adding at least
     min_gain on its own; at most max_restr restructures and max_ext extensions) and a set of signings from Cand
@@ -389,6 +392,8 @@ def optimize(sit, T, arrays, Cand, B, n_picks, cap0, max_signings=8, start=None,
     mpg = dict(MAX_PER_GROUP if max_per_group is None else max_per_group)
     rng = np.random.default_rng(seed)
     base = pv.baseline_paths(sit, rng, n)
+    if adj is not None:
+        base = base - np.asarray(adj)
     curve = vt._curve()
     sb = lambda x: np.interp(x, curve.strength, curve.super_bowl)  # noqa: E731
     b0 = sb(base).sum(axis=1).mean()

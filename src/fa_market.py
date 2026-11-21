@@ -312,6 +312,7 @@ def rank(fa, sit, cap_price="model", n=4000, team=None, need=False):
     """For one team: each free agent at his predicted contract - titles added, the most he's worth per year at the
     predicted years and guarantee share, and the gap. Same random draws for every player (fair comparison)."""
     skip = vt.LAST + 2 - vt.LAST - 1
+    adj = own_fa_adjust().get(team) if team is not None else None
     rows = []
     for r in fa.itertuples():
         pl = {"grp": r.grp, "age": r.age - skip, "v1": r.v1, "v2": r.v2, "g1": r.g1,
@@ -323,8 +324,9 @@ def rank(fa, sit, cap_price="model", n=4000, team=None, need=False):
             full = rooms()[0]
             f = need_factor(r.grp, full.at[team, r.grp] if team in full.index and r.grp in full.columns else None)
         P = (P[0] * f, P[1])
-        e = vt.evaluate(sit, pl, yrs, r.apy_pred, r.gshare_pred * r.apy_pred * yrs, cap_price=cap_price, paths=P, n=n)
-        be = vt.break_even(sit, pl, yrs, r.gshare_pred, skip=skip, cap_price=cap_price, paths=P, n=n, tol=0.001)
+        e = vt.evaluate(sit, pl, yrs, r.apy_pred, r.gshare_pred * r.apy_pred * yrs, cap_price=cap_price, paths=P, n=n,
+                        adj=adj)
+        be = vt.break_even(sit, pl, yrs, r.gshare_pred, skip=skip, cap_price=cap_price, paths=P, n=n, tol=0.001, adj=adj)
         rows.append({"pfr_id": r.pfr_id, "titles": e["titles_added"], "break_even": be, "need_factor": f,
                      "older_than_comps": pl["age"] - vt.comps().comp_age(pl, need=yrs + skip) > 1.5,
                      "value_yr": float(e["value"].mean()), "value_y1": float(e["value"][0])})
@@ -446,3 +448,28 @@ def predict_fa_price(pfr_ids, Y=vt.LAST + 2):
     F = F[F.grp.notna()]
     P = predict(models(2), F, SMEAR[2])
     return pd.concat([F[["pfr_id"]], P], axis=1).set_index("pfr_id")
+
+
+@lru_cache(maxsize=1)
+def own_fa_adjust():
+    """team -> (5,) points of strength to take off its baseline for its own pending free agents leaving, relative to a
+    typical team. The baseline (market rating drifting to average) already includes normal roster turnover, so only the
+    difference from the league average counts. Per team: sum over its unrestricted pending free agents (restricted ones
+    are usually kept) of their forecast value over a minimum-salary player, at the model's rates, seasons 1-5.
+    Re-signing one of them then adds his value back at his new contract's cost, like any signing."""
+    import json
+    rates = json.load(open(OUT / "bridge.json"))["preseason"]
+    fa = free_agents()
+    fa = fa[~fa.restricted]
+    tot = {}
+    for r in fa.itertuples():
+        if not isinstance(r.otc_team, str):
+            continue
+        pl = {"grp": r.grp, "age": r.age - 1, "v1": r.v1, "v2": r.v2, "g1": r.g1,
+              "p_share": getattr(r, "p_share", np.nan), "p_gp": getattr(r, "p_gp", np.nan)}
+        V, S = vt.comps().paths(pl, 5, exclude=False, skip=1)
+        rate = rates["qb"] if r.grp == "QB" else rates["nonqb"]
+        tot[r.otc_team] = tot.get(r.otc_team, 0.0) + (rate * (V - S * vt.VET_MIN) * 100).mean(axis=0)
+    teams = {k: v for k, v in tot.items() if len(k) <= 3}
+    mean = np.mean(list(teams.values()), axis=0)
+    return {k: v - mean for k, v in teams.items()}

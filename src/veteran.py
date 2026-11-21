@@ -247,7 +247,7 @@ ROLLOVER_YIELD = 0.12  # points per 1% of cap that market free agency buys (scri
 
 
 def evaluate(sit, player: dict, years: int, apy: float, gtd: float, n=20000, seed=0, exclude=False,
-             cost_rate=None, skip=0, cap_price="model", paths=None) -> dict:
+             cost_rate=None, skip=0, cap_price="model", paths=None, adj=None) -> dict:
     """Titles added over 5 seasons by signing `player` (grp, age, v1, v2, g1) for `years` at `apy` (share of
     cap per season) with `gtd` guaranteed (share of cap, paid first). Situation as pick_value.SITUATIONS.
     cap_price "model": cap charged at COST_RATE points in the season it's used (the draft model's charge);
@@ -261,6 +261,8 @@ def evaluate(sit, player: dict, years: int, apy: float, gtd: float, n=20000, see
     qb = player["grp"] == "QB"
     rng = np.random.default_rng(seed)
     base = pv.baseline_paths(sit, rng, n)
+    if adj is not None:  # the team's own pending free agents leaving (fa_market.own_fa_adjust)
+        base = base - np.asarray(adj)
     curve = _curve()
     sb = lambda x: np.interp(x, curve.strength, curve.super_bowl)
     idx = rng.integers(0, len(V), n)
@@ -280,11 +282,11 @@ def evaluate(sit, player: dict, years: int, apy: float, gtd: float, n=20000, see
 
 
 def break_even(sit, player, years, gtd_share, skip=0, cap_price="model", lo=0.0, hi=0.30, tol=0.0005, paths=None,
-               n=8000):
+               n=8000, adj=None):
     """Highest APY (share of cap) with titles added >= 0, guarantees kept at gtd_share of total value."""
     P = paths if paths is not None else comps().paths(player, int(min(years, 5)), exclude=False, skip=skip)
     f = lambda a: evaluate(sit, player, years, a, gtd_share * a * years, skip=skip, cap_price=cap_price, paths=P,
-                           n=n)["titles_added"]
+                           n=n, adj=adj)["titles_added"]
     if f(lo + 0.005) < 0:
         return 0.0
     if f(hi) > 0:

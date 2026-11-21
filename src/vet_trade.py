@@ -101,7 +101,8 @@ def player_points(pfr_id, cap0, side):
     return pts, c
 
 
-def evaluate(sit, give_players=(), get_players=(), give_picks=(), get_picks=(), cap0=299.0, ctx=None, n=20000, seed=0):
+def evaluate(sit, give_players=(), get_players=(), give_picks=(), get_picks=(), cap0=299.0, ctx=None, n=20000, seed=0,
+             adj=None):
     """Change in expected Super Bowls over 5 seasons (share of one title) from the trade, plus each asset alone."""
     import pick_value as pv
     import trade as tr
@@ -109,6 +110,8 @@ def evaluate(sit, give_players=(), get_players=(), give_picks=(), get_picks=(), 
     ctx = ctx or tr.Context()
     rng = np.random.default_rng(seed)
     base = pv.baseline_paths(sit, rng, n)
+    if adj is not None:  # our pending free agents leaving (fa_market.own_fa_adjust)
+        base = base - np.asarray(adj)
     sb = ctx.sb
     b0 = sb(base)
     keep, get = np.zeros((n, WINDOW)), np.zeros((n, WINDOW))

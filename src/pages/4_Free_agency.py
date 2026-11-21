@@ -143,6 +143,15 @@ rollover = st.sidebar.checkbox("Scenario: cap we don't spend rolls over and is s
                                     "average don't re-spend saved cap (scripts/cap_rollover_test.py), so this is a "
                                     "plan you'd have to carry out, not the default.")
 cap_price = "rollover" if rollover else "model"
+
+
+@st.cache_data(show_spinner="Valuing every team's own pending free agents...")
+def own_fa_adjustments():
+    return fm.own_fa_adjust()
+
+
+# our own pending free agents leaving, beyond a typical team's turnover: taken off the baseline everywhere
+team_adj = own_fa_adjustments().get(team) if team != "Custom" else None
 need_on = st.sidebar.checkbox("Experimental: adjust for our depth at his position", value=False,
                               disabled=(team == "Custom"),
                               help="Scales a signee's value by how full our room at his position is (strongest at "
@@ -312,7 +321,7 @@ if view == "Offseason plan":
                 start_ = {"act": {**{p_: "cut" for p_ in sug_c}, **{p_: "restr" for p_ in sug_r}},
                           "signs": list(st_plan.pfr_id)}
                 res = off.optimize(sit, T, arrays, pool, B, len(picks_), cap_m, max_signings=max_n, start=start_,
-                                   max_restr=int(max_r), max_ext=int(max_e))
+                                   max_restr=int(max_r), max_ext=int(max_e), adj=team_adj)
             st.session_state[f"opt_{team}"] = {**res, "ver": ver + 1,
                                                "sver": st.session_state.get(f"sign_ver_{team}", 0)}
             st.session_state[f"plan_ver_{team}"] = ver + 1
@@ -454,7 +463,7 @@ if view == "Offseason plan":
                "your current cuts and restructures. Predicted prices miss by ~37% either way.")
     P = Cand[sign_ed["Do it"].to_numpy()]
     spend = P.cost_m.sum()
-    total, alone, odds = off.evaluate_moves(sit, arrays, cuts, restrs, P, exts=exts, detail=True, voids=voids,
+    total, alone, odds = off.evaluate_moves(sit, arrays, cuts, restrs, P, exts=exts, detail=True, voids=voids, adj=team_adj,
                                             ext_voids=ext_voids & exts)
     with summary:
         st.markdown("**This offseason, as toggled below**")
@@ -481,7 +490,9 @@ if view == "Offseason plan":
                      column_config={str(SIGN_SEASON + i): st.column_config.NumberColumn(format="%.1f%%")
                                     for i in range(5)})
         st.caption("Before moves = the team as it stands (strength from the betting market, QB situation from the "
-                   "sidebar), drifting toward average. The added titles are an upper end for an optimized plan: it "
+                   "sidebar), drifting toward average, adjusted for our own pending free agents leaving beyond a typical "
+                   "team's turnover" + (f" ({-team_adj[0]:+.1f} points per game in {SIGN_SEASON})" if team_adj is not None
+                                        else "") + "; re-signing one adds him back at his new price. The added titles are an upper end for an optimized plan: it "
                    "picks what the model is most optimistic about.")
         st.caption(f"Each kind alone: cuts {alone['cuts'] * 100:+.2f}%, restructures {alone['restructures'] * 100:+.2f}%, "
                    f"extensions {alone['extensions'] * 100:+.2f}%, "
@@ -547,7 +558,7 @@ if view == "Trades":
             st.info("Add at least one player or pick.")
             st.stop()
         with st.spinner("Simulating the trade..."):
-            r = vtr.evaluate(sit, gp, gt, gpk, gtk, cap0=cap_m, ctx=trade_ctx())
+            r = vtr.evaluate(sit, gp, gt, gpk, gtk, cap0=cap_m, ctx=trade_ctx(), adj=team_adj)
         ch = r["change"] * 100
         verdict = "accept" if ch > 0.1 else ("decline" if ch < -0.1 else "roughly even")
         st.metric("Change in Super Bowls over 5 seasons", f"{ch:+.2f}% of a title", verdict,
@@ -659,8 +670,9 @@ if room_row is not None and grp in room_row:
                f"share so far: {listed or 'nobody'})." + (f" Experimental depth factor on his value: x{nf:.2f}." if need_on else ""))
     if nf != 1.0:
         paths = (paths[0] * nf, paths[1])
-r = vt.evaluate(sit, player, int(years), apy, gtd, cap_price=cap_price, paths=paths)
-be = vt.break_even(sit, player, int(years), gtd / max(apy * years, 1e-9), skip=SKIP, cap_price=cap_price, paths=paths)
+r = vt.evaluate(sit, player, int(years), apy, gtd, cap_price=cap_price, paths=paths, adj=team_adj)
+be = vt.break_even(sit, player, int(years), gtd / max(apy * years, 1e-9), skip=SKIP, cap_price=cap_price, paths=paths,
+                   adj=team_adj)
 
 m1, m2, m3 = st.columns(3)
 m1.metric("Super Bowls added over 5 seasons", f"{r['titles_added'] * 100:+.2f}% of one title")

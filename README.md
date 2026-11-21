@@ -4261,3 +4261,15 @@ left out of the suggested signings, the signings table and the optimizer, and fl
 list. Saved per team when the selection changes (team, pfr_id, player, date added; tracked in git, empty to start).
 Open issue noted: a team's own pending free agents (e.g. Mike Onwenu for NE) are treated like any outside signing -
 the "before moves" baseline doesn't drop them if they leave - so re-signing them is undervalued relative to losing them.
+
+### Own pending free agents in the baseline (`fa_market.own_fa_adjust`, Nov 20 2026)
+
+The baseline (market rating drifting toward average) assumed the roster stays together, so a team's own pending free
+agents were in it for free - and re-signing one added his value a second time. The drift already contains normal
+turnover, so only the excess counts: per team, the forecast value over a minimum-salary player of its unrestricted
+pending free agents (restricted ones are usually kept), strength points per season, minus the league average. League
+average loss 3.8 / 3.1 / 2.4 / 1.8 / 1.3 points per game in 2027-31; team excess in 2027 from -2.4 (BUF) to +3.2 (LA:
+Nacua, Kobie Turner, Byron Young, Dotson); NE +0.9. Taken off the team's baseline everywhere (ranked list, one signing,
+trades, workbench, optimizer); re-signing one of them adds him back at his new contract's cost, like any signing.
+NE: expected titles before moves 6.9% -> 5.6%; suggested moves +3.6 -> +2.9 (8.5% after); optimizer +7.3 -> +5.9 (a
+weaker starting team gets less per point on the title curve). Untested (a modeling correction, not a fitted effect).
