@@ -210,6 +210,25 @@ def roster_moves(team, sit, cap0, n=4000, seed=0):
             pro_new = c["pro"] + per
             extra = np.array([pro_new[t:].sum() + c["void_pro"] for t in range(yrs)])
             restr = pts_for(cost_y, extra)
+        # restructure with void years: the same salary spread over 5 seasons (his real seasons left + void years, the
+        # most proration allows) - more cap now; when the deal voids after his last real season, the proration left on
+        # the void years accelerates into the next season as dead money. Works in a final contract year too.
+        restr_v, amount_v, per_v, vleft = None, 0.0, 0.0, 0.0
+        if yrs < 5 and r.pfr_id not in too_early:
+            amount_v = max(float(c["base"][0]) - FILL_SHARE, 0.0)
+            per_v = amount_v / 5
+            vleft = per_v * (5 - yrs)
+            cost_y = c["keep_cost"].copy()
+            cost_y[0] -= amount_v - per_v
+            cost_y[1:] += per_v
+            pro_new = c["pro"] + per_v
+            extra = np.array([pro_new[t:].sum() + c["void_pro"] + vleft for t in range(yrs)])
+            val, cost, on = vt.team_seasons_sched(V[:, :yrs], cost_y, c["gtd"], extra)
+            restr_v = np.zeros((len(V), 5))
+            restr_v[:, :yrs] = vt.points(val, S[:, :yrs], cost, on, qb)
+            # still on the roster at the end -> the void proration lands the season after (if cut earlier, it was
+            # already in his dead money)
+            restr_v[:, yrs] -= np.where(on[:, -1], COST_RATE * vleft * 100, 0.0)
         # extension: n_new seasons after his deal at the predicted APY (guarantees on the first new seasons), and his
         # SIGN_SEASON base above the minimum turned into a bonus spread over all seasons in the window (the usual way
         # an extension lowers the current cap hit)
@@ -245,12 +264,14 @@ def roster_moves(team, sit, cap0, n=4000, seed=0):
         idx = rng.integers(0, len(keep), n)
         # the team's baseline strength already includes him as he is: a move adds only its change (new - keep)
         alone = lambda new: float((sb(base + new[idx] - keep[idx]) - sb(base)).sum(axis=1).mean())  # noqa: E731
-        arrays[r.pfr_id] = {"keep": keep, "cut": cut, "restr": restr, "ext": extp, "ext_alt": ext_alt}
+        arrays[r.pfr_id] = {"keep": keep, "cut": cut, "restr": restr, "restr_v": restr_v, "ext": extp, "ext_alt": ext_alt}
         rows.append({"pfr_id": r.pfr_id, "player": r.player, "grp": pl["grp"], "age": pl["age"] + SKIP,
                      "years_left": yrs, "cap_now": c["keep_cost"][0] * cap0, "dead_cut": dead * cap0,
                      "saved_cut": (c["keep_cost"][0] - dead) * cap0, "titles_cut": alone(cut), "renegotiable": r.pfr_id not in too_early,
                      "restr_amount": amount * cap0, "saved_restr": (amount - per) * cap0, "later_restr": per * cap0,
                      "titles_restr": alone(restr) if restr is not None else np.nan,
+                     "saved_restr_v": (amount_v - per_v) * cap0, "later_restr_v": per_v * cap0, "void_dead": vleft * cap0,
+                     "titles_restr_v": alone(restr_v) if restr_v is not None else np.nan,
                      "ext_years": n_new if extp is not None else 0, "ext_apy": e_apy * cap0, "ext_gtd": e_gtd * cap0,
                      "saved_ext": e_saved * cap0, "later_ext": e_later * cap0,
                      "ext_fa_apy": e_fa_apy * cap0,
@@ -274,7 +295,7 @@ def suggest(T, base_budget):
     return cuts, restr
 
 
-def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1, exts=(), detail=False):
+def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1, exts=(), detail=False, voids=()):
     """Titles added (share of one) by doing all the moves together, and by each kind alone. detail=True also returns
     the team's title odds before and after: expected titles over the 5 seasons, chance of at least one, by season."""
     import pick_value as pv
@@ -292,7 +313,8 @@ def evaluate_moves(sit, arrays, cuts, restrs, P, n=20000, seed=1, exts=(), detai
         kind = "cuts" if p in cuts else ("extensions" if p in exts else "restructures")
         # an extension is judged against re-signing him later at the free-agent price, the others against keeping him
         k = a["ext_alt"][idx] if kind == "extensions" else a["keep"][idx]
-        new = a["cut"][idx] if kind == "cuts" else (a["ext"][idx] if kind == "extensions" else a["restr"][idx])
+        rkey = "restr_v" if (p in voids or a["restr"] is None) else "restr"  # void-year version where chosen / only one
+        new = a["cut"][idx] if kind == "cuts" else (a["ext"][idx] if kind == "extensions" else a[rkey][idx])
         after += new - k  # baseline strength already includes him as he is
         parts[kind] += new - k
     for r in P.itertuples():
@@ -354,6 +376,7 @@ def optimize(sit, T, arrays, Cand, B, n_picks, cap0, max_signings=8, start=None,
         idx = np.random.default_rng(zlib.crc32(str(p).encode()) + seed).integers(0, len(a["keep"]), n)
         k = a["keep"][idx]
         for act, key, sv, tcol in (("cut", "cut", "saved_cut", "titles_cut"), ("restr", "restr", "saved_restr", "titles_restr"),
+                                   ("restr_v", "restr_v", "saved_restr_v", "titles_restr_v"),
                                    ("ext", "ext", "saved_ext", "titles_ext")):
             if a.get(key) is not None and p in Tm.index and float(Tm.at[p, tcol]) >= min_gain:
                 ref = a["ext_alt"][idx] if act == "ext" else k
@@ -377,7 +400,7 @@ def optimize(sit, T, arrays, Cand, B, n_picks, cap0, max_signings=8, start=None,
         if len(signs) > max_signings or budget_left(act, signs) < -1e-9:
             return False
         kinds = list(act.values())
-        if kinds.count("restr") > max_restr or kinds.count("ext") > max_ext:
+        if kinds.count("restr") + kinds.count("restr_v") > max_restr or kinds.count("ext") > max_ext:
             return False
         cnt = {}
         for p in signs:
@@ -402,7 +425,7 @@ def optimize(sit, T, arrays, Cand, B, n_picks, cap0, max_signings=8, start=None,
         best = (cur, None)
         cands = []
         for p in players:
-            for v in ("keep", "cut", "restr", "ext"):
+            for v in ("keep", "cut", "restr", "restr_v", "ext"):
                 if v == act.get(p, "keep") or (v != "keep" and (p, v) not in D):
                     continue
                 a2 = dict(act)

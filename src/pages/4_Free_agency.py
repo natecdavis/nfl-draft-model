@@ -332,22 +332,33 @@ if view == "Offseason plan":
     cuts = set(Tc.pfr_id[cut_ed["Do it"].to_numpy()])
 
     st.subheader("Restructures")
-    Tr = T[(T.years_left >= 2) & (T.saved_restr > 0.05)].assign(sug=lambda d: d.pfr_id.isin(sug_r))
-    Tr = Tr.sort_values(["sug", "saved_restr"], ascending=False).reset_index(drop=True)
+    Tr = T[(T.saved_restr > 0.05) | (T.saved_restr_v > 0.05)].assign(sug=lambda d: d.pfr_id.isin(sug_r))
+    Tr = Tr.sort_values(["sug", "saved_restr_v"], ascending=False).reset_index(drop=True)
+    plain_ok = Tr.titles_restr.notna().to_numpy()
     restr_ed = st.data_editor(pd.DataFrame({
-        "Do it": Tr.pfr_id.map(lambda p_: opt["act"].get(p_) == "restr") if opt else Tr.sug, "Player": Tr.player, "Pos": Tr.grp, "Age": Tr.age.round(1), "Years left": Tr.years_left,
-        "Salary converted": Tr.restr_amount, f"{SIGN_SEASON} saved": Tr.saved_restr,
-        "Added each later year": Tr.later_restr, "Titles (%)": Tr.titles_restr * 100,
-        "Suggested": np.where(Tr.sug, "yes", "")}),
-        key=f"restr_{team}_{ver}", hide_index=True, disabled=["Player", "Pos", "Age", "Years left", "Salary converted",
-        f"{SIGN_SEASON} saved", "Added each later year", "Titles (%)", "Suggested"],
-        column_config={"Do it": st.column_config.CheckboxColumn(width="small")} |
+        "Do it": Tr.pfr_id.map(lambda p_: opt["act"].get(p_) in ("restr", "restr_v")) if opt else Tr.sug,
+        "Void years": Tr.pfr_id.map(lambda p_: opt["act"].get(p_) == "restr_v") if opt else ~plain_ok,
+        "Player": Tr.player, "Pos": Tr.grp, "Age": Tr.age.round(1), "Years left": Tr.years_left,
+        f"{SIGN_SEASON} saved": Tr.saved_restr.where(plain_ok), "Titles (%)": Tr.titles_restr * 100,
+        f"{SIGN_SEASON} saved, void years": Tr.saved_restr_v, "Dead when it voids": Tr.void_dead,
+        "Titles, void years (%)": Tr.titles_restr_v * 100, "Suggested": np.where(Tr.sug, "yes", "")}),
+        key=f"restr_{team}_{ver}", hide_index=True,
+        disabled=["Player", "Pos", "Age", "Years left", f"{SIGN_SEASON} saved", "Titles (%)",
+                  f"{SIGN_SEASON} saved, void years", "Dead when it voids", "Titles, void years (%)", "Suggested"],
+        column_config={"Do it": st.column_config.CheckboxColumn(width="small"),
+                       "Void years": st.column_config.CheckboxColumn(width="small",
+                           help="Spread the converted salary over 5 seasons (void years fill the gap): more cap now, "
+                                "dead money the season after his deal ends")} |
                       {c: st.column_config.NumberColumn(format="$%.1f") for c in
-                       ["Salary converted", f"{SIGN_SEASON} saved", "Added each later year"]} |
-                      {"Titles (%)": st.column_config.NumberColumn(format="%+.2f",
-                       help="Moving cap from now to later seasons, and more dead money if he's cut later")})
-    st.caption(f"His {SIGN_SEASON} salary above the minimum becomes a bonus spread over his remaining seasons (no void "
-               "years added). Suggested only when the budget is still negative after the suggested cuts.")
+                       [f"{SIGN_SEASON} saved", f"{SIGN_SEASON} saved, void years", "Dead when it voids"]} |
+                      {c: st.column_config.NumberColumn(format="%+.2f",
+                       help="Moving cap from now to later seasons, and more dead money if he's cut later")
+                       for c in ["Titles (%)", "Titles, void years (%)"]})
+    st.caption(f"His {SIGN_SEASON} salary above the minimum becomes a bonus spread over his remaining seasons; with "
+               "void years, over 5 seasons, and the part on the void years lands as dead money the season after his "
+               "deal ends. A player in his last season can only be restructured with void years. Suggested restructures "
+               "(plain) only when the budget is still negative after the suggested cuts.")
+    voids = set(Tr.pfr_id[(restr_ed["Do it"] & (restr_ed["Void years"] | ~plain_ok)).to_numpy()])
     restr_checked = set(Tr.pfr_id[restr_ed["Do it"].to_numpy()])
 
     st.subheader("Extensions")
@@ -386,7 +397,9 @@ if view == "Offseason plan":
     exts = ext_checked - cuts
     restrs = restr_checked - cuts - exts
 
-    saved = (T[T.pfr_id.isin(cuts)].saved_cut.sum() + T[T.pfr_id.isin(restrs)].saved_restr.sum()
+    voids &= restrs
+    saved = (T[T.pfr_id.isin(cuts)].saved_cut.sum() + T[T.pfr_id.isin(restrs - voids)].saved_restr.sum()
+             + T[T.pfr_id.isin(voids)].saved_restr_v.sum()
              + T[T.pfr_id.isin(exts)].saved_ext.sum())
     fill_after = max(off.ROSTER - (B["n_signed"] - len(cuts)) - len(picks_), 0) * off.FILL_SHARE * cap_m
     budget_after = B["budget"] + saved - (fill_after - B["fill"])
@@ -416,13 +429,14 @@ if view == "Offseason plan":
                "your current cuts and restructures. Predicted prices miss by ~37% either way.")
     P = Cand[sign_ed["Do it"].to_numpy()]
     spend = P.cost_m.sum()
-    total, alone, odds = off.evaluate_moves(sit, arrays, cuts, restrs, P, exts=exts, detail=True)
+    total, alone, odds = off.evaluate_moves(sit, arrays, cuts, restrs, P, exts=exts, detail=True, voids=voids)
     with summary:
         st.markdown("**This offseason, as toggled below**")
         k = st.columns(5)
         k[0].metric("Budget before moves", money(B["budget"]))
         k[1].metric("Cap moves free", money(saved - (fill_after - B["fill"])),
-                    f"{len(cuts)} cuts, {len(restrs)} restructures, {len(exts)} extensions", delta_color="off")
+                    f"{len(cuts)} cuts, {len(restrs)} restructures ({len(voids)} with void years), {len(exts)} extensions",
+                    delta_color="off")
         k[2].metric("Signings (APY)", money(spend), f"{len(P)} players", delta_color="off")
         k[3].metric("Left", money(budget_after - spend))
         k[4].metric("Super Bowls added over 5 seasons", f"{total * 100:+.2f}%")
@@ -445,7 +459,7 @@ if view == "Offseason plan":
         st.caption(f"Each kind alone: cuts {alone['cuts'] * 100:+.2f}%, restructures {alone['restructures'] * 100:+.2f}%, "
                    f"extensions {alone['extensions'] * 100:+.2f}%, "
                    f"signings {alone['signings'] * 100:+.2f}% of a title; the total scores everything together on one "
-                   "strength path. Not modeled: post-June 1 cuts, void years in restructures, trades "
+                   "strength path. Not modeled: post-June 1 cuts, void years in extensions, trades "
                    "(Trades view), re-signing our own free agents as such (they're in the signings list).")
         if budget_after - spend < 0:
             st.warning(f"Over the {SIGN_SEASON} cap by {money(spend - budget_after)}: free more room or drop a signing.")

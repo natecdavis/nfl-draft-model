@@ -4237,3 +4237,13 @@ checked moves, from the same simulation that scores them (`offseason.evaluate_mo
 2027-31 (the five seasons' chances added up), chance of at least one title, and each season's chance. NE, suggested
 moves: expected titles 6.9% -> 10.4% of one; at least one title 6.5% -> 9.7%; 2027 2.0% -> 4.6% (the gain lands where
 the team is strongest and the signings are best). For an optimized plan the gain is an upper end.
+
+**Void-year restructures** (Nov 20 2026; `offseason.roster_moves` arrays["restr_v"], `evaluate_moves(voids=)`): a second
+restructure option. The 2027 salary above the minimum is spread over 5 seasons (real seasons left + void years): more cap
+now (amount x 4/5); when the deal ends, the proration on the void years lands as dead money the next season (already in
+his dead money if he's cut earlier). Final-year players can be restructured only this way. Restructures table: "Void
+years" checkbox; both versions' 2027 savings and titles, and the dead money when it voids. Suggestions stay plain; the
+optimizer may use either (counted toward its restructure limit). NE: Milton Williams $9.9M -> $15.9M freed (+0.12% ->
++0.22%, $11.9M dead when it voids); optimizer +6.9% -> +7.4% with 2 void-year restructures. The void version always
+scores better (later seasons weigh less), and carrying dead money forward has no cost beyond its cap charge: read the
+gain as the model's timing view.
