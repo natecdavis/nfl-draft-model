@@ -4565,3 +4565,23 @@ Not adopted; stopped at two attempts. What it shows: the miss is wide (an 80% ra
 for an extension), older and cheaper players are more predictable than one pooled range says, younger ones less.
 The probability scale is roughly right on average (free-agent PIT deciles 0.08-0.13), only the per-segment widths
 miss. Page text's "typical miss ~37%" updated to ~32% (the partial-season model).
+
+### Re-signed vs switched teams (`scripts/resign_vs_switch.py`, Nov 22 2026)
+Does a free agent who re-signs with his own team beat his forecast more than one who switches (the old team knows
+his medicals and has watched him for years)? UFA signings 2015-24: last team from the final weekly roster of the
+season before (gsis id), else his last snap; signing team from OTC. 1,132 re-signed, 1,639 switched, 4 unknown.
+Forecast: comps on past-only inputs, seasons 1-3 at any team. Pre-set rule: the re-signed minus switched gap in
+(actual - forecast), controlling for the price residual, has an interval excluding 0 with the same sign in both halves.
+
+| | Re-signed | Switched |
+|---|---|---|
+| actual / forecast, season 1 | 1.12 | 1.06 |
+| season 2 | 1.05 | 0.98 |
+| season 3 | 0.91 | 0.88 |
+
+Gap per season (% of cap x100, mean forecast 1.20): +0.041 (-0.044 to +0.125) controlling for price; halves
+-0.028 (2015-19) and +0.084 (2020-24); big deals (>= 5% of cap, n 732 player-seasons) -0.09 (-0.72 to +0.54); 29+
++0.13 (-0.02 to +0.28). First season, beyond the forecast inputs and price: quality +0.014 (+0.000 to +0.030; +0.05
+sd), snap share +0.007, games +0.012 (both ns). Rule fails: no reliable difference. At most re-signers do ~10% better
+than their forecast relative to switchers (upper end of the interval). Re-signers are cheaper (predicted 1.56% vs
+2.06% of cap) and priced the same relative to the model (residual +0.006 vs -0.017). No adjustment for the tool.
