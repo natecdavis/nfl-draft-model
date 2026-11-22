@@ -232,7 +232,7 @@ if view == "Ranked free agents":
                      f"Value {vt.LAST} ($M)": st.column_config.NumberColumn(format="$%.1f",
                          help="What his playing time and quality were worth at veteran market prices"),
                      "Predicted APY ($M)": st.column_config.NumberColumn(format="$%.1f",
-                         help="Average contract for players like him; typical miss ~37% either way"),
+                         help="Average contract for players like him; typical miss ~32% either way"),
                      "Worth to us up to ($M / yr)": st.column_config.NumberColumn(format="$%.1f"),
                      "Gap ($M / yr)": st.column_config.NumberColumn(format="$%+.1f",
                          help="Worth to us minus predicted price: room to outbid the market"),
@@ -248,7 +248,7 @@ if view == "Ranked free agents":
 - Trained on 3,276 past unrestricted free-agent signings (2015-2026): position, age, value in his last two seasons of
   data, games played, his previous contract's APY, and whether that was a rookie deal. Built with the same one-season gap
   as now (data through {vt.LAST}, signing in March {SIGN_SEASON}).
-- Checked year by year out of sample: calibrated in every price band; the typical miss is ~37% either way
+- Checked year by year out of sample: calibrated in every price band; the typical miss is ~32% either way
   (previous contract alone: 39%; on-field value alone: 46%). Years within one 89% of the time.
 - Stars coming off rookie deals rarely reach free agency, so there are few examples: those who did signed for ~1.25x
   the prediction. Most get extended or tagged first.
@@ -522,7 +522,7 @@ if view == "Offseason plan":
                        "Per $10M": st.column_config.NumberColumn(format="%.2f", help="% of a title per $10M of APY")})
     st.caption("Checked at first: the greedy plan for the budget after the suggested moves (best titles per dollar, at "
                "most 2 at OL / DB / WR / DL and 1 elsewhere). Toggle anything; 'Re-plan' redoes it for the budget after "
-               "your current cuts and restructures. Predicted prices miss by ~37% either way.")
+               "your current cuts and restructures. Predicted prices miss by ~32% either way.")
     marked = set(Cand.pfr_id[sign_ed["Off limits"].to_numpy()]) | (off_set - set(Cand.pfr_id))
     if marked != off_set:  # save, then rerun so the plan and the optimizer leave them out
         off.save_off_limits(team, [(p_, R_all.set_index("pfr_id").display_name.get(p_, p_)) for p_ in sorted(marked)])
@@ -733,7 +733,7 @@ st.subheader("Contract")
 pred = fa[fa.pfr_id == p.pfr_id].iloc[0] if p is not None and (fa.pfr_id == p.pfr_id).any() else None
 if pred is not None:
     st.info(f"Free agent in {SIGN_SEASON}. Predicted market contract: {pred.yrs_pred} yrs, "
-            f"${pred.apy_pred * cap_m:.1f}M / yr, {pred.gshare_pred:.0%} guaranteed (typical miss ~37%). "
+            f"${pred.apy_pred * cap_m:.1f}M / yr, {pred.gshare_pred:.0%} guaranteed (typical miss ~32%). "
             "The contract below starts there.")
 elif p is not None:
     st.caption(f"Under contract for {SIGN_SEASON} (a trade or extension); the contract below starts from his value.")

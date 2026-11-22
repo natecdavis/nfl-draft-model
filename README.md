@@ -4548,3 +4548,20 @@ models' own populations: players coming off rookie deals are 1.04 actual / predi
 extended; the extension model gives $71.7M.) Remaining group biases in the base models, forward: free agents QB 1.10,
 TE 0.89, RB 0.93, DB 0.94; extensions QB 1.12, TE 0.81, LB 0.76, RB 0.85 (n 22-25 each). The miss that's left looks
 like negotiation noise the inputs can't see, not a missing market or pedigree term.
+
+### Price ranges for the contract models (`scripts/contract_ranges.py`, Nov 21 2026)
+Can the tool show an honest 80% range for a predicted APY (and the chance a player costs more than you'd pay)?
+Forward-chained: each signing year predicted by a model fit on earlier years; the range for year Y is built from
+earlier years' forward residuals only; scored 2022-26 (1,545 free agents, 326 extensions). Pre-set rule: overall
+coverage 0.77-0.83 and every segment (age band, predicted-size tercile, group, rookie deal before; n >= 30)
+0.72-0.88; narrowest qualifier wins.
+- Attempt 1 (pool from 2016): nothing qualifies. Free agents, ranges by predicted size: 0.84 overall, 31+ 0.92.
+  Extensions by size: 0.80 overall, EDGE 0.67.
+- Attempt 2 (stated after 1; pool only years whose model had 4+ training years, add size x age): nothing qualifies.
+  Free agents size x age: 0.81 overall, every segment 0.76-0.87 except RB 0.91 (n 114); range ~3.8x high / low.
+  Extensions: overall 0.71-0.80, segments down to 0.60 (pools of ~3 years of extensions are too small).
+  LightGBM quantile models are too narrow everywhere (0.60-0.71).
+Not adopted; stopped at two attempts. What it shows: the miss is wide (an 80% range spans ~4x for a free agent, ~2x
+for an extension), older and cheaper players are more predictable than one pooled range says, younger ones less.
+The probability scale is roughly right on average (free-agent PIT deciles 0.08-0.13), only the per-segment widths
+miss. Page text's "typical miss ~37%" updated to ~32% (the partial-season model).
