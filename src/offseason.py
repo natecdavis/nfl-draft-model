@@ -299,6 +299,7 @@ def roster_moves(team, sit, cap0, n=4000, seed=0):
         arrays[r.pfr_id] = {"keep": keep, "cut": cut, "restr": restr, "restr_v": restr_v, "ext": extp, "ext_v": ext_v,
                             "ext_alt": ext_alt}
         rows.append({"pfr_id": r.pfr_id, "player": r.player, "grp": pl["grp"], "age": pl["age"] + SKIP,
+                     "note": fm.LB_NOTE if fm.top_lb(pl["grp"], pl["v1"], pl.get("v2")) else "",
                      "years_left": yrs, "cap_now": c["keep_cost"][0] * cap0, "dead_cut": dead * cap0,
                      "saved_cut": (c["keep_cost"][0] - dead) * cap0, "titles_cut": alone(cut), "renegotiable": r.pfr_id not in too_early,
                      "restr_amount": amount * cap0, "saved_restr": (amount - per) * cap0, "later_restr": per * cap0,

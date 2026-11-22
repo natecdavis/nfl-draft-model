@@ -391,6 +391,19 @@ def rank(fa, sit, cap_price="model", n=4000, team=None, need=False, strict=True,
 # accuracy, so it's a flag, not an adjustment)
 HEALTHY_FLAG = 0.75
 
+# top linebackers (season value >= LB_TOP in either of his last two seasons, about the top 5% of LB seasons): the LB
+# pay curve tops out near 5% of cap while top LBs are paid up to ~10%, and LB pay above the curve buys team strength
+# (+0.22 points per 1% of cap, p 0.005; the only group where it does). A refit at signing and PFF sub-grades / role /
+# rates didn't close it (scripts/lb_value_test.py, lb_curve_label.py, lb_quality_test.py), so it's a flag, not an
+# adjustment.
+LB_TOP = 0.03
+LB_NOTE = "top LB: model likely values him low (teams' extra pay for top LBs buys strength the model misses)"
+
+
+def top_lb(grp, v1, v2):
+    v2 = 0.0 if v2 is None or v2 != v2 else v2
+    return grp == "LB" and max(v1 or 0.0, v2) >= LB_TOP
+
 
 def healthy_absence(pfr_ids, season=vt.LAST + 1):
     """Largest healthy-absence share: last full season of data or the season in progress so far."""
@@ -412,6 +425,8 @@ def notes(r):
         n.append("older than comps: forecast high")
     if getattr(r, "h_absent", 0.0) >= HEALTHY_FLAG:
         n.append("sat out most of a season healthy (backup / benched / scratched): forecast likely ~2x too high")
+    if top_lb(r.grp, r.v1, getattr(r, "v2", None)):
+        n.append(LB_NOTE)
     if r.grp == "QB":
         n.append("QB: upper end")
     return "; ".join(n)

@@ -384,9 +384,10 @@ if view == "Offseason plan":
     cut_ed = st.data_editor(pd.DataFrame({
         "Do it": Tc.do0, "Player": Tc.player, "Pos": Tc.grp, "Age": Tc.age.round(1), "Years left": Tc.years_left,
         f"{SIGN_SEASON} cap hit": Tc.cap_now, "Dead money": Tc.dead_cut, f"{SIGN_SEASON} saved": Tc.saved_cut,
-        "Titles (%)": Tc.titles_cut * 100, "Suggested": np.where(Tc.sug, "yes", "")}),
+        "Titles (%)": Tc.titles_cut * 100, "Suggested": np.where(Tc.sug, "yes", ""),
+        "Note": Tc.get("note", pd.Series("", index=Tc.index)).fillna("")}),
         key=f"cuts_{team}_{ver}", hide_index=True, disabled=[c for c in ["Player", "Pos", "Age", "Years left",
-        f"{SIGN_SEASON} cap hit", "Dead money", f"{SIGN_SEASON} saved", "Titles (%)", "Suggested"]],
+        f"{SIGN_SEASON} cap hit", "Dead money", f"{SIGN_SEASON} saved", "Titles (%)", "Suggested", "Note"]],
         column_config={"Do it": st.column_config.CheckboxColumn(width="small")} |
                       {c: st.column_config.NumberColumn(format="$%.1f") for c in
                        [f"{SIGN_SEASON} cap hit", "Dead money", f"{SIGN_SEASON} saved"]} |
@@ -442,10 +443,11 @@ if view == "Offseason plan":
         "Years left": Te.years_left, "New years": Te.ext_years, "New APY": Te.ext_apy, "Guaranteed": Te.ext_gtd,
         f"{SIGN_SEASON} saved": Te.saved_ext, "Titles (%)": Te.titles_ext * 100,
         f"{SIGN_SEASON} saved, void years": Te.saved_ext_v.where(void_ok), "Dead when it voids": Te.void_dead_ext.where(void_ok),
-        "Titles, void years (%)": Te.titles_ext_v * 100}),
+        "Titles, void years (%)": Te.titles_ext_v * 100,
+        "Note": Te.get("note", pd.Series("", index=Te.index)).fillna("")}),
         key=f"ext_{team}_{ver}", hide_index=True, disabled=["Player", "Pos", "Age", "Years left", "New years",
         "New APY", "Guaranteed", f"{SIGN_SEASON} saved", "Titles (%)", f"{SIGN_SEASON} saved, void years",
-        "Dead when it voids", "Titles, void years (%)"],
+        "Dead when it voids", "Titles, void years (%)", "Note"],
         column_config={"Do it": st.column_config.CheckboxColumn(width="small"),
                        "Void years": st.column_config.CheckboxColumn(width="small",
                            help="When the extended contract is shorter than 5 seasons: spread his converted salary over "
@@ -808,6 +810,11 @@ if p is not None and fm.healthy_absence([p.pfr_id]).iloc[0] >= fm.HEALTHY_FLAG:
     st.warning(f"{p.display_name} sat out most of a season healthy ({vt.LAST} or {vt.LAST + 1} so far: a backup who "
                "didn't play, benched, scratched or on the practice squad). Players like that delivered about half their forecast "
                "(scripts/healthy_absence_test.py): read his numbers as roughly 2x too high.")
+if fm.top_lb(grp, player.get("v1"), player.get("v2")):
+    st.info("Top linebacker: the model likely values him low. Its LB pay curve tops out near 5% of cap while top LBs "
+            "are paid up to ~10%, and teams' pay for LBs above the curve buys real team strength (+0.22 points per 1% "
+            "of cap; the only position where it does - scripts/lb_value_test.py). Neither refitting the curve nor PFF "
+            "sub-grades closed the gap, so read his value and break-even as low.")
 if grp == "QB":
     st.info("QB values use the model's QB rate (0.34 points per 1% of cap), which ran high for drafted QBs "
             "(round 1 QB recommendations delivered ~0.57x predicted). Past free-agent QBs: +0.86 predicted vs +0.61 "
