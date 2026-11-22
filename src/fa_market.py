@@ -217,19 +217,23 @@ def partial(season, weeks=PARTIAL_W):
     return out
 
 
-@lru_cache(maxsize=1)
-def _values():
+VALUE_COL = "value_ours"  # "value_ours_f": past-only quality for backtests (scripts/forecast_benchmark.py)
+
+
+@lru_cache(maxsize=2)
+def _values(col=None):
+    col = col or VALUE_COL
     v = vt.season_table()
     V = v.set_index(["pfr_id", "season"])
     grp = v.sort_values("season").groupby("pfr_id").group.last().to_dict()
     pl = pd.read_parquet(RAW / "players.parquet").dropna(subset=["pfr_id"]).drop_duplicates("pfr_id")
     born = dict(zip(pl.pfr_id, pd.to_datetime(pl.birth_date, errors="coerce")))
-    return V.value_ours.to_dict(), V.gfrac.to_dict(), grp, born
+    return V[col].to_dict(), V.gfrac.to_dict(), grp, born
 
 
 def features(pfr_ids, Y, lag):
     """Feature rows for players entering the market for season Y, data through season Y - lag."""
-    V, G, grp, born = _values()
+    V, G, grp, born = _values(VALUE_COL)
     H = history()
     rows = []
     for p in pfr_ids:

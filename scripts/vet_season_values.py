@@ -12,6 +12,10 @@ seasons are untouched by that correction.
 
 Writes data/derived/vet_season_values.parquet: pfr_id, gsis, season, group, share, gfrac, q, value (cfdarko units)
 and value_ours (/ outcomes_v2.CF_OVER_OURS_ALL, this project's units, % of cap as a fraction).
+Past-only columns q_f, value_f, value_ours_f: the same pay curves priced with the talent model's filtered estimate
+(talent_post: PFF grades through that season only) instead of the smoothed one (talent_win uses later seasons too,
+so a season's q "knows" the future). Use these as forecast INPUTS; outcomes stay on q / value_ours
+(scripts/forecast_benchmark.py, Nov 21 2026).
 Run: .venv/bin/python scripts/vet_season_values.py
 """
 import inspect
@@ -36,6 +40,12 @@ class Done(Exception):
 
 
 def dump(curves, share, gfrac, st, pos, pfr2gsis, qv, repl):
+    col = dl.COL
+    dl.COL = "talent_post"
+    try:
+        qpost, _ = dl.darko_quality(pos)
+    finally:
+        dl.COL = col
     rows = []
     keys = set(share) | {k for k, v in st.items() if v >= rv.ST_MIN}
     for pfr, y in keys:
@@ -49,11 +59,16 @@ def dump(curves, share, gfrac, st, pos, pfr2gsis, qv, repl):
         if sh > 0:
             q = qv(gs, g, y)
             v = curves[g](sh, q) * gfrac[(pfr, y)]
+            qf = qpost.get((gs, y), q)  # no filtered row: same neutral / PFF fallback as q
+            vf = curves[g](sh, qf) * gfrac[(pfr, y)]
         else:
             q, v = float("nan"), float(repl.get(g, 0.0))
-        rows.append((pfr, gs, y, g, sh, gfrac.get((pfr, y), 0.0), q, v))
-    d = pd.DataFrame(rows, columns=["pfr_id", "gsis", "season", "group", "share", "gfrac", "q", "value"])
+            qf, vf = q, v
+        rows.append((pfr, gs, y, g, sh, gfrac.get((pfr, y), 0.0), q, v, qf, vf))
+    d = pd.DataFrame(rows, columns=["pfr_id", "gsis", "season", "group", "share", "gfrac", "q", "value", "q_f", "value_f"])
     d["value_ours"] = d.value / CF_OVER_OURS_ALL
+    d["value_ours_f"] = d.value_f / CF_OVER_OURS_ALL
+    print(f"filtered vs smoothed: corr q {d.q.corr(d.q_f):.3f}, value {d.value.corr(d.value_f):.3f}")
     d.to_parquet(OUT, index=False)
     print(f"\nwrote {OUT}: {len(d):,} player-seasons, {d.pfr_id.nunique():,} players")
     print(d.groupby("group").value_ours.describe().round(4).to_string())

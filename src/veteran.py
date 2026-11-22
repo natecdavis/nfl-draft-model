@@ -44,20 +44,22 @@ def season_table():
     return v.sort_values("value_ours").drop_duplicates(["pfr_id", "season"], keep="last")
 
 
-def anchors(v):
+def anchors(v, feat="value_ours"):
     """One row per (player, season Y) with value in Y-1 or Y-2: features known before Y, values (y1..y5) and
-    snap shares (s1..s5) in seasons Y..Y+4 (any team; NaN after LAST)."""
+    snap shares (s1..s5) in seasons Y..Y+4 (any team; NaN after LAST). feat: value column for the features v1 / v2
+    ("value_ours_f" = past-only quality; outcomes always value_ours)."""
     pl = pd.read_parquet(RAW / "players.parquet").dropna(subset=["pfr_id"]).drop_duplicates("pfr_id")
     born = dict(zip(pl.pfr_id, pd.to_datetime(pl.birth_date, errors="coerce")))
     val = v.set_index(["pfr_id", "season"])
     V, G, S = val.value_ours.to_dict(), val.gfrac.to_dict(), (val.share * val.gfrac).to_dict()
+    VF = val[feat].to_dict()
     grp = v.sort_values("season").groupby("pfr_id").group.last().to_dict()  # latest pricing group
     first = v.groupby("pfr_id").season.min().to_dict()
     rows = []
     for p in v.pfr_id.unique():
         b = born.get(p)
         for Y in range(2014, LAST + 1):
-            v1, v2 = V.get((p, Y - 1), 0.0), V.get((p, Y - 2), np.nan if Y - 2 < 2013 else 0.0)
+            v1, v2 = VF.get((p, Y - 1), 0.0), VF.get((p, Y - 2), np.nan if Y - 2 < 2013 else 0.0)
             if not (v1 > 0 or (v2 == v2 and v2 > 0)):
                 continue
             age = (pd.Timestamp(f"{Y}-09-01") - b).days / 365.25 if b is not None and pd.notna(b) else np.nan

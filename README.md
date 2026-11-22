@@ -4488,3 +4488,39 @@ Three fixes after KC, DAL and MIA plans showed "Over the 2027 cap" after "Find t
   takes one. The optimizer counted that, the page and the greedy plan didn't, so the optimizer's plans showed up to
   ~$8M over (MIA -$7.7M with 8 signings). Now all three count it (`offseason.slot_credit`, `open_slots`).
 Test: `scripts/test_fa_page.py` part 10.
+
+### Forecast headroom and the market's price (`scripts/forecast_benchmark.py`, Nov 21 2026)
+Two questions about the veteran value forecast (`veteran.Comps`, the free-agency tool's setting: a year ahead, weeks
+1-11 of the season in progress), plus a leak found on the way.
+
+**Look-ahead in the inputs.** `vet_season_values` priced each season with the talent model's smoothed quality
+(`talent_win`), which uses later seasons' PFF grades - including the seasons being forecast. Outcomes may use it;
+inputs may not. The script now writes past-only columns (`q_f`, `value_ours_f`: filtered `talent_post`, grades
+through that season; corr with smoothed q 0.94, value 0.99), `veteran.anchors(feat=)` and `fa_market.VALUE_COL`
+switch the inputs, and every number below is past-only (`--inputs smoothed` reproduces the leaky first run). Live use
+was always honest (the last season of data is filtered = smoothed at the endpoint), only backtests were flattered:
+- Forecast, season 1, all anchors: RMSE 1.258 / R2 0.69 leaky vs 1.322 / 0.66 past-only. Today's live setup (comps
+  with smoothed inputs, the player's own inputs past-only) vs comps rebuilt on past-only inputs: MSE -0.014e-4
+  (-0.046 to +0.015) season 1, ns every season and on UFA signers; calibration 0.97 / 0.97 / 0.95 (UFA signers
+  1.06 / 1.00 / 0.89). No change to the tool's forecast needed. Earlier forecast backtests (e.g. the partial-season
+  1.344 -> 1.264) were on leaky inputs and are optimistic in level.
+- Contract model (lag 1): R2 0.626 / median miss 30.9% leaky vs 0.622 / 31.0%. Unaffected.
+
+**Would a different model or more inputs do better? No.** Leave-one-season-out, 6,000 anchors 2014-23 (test
+players' other seasons dropped from training). Season-1 MSE vs comps (x1e4): LightGBM on the same inputs +0.037
+(ns); + quality and snap share separately, value 3 seasons back, career peak, seasons, draft pick +0.026 (ns);
++ contract (APY, kind, age of deal, last UFA price residual) -0.001 (ns); comps + GBM averaged -0.061 (-0.099 to
+-0.021) on all anchors but +0.001 (-0.114 to +0.123) on the 789 players who signed a UFA deal the next March, and
+seasons 2-3 the same. Pre-set rule (interval below 0 on both populations, calibration 0.95-1.05) fails. The leaky
+first run showed -0.17 for the extra inputs: that gain was the look-ahead. Season-1 R2 on UFA signers is ~0.4 for
+every model.
+
+**Does the price a team pays tell us something?** Residual r = log(actual APY / contract model's out-of-sample
+prediction), UFA signings 2015-24 (sd 0.51). Each log unit above the model = +0.61% of cap per season beyond the
+forecast (+0.48 to +0.73; 2015-19 +0.57, 2020-24 +0.65); terciles actual/forecast 0.77 / 0.95 / 1.26. By part
+(first season, controls for last season's q / share / games, age, group, predicted price): snap share +0.144 per
+log unit (+0.24 sd per sd of r), games fraction +0.073 (+0.13 sd), quality +0.022 (+0.010 to +0.037; +0.04 sd).
+Mostly teams play who they pay (and maybe know medicals); a small talent signal. The last UFA deal's residual adds
+nothing as a forecast input (gain share 0.7%, GBM market not better). Not adopted. For the tool: the signing team
+sets usage, so a forecast for a typically priced player is the right base; a team that won't commit snaps should
+expect less, and a player the market will pay well below our price is a warning (0.77).
