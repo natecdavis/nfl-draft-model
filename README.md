@@ -4524,3 +4524,27 @@ Mostly teams play who they pay (and maybe know medicals); a small talent signal.
 nothing as a forecast input (gain share 0.7%, GBM market not better). Not adopted. For the tool: the signing team
 sets usage, so a forecast for a typically priced player is the right base; a team that won't commit snaps should
 expect less, and a player the market will pay well below our price is a warning (0.77).
+
+### Contract model: position market, class supply, draft pedigree (`scripts/contract_market.py`, Nov 21 2026)
+Tool setting (lag 2 + weeks 1-11), past-only inputs. New inputs: #5 market - top-5 and median APY at his position
+(fine position for DB / OL) signed in the two prior league years, size of his group's UFA class and his rank in it;
+#6 pedigree - draft pick, past-only talent percentile, career peak value, seasons played. Pre-set rule: beat base on R2
+and median miss in leave-year-out and forward (2022-26) checks, no segment's bias 0.03+ further from 1.
+
+| Model | Variant | R2 leave-year-out | miss | R2 forward | miss |
+|---|---|---|---|---|---|
+| Free agent (3,279 / 1,548) | base | 0.581 | 32.6% | 0.593 | 31.5% |
+| | + market | 0.583 | 32.9% | 0.596 | 31.6% |
+| | + pedigree | 0.585 | 32.5% | 0.590 | 31.9% |
+| | + both | 0.587 | 32.9% | 0.595 | 31.5% |
+| Extension (703 / 325) | base | 0.789 | 20.2% | 0.778 | 19.5% |
+| | + market | 0.794 | 19.5% | 0.779 | 20.0% |
+| | + pedigree | 0.795 | 19.8% | 0.780 | 20.0% |
+| | + both | 0.794 | 19.6% | 0.772 | 19.9% |
+
+Nothing passes; every change is within +-0.006 R2 and +-0.7 points of miss. The young-star worry isn't there in the
+models' own populations: players coming off rookie deals are 1.04 actual / predicted (free agents) and 1.04
+(extensions), top-20% of them 1.03 / 1.02. (Maye's $35M was the free-agent model applied to a player who would be
+extended; the extension model gives $71.7M.) Remaining group biases in the base models, forward: free agents QB 1.10,
+TE 0.89, RB 0.93, DB 0.94; extensions QB 1.12, TE 0.81, LB 0.76, RB 0.85 (n 22-25 each). The miss that's left looks
+like negotiation noise the inputs can't see, not a missing market or pedigree term.
