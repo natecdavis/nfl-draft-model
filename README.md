@@ -4585,3 +4585,104 @@ Gap per season (% of cap x100, mean forecast 1.20): +0.041 (-0.044 to +0.125) co
 sd), snap share +0.007, games +0.012 (both ns). Rule fails: no reliable difference. At most re-signers do ~10% better
 than their forecast relative to switchers (upper end of the interval). Re-signers are cheaper (predicted 1.56% vs
 2.06% of cap) and priced the same relative to the model (residual +0.006 vs -0.017). No adjustment for the tool.
+
+### Why most teams get the same suggested signings (`scripts/fa_plan_overlap.py`, Nov 22 2026)
+By design. `fa_market.rank` values each free agent against a minimum-salary replacement with the same comp futures
+and random draws for every team; the team enters only through its strength path and its own departing free agents,
+which scale every player's value together. The plan is a greedy sort by titles per $10M, so teams mostly differ in
+where their budget cuts the same list. Default plan for all 32 teams (page settings, suggested cuts and restructures
+applied), depth switch off vs on:
+
+| | Depth off (default) | Depth on |
+|---|---|---|
+| Rank correlation of titles per $ between teams | 0.991 (min 0.894) | 0.916 (min 0.728) |
+| Pairwise overlap of plans (Jaccard, median) | 0.20 | 0.12 |
+| Distinct players across all plans | 23 | 28 |
+| Most-suggested signing | Cisco, in 22 of 28 plans | Cisco, 19 |
+
+The depth switch swaps a median 0.5 signings per team (max 3.5; 16 of 32 teams change) and still fails its
+realized-value check (rerun of `scripts/fa_need_check.py`: full-room bias 1.07 -> 1.18, MSE +0.030 x1e-4, -0.006 to
++0.065). Not adopted. The plan is "best value per dollar you can afford", not a roster fit or a forecast of where
+players land (the market reacting to other teams isn't modeled).
+
+### Extension timing: extend after year 3 or wait? (`scripts/qb_extension_timing.py`, Nov 22 2026)
+Prompted by NE's plan not extending Drake Maye. The workbench judges an extension against re-signing him later at the
+same predicted price, and Maye's 2027 base salary is near the minimum (an extension frees $0.06M), so it scores ~0.
+Is "same price later" right? Drafted QBs 2012-21, first 5%+ second contract (options and 1-year bridges excluded),
+early = signed after season 3, late = season 4+; quality known after year 3 (past-only values), signing year:
+
+| Late / early APY (share of cap) | Year-3 quality | Quality at signing |
+|---|---|---|
+| QBs re-signed by their team (14 early, 9 late) | x1.01 (0.86-1.18) | x0.93 (0.78-1.10) |
+| All 1st-rounders, own team (32 / 96) | x0.98 (0.90-1.06) | x0.94 (0.87-1.02) |
+| QBs, any team | x0.93 (0.72-1.21) | x0.93 (0.76-1.15) |
+
+Waiting costs no more, and no QB good enough after year 3 to be extended early went without a deal (10 of 14 extended
+early, the rest paid later), so there was no bust-avoidance value either. The same-price assumption stands; Maye's
+~0 is the model working as intended. Not modeled either way: market resets, the fifth-year option.
+
+### Good players back from an injury-shortened season (`scripts/injury_return_test.py`, Nov 22 2026)
+Prompted by SF's optimizer cutting Fred Warner (2025 ankle; 96% of snaps in 2026). Tool setting (anchor + weeks 1-11
+of the season in progress, past-only inputs), 25,042 anchors. Returners = v2 in the group's top 20%, g1 < 0.5,
+p_gp >= 0.7 (231). They realized 1.20x forecast (season 2; 1.24x season 3); good players not back yet (321) 0.83x.
+Factor A (returners) fixes calibration (1.00) but MSE -0.0020 x1e-4 (-0.0070 to +0.0039), forward -0.0025; B (+ a
+not-back factor) and C (continuous) no better. Fails the MSE rule; not adopted. By group the bias is EDGE 1.40, OL
+1.43, WR 1.44, LB only 1.04. Warner even corrected: 2027 forecast 1.7% -> 2.0% of cap vs 3.7% needed to keep him.
+
+### Linebacker valuation (`scripts/lb_value_test.py`, `lb_curve_label.py`, `lb_quality_test.py`, Nov 22 2026)
+Warner's healthy seasons price at 5.0% of cap, the LB pay curve's ceiling, against top LB pay of 8-10%. Team-season
+ratings 2013-25 (416, clustered by team) on season value by group, plus each group's veteran pay above its curve:
+- LB curve value converts to strength like other groups: 0.36 per 1% (0.07-0.65), LB minus others +0.02 (p 0.92).
+- The curve is compressed at the top for LBs: ceiling 5.6% vs 99th-percentile pay 10.0%; top-10%-paid veterans'
+  curve / pay 0.52 (DB 0.64, other groups 0.83-1.14); flat from quality percentile 75 to 97 (3.3% -> 3.6%).
+- LB pay above the curve buys strength: +0.22 per 1% (0.05-0.39), LB minus others +0.25 (+0.08 to +0.42, p 0.005);
+  no other group's is above 0.
+Two fixes tried, neither adopted:
+- Refit the LB curve at signing (APY on share and quality the season before signing, today's level kept; writes
+  `*_lbsign` files, default label untouched): steeper at q 0.75-0.97 (90% share: q0.9 3.25% -> 4.47%, q0.97 3.81% ->
+  5.78%), ceiling ~unchanged, excess signal still +0.24 (p 0.004), Warner +5%. Rebuild not run.
+- PFF sub-grades, role and rate stats for LB quality: pay R2 at signing 0.512 -> 0.547 (pre-set +0.05), excess
+  +0.217 -> +0.146 (CI still > 0); with quality from the season before, the team-strength gain vanishes (below).
+Cause: what top LBs are paid for isn't in the quality measure or the PFF numbers (the earlier tilt test,
+`tilt_choice`, tied on the draft side). Shown as a flag instead: free agency's ranked-list notes, a Note column on
+Cuts and Extensions, and a One signing caveat for LBs worth >= 3% of cap in either of their last two seasons
+(`fa_market.top_lb`, ~top 5% of LB seasons).
+
+### PFF sub-grades and rate stats, every position (`scripts/pff_quality_test.py`, Nov 22 2026)
+For each group, from the PFF table its quality already comes from (QB passing, RB rushing, WR/TE receiving, OL
+blocking, defense for the rest): M0 current (share, q, age), M2 + sub-grades + role and rate stats. Pay at signing
+(leave-year-out R2), persistence, and team strength with the group's values replaced (out-of-year pay model, league
+total kept). Pre-set as for LB.
+
+| Group | Pay R2 M0 -> M2 | Persistence M0 / M2 | Team R2 same season (old 0.607) | Team R2 gain, quality lagged a season |
+|---|---|---|---|---|
+| EDGE | 0.621 -> 0.693 | 0.93 / 0.75 | 0.613 | -0.002 |
+| DB | 0.511 -> 0.575 | 0.94 / 0.71 | 0.629 | -0.011 |
+| RB | 0.620 -> 0.672 | 0.87 / 0.68 | 0.613 | -0.003 |
+| OL | 0.555 -> 0.602 | 0.94 / 0.86 | 0.607 | +0.003 |
+| DL | 0.688 -> 0.734 | 0.94 / 0.77 | 0.617 | +0.000 |
+| WR | 0.720 -> 0.748 | 0.91 / 0.78 | 0.602 | -0.001 |
+| TE | 0.611 -> 0.619 | 0.92 / 0.77 | 0.609 | |
+| QB | 0.716 -> 0.696 | 0.94 / 0.86 | 0.611 | |
+| LB | 0.512 -> 0.547 | 0.91 / 0.64 | 0.623 | -0.003 |
+
+Same season, DB / EDGE / RB pass the rule; with each player's stats taken from the season before (`--lag`) every gain
+vanishes. Rate stats like passer rating allowed, stops and pressures carry the whole unit's season, which inflates a
+same-season team fit. The extra stats track what teams pay (breakaway runs, pressure rate, rush share, DL alignment,
+tackle vs guard), not team strength beyond the smoothed overall grade, and they're noisier year to year. Nothing
+adopted. Lesson: team-strength checks of individual stats must use prior-season stats.
+
+### Trade suggestions, phases 1 and 3 (`scripts/vet_trade_market.py`, Nov 22 2026)
+Scoped: suggest players to acquire (buys only, player for picks) at the price their team would likely accept.
+Gate before building: 280 offseason trades of one player for picks, 2014-25 (Feb 1 - Sep 1), past-only comps, the
+contract in force from OTC history, price on the market chart (`src/market.py`, picks paid minus picks back).
+- Phase 1, market price: forecast value over the remaining contract, its cost, age, years left, QB, rookie deal
+  (Poisson GLM). Leave-year-out rank correlation 0.54, R2 0.13; 80% ranges fail (age 30+ 0.70, veteran deals 0.73).
+- Phase 3, set before running: G1 realized value ~ predicted + log price, predicted > 0: 0.54 (0.29-0.78), passes.
+  G2 the top third by edge (model player points minus model pick points) realized > 0 and >= 0.85x forecast:
+  +0.05 (-0.13 to +0.25) and 0.57x (0.44-0.71), fails. The top third is mostly backup and bridge QBs (Minshew,
+  Keenum, Rosen, Pickett, Fields, Howell) valued as starters. Without QBs (post hoc): +0.11 (-0.03 to +0.28), 0.79x.
+  The third the model liked least (the most expensive) delivered more than forecast (3.6% vs 2.9% of cap): the
+  price knows something the forecast doesn't.
+Not built: no suggestions and no price estimate in the evaluator (too weak to show). The evaluator is unchanged; G1
+says its forecasts carry real information for judging a trade you're considering.
