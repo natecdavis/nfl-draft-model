@@ -4686,3 +4686,25 @@ contract in force from OTC history, price on the market chart (`src/market.py`, 
   price knows something the forecast doesn't.
 Not built: no suggestions and no price estimate in the evaluator (too weak to show). The evaluator is unchanged; G1
 says its forecasts carry real information for judging a trade you're considering.
+
+### College teammates and leadership absences (`scripts/college_teammate_test.py`, `scripts/leader_absence_test.py`, Nov 22 2026)
+
+Two player externalities not tied to a player's own grade, both specified before looking.
+
+**Former college teammate on the roster.** Drafted players 2016-22 whose school had someone on an NFL roster in their
+rookie season (same college, final college seasons within 3 years; 1,590 players): those drafted by a team that had
+one (709) vs not, value over 4 seasons vs draft slot out of sample, controlling for how many teams had one and the
+coaching link. Value x1.06 (95% 0.95-1.20), beat slot 39% vs 38%. Without a coaching link x1.09 (0.97-1.23);
+veteran teammate only (the mentoring channel) x0.97; same position group x1.04; seasons 3-4 x1.08 vs 1-2 x1.04;
+class-by-class ratios swing 0.82-1.54. Null; not adopted. Limits: last school only (transfers missed), college
+years approximated from draft year.
+
+**Leadership through absences.** No NFL captain data, so the stand-in is tenure: a starter in his 4th+ season with
+the team and 6th+ NFL season. Betting-line absence model (team-season fixed effects, pay-scaled QB / non-QB terms,
+age-30+ control), 2,320 games 2016-25. Non-QB leaders cost no more than their pay predicts: extra +0.09 pts per
+absence on the spread (-0.13 to +0.32; positive = less), -0.20 on the actual margin (-1.09 to +0.68). Long-tenured
+QBs: the market takes an extra -1.26 (-2.03 to -0.49) off the spread, but the actual margin doesn't show it
+(+0.29, -3.05 to +3.63; margin - spread +1.55, ns), so at most the market believes it; likely also the QB pay
+scale's shape (established starters). Team tenure 5+ alone: non-QB +0.23 (+0.01 to +0.46), the wrong direction.
+Not adopted. A captain-flag version needs captain data (Brugler backgrounds mention "leader"/"captain" for ~25%,
+2019-23 only).
