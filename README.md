@@ -2552,6 +2552,12 @@ size, transcripts, literature biases, injuries, team skill, ...):
   comparison-career correction, monotone value, board-less classes dropped, training links fixed, the darko label,
   within-position units, cap cost, conditioned availability draws and comp-pick numbering.
 
+**Update, Nov 22 2026** (308 rows). The unretested leads were combined into one shrunk multiplier to see whether they
+add up ([Stacked small signals](#player-externalities-and-stacked-small-signals-nov-22-2026)): the choice test is
+null and, held out, the combination has no signal on board players (calibration slope A -0.07, B +0.20). New bar for
+small leads: held-out calibration slope alongside the choice test. Two rows (`fa_room_need`, `fa_need_factor`) had an
+unquoted comma that broke `pd.read_csv`; fixed, and the file's mixed CRLF / LF line endings are now all LF.
+
 ## Realized QB value as played (`review.REALIZED_QB`, Nov 2026)
 
 The realized yardstick (`review.RealizedV2`) used the model's draft-day QB rule: seasons before the team's qb_from
@@ -4686,6 +4692,34 @@ contract in force from OTC history, price on the market chart (`src/market.py`, 
   price knows something the forecast doesn't.
 Not built: no suggestions and no price estimate in the evaluator (too weak to show). The evaluator is unchanged; G1
 says its forecasts carry real information for judging a trade you're considering.
+
+## Player externalities and stacked small signals (Nov 22 2026)
+
+Does a player help or hurt the players around him in ways his own grade misses, and do the small unadopted leads
+add up? Spillovers that move with a player's own measured quality are already inside his value (team strength is
+regressed on quality), so these tests target the ones that don't: college ties, leadership, mentoring, pairing.
+Position pairings (QB x receivers, OL x RB, pass rush x coverage, ...) were done earlier in
+[Position synergies](#position-synergies-and-build-order-scriptssynergy_testpy-nov-2026). All specified before looking.
+
+| Test | Headline | 95% range | Verdict |
+|---|---|---|---|
+| Former college teammate on the roster | rookie value x1.06 vs slot; veteran teammate only x0.97 | 0.95 to 1.20 | null |
+| Long-tenured starter's absence (betting lines) | non-QB +0.09 pts beyond pay (spread) | -0.13 to +0.32 | null |
+| Good veteran in the rookie's room | year-2 grade +0.18 pts (sd 11); mentor gone -0.03 | -0.72 to +1.08 | null |
+| EDGE partner spillover | pressure rate -0.0001 per sd of partner | -0.0016 to +0.0014 | null |
+| EDGE1 x EDGE2 in defensive rating | +0.11 pts/game per sd x sd | -0.22 to +0.44 | null |
+| Veteran share vs talent, season level | -0.50 pts/game per +10 pts of share | -1.09 to +0.09 | null (wrong way) |
+| College captains on roster vs talent | +0.02 pts/game per captain | -0.45 to +0.49 | null |
+| Captains' own value (secondary) | x1.21 vs slot; 2023 holdout x1.03 | 1.05 to 1.41 | lead, not clean |
+| Captain choice test (picks 101+) | -0.005% of a title per pick | -0.125 to +0.116 | null, underpowered |
+| Stacked leads, choice test (A / B) | -0.001 / -0.044% of a title per pick | -0.136 to +0.131 / -0.196 to +0.123 | null |
+| Stacked leads, held-out calibration, board players (A / B) | slope -0.07 / +0.20 (1 = right size, 0 = none) | -0.64 to +0.49 / -0.16 to +0.56 | no signal |
+
+Nothing adopted. Method change: a null choice test with a wide range can't separate "too small to see" from "not
+there" (four drafts can't resolve a x1.1-1.3 bump on near-tied players), so small private-information leads are now
+also judged by the held-out calibration slope (`scripts/stacked_calibration.py`), which can. Open: captains and the
+stack B late-drafted slope (+0.82, +0.11 to +1.52, but captain was found on the same drafts) get rechecked when
+2023-24 have 4 seasons. Not tested for lack of data: NFL captains, character / suspensions.
 
 ### College teammates and leadership absences (`scripts/college_teammate_test.py`, `scripts/leader_absence_test.py`, Nov 22 2026)
 
