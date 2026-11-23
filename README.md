@@ -4759,3 +4759,22 @@ direction, weaker, inconclusive. Not adopted; next is the late-round choice test
 multiplier, treatment adds the captain feature (both leave-one-draft-out). Picks 101+ (primary): -0.005% of a title
 per pick (-0.125 to +0.116); all picks -0.028; forward-only 2021-22 -0.002. Null, but the range is far wider than
 any gain a x1.1-1.2 late-round bump could produce, so this neither confirms nor kills the lead. Not adopted.
+
+### Stacked small signals (`scripts/stacked_choice.py`, `scripts/stacked_calibration.py`, Nov 22 2026)
+
+Question: single leads fail choice tests partly because a x1.1-1.3 bump can't be resolved in four drafts; do several
+add up? Pre-draft leads with a significant residual test, not adopted, combined in one Poisson multiplier (standardized,
+L2 chosen by inner leave-one-draft-out deviance, fit leave-one-draft-out). Stack A (2018-22): RB college route and
+pass-block grades, edge height, recruiting, teams met, coaching link (and recent), picking team's visit. Stack B
+(2019-22): A + Brugler in-guide, captain, 'raw' (WR/DB/RB), track, NFL son; baseline consensus x in-guide.
+
+**Choice test:** Stack A all picks -0.001% of a title per pick (-0.136 to +0.131), picks 101+ +0.008, forward-only
+-0.061. Stack B -0.044 (-0.196 to +0.123), picks 101+ -0.001, forward-only -0.038. The inner CV chose the most
+shrinkage on the grid for every stack A fit, i.e. the features barely predict held-out drafts.
+
+**Calibration (more power than the choice test):** slope of actual on the held-out multiplier (1 = right size, 0 =
+none). Board players, where picks are made: A -0.07 (-0.64 to +0.49), B +0.20 (-0.16 to +0.56). Drafted 101+: A
+-0.77 (ns), B +0.82 (+0.11 to +1.52) - but captain was found on these same drafts, so not clean. Undrafted: A +5.8
+(the multiplier is far too timid there; it's the top-30 visit / teams-met signal already known at UDFA level), B ~0.
+The leads don't add up to anything on the players a team actually chooses between. Not adopted; recheck B's late
+drafted calibration on 2023-24 when they have 4 seasons.
