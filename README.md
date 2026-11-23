@@ -4754,3 +4754,8 @@ control (x1.21) and without QBs (x1.22); classes 1.21 / 0.97 / 1.29 / 1.42; pick
 x1.10; positive at WR, TE, DB, EDGE, OL, LB, RB, not QB/DL. The word 'leader' without 'captain' is nothing (x0.97).
 2023 holdout (3 seasons, slot curve fit on 2016-22): x1.03 (0.77-1.39), picks 101+ x1.30 (0.75-2.31): same
 direction, weaker, inconclusive. Not adopted; next is the late-round choice test (as for visits / Brugler off-board).
+
+**Captain choice test** (`scripts/captain_choice.py`): beast_choice.py's setup, baseline = consensus x an in-guide
+multiplier, treatment adds the captain feature (both leave-one-draft-out). Picks 101+ (primary): -0.005% of a title
+per pick (-0.125 to +0.116); all picks -0.028; forward-only 2021-22 -0.002. Null, but the range is far wider than
+any gain a x1.1-1.2 late-round bump could produce, so this neither confirms nor kills the lead. Not adopted.
