@@ -4719,3 +4719,16 @@ year-1 snaps, pick, age, group and season, and teammates' talent in years 1 and 
 year 2 -0.03 (-1.44 to +1.38), still there +0.26. Best veteran's talent +0.25 per sd (-0.20 to +0.70); any 8th+
 season veteran +0.03; year-3 grade -0.23; talent-estimate growth +0.18 (-0.14 to +0.50); year-2 snaps unchanged
 (+0.08 log). By group the signs scatter (DB -2.89, DL +4.06, others ns): noise across 8 groups. Not adopted.
+
+### EDGE pairing (`scripts/edge_pair_test.py`, Nov 22 2026)
+
+Specified before looking. **A. Spillover:** edge rushers with 150+ pass-rush snaps (1,404 player-seasons with priors):
+pressure rate on the partner edge's pressure rate over the two seasons before (so not this season's shared
+opponents), controlling for own prior, best DI prior, age, season, last season's coverage grade. Partner +1 sd:
+-0.0001 pressures per snap (-0.0016 to +0.0014; outcome mean 0.107, sd 0.032), i.e. within +-0.05 sd. Pass-rush
+grade -0.13, sacks per snap -0.0001, top-10% partner -0.0028 (ns), same player as partners change -0.0004. A good
+partner doesn't make an edge rusher better (or take his sacks). **B. Pairing value:** 640 team-seasons, defensive
+points rating on the stronger and weaker edge's pass-rush grade (z), best DI, coverage, run defense, LB. Stronger
+edge +0.52 pts/game per sd (+0.12 to +0.92), weaker +0.18; interaction +0.11 (-0.22 to +0.44), +0.10 with team
+fixed effects; out of sample 2018-25 RMSE 2.361 -> 2.358. Secondary ED x DI: weaker edge x DI -0.42 (-0.70 to
+-0.14) but stronger edge x DI +0.14, opposite signs, one of three terms: not robust. Edges add up; not adopted.
