@@ -4708,3 +4708,14 @@ QBs: the market takes an extra -1.26 (-2.03 to -0.49) off the spread, but the ac
 scale's shape (established starters). Team tenure 5+ alone: non-QB +0.23 (+0.01 to +0.46), the wrong direction.
 Not adopted. A captain-flag version needs captain data (Brugler backgrounds mention "leader"/"captain" for ~25%,
 2019-23 only).
+
+### Veteran mentors and rookie per-snap growth (`scripts/mentor_test.py`, Nov 22 2026)
+
+Specified before looking. Rookies 2008-24 with 100+ PFF snaps in years 1 and 2 (2,226). Mentor = a veteran (4th+
+NFL season, 200+ snaps) in the rookie's year-1 room whose pre-season talent estimate is in the top quarter of that
+group's veterans. Year-2 per-snap grade (z, sd 11.0 points) on mentor, controlling for year-1 grade (shrunk),
+year-1 snaps, pick, age, group and season, and teammates' talent in years 1 and 2. Mentor +0.18 grade points
+(-0.72 to +1.08), i.e. under 0.1 sd either way. Key check (mentoring should outlast the mentor): mentor gone by
+year 2 -0.03 (-1.44 to +1.38), still there +0.26. Best veteran's talent +0.25 per sd (-0.20 to +0.70); any 8th+
+season veteran +0.03; year-3 grade -0.23; talent-estimate growth +0.18 (-0.14 to +0.50); year-2 snaps unchanged
+(+0.08 log). By group the signs scatter (DB -2.89, DL +4.06, others ns): noise across 8 groups. Not adopted.
