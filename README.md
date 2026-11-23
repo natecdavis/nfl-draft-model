@@ -2586,6 +2586,10 @@ null and, held out, the combination has no signal on board players (calibration 
 small leads: held-out calibration slope alongside the choice test. Two rows (`fa_room_need`, `fa_need_factor`) had an
 unquoted comma that broke `pd.read_csv`; fixed, and the file's mixed CRLF / LF line endings are now all LF.
 
+**Update, Nov 23 2026** (313 rows). Three rows for
+[Offensive line continuity](#offensive-line-continuity-scriptsol_continuity_testpy-nov-23-2026): pairs that have
+started together, returning OL share and lineup changes; none adopted.
+
 ## Realized QB value as played (`review.REALIZED_QB`, Nov 2026)
 
 The realized yardstick (`review.RealizedV2`) used the model's draft-day QB rule: seasons before the team's qb_from
@@ -4840,3 +4844,39 @@ none). Board players, where picks are made: A -0.07 (-0.64 to +0.49), B +0.20 (-
 (the multiplier is far too timid there; it's the top-30 visit / teams-met signal already known at UDFA level), B ~0.
 The leads don't add up to anything on the players a team actually chooses between. Not adopted; recheck B's late
 drafted calibration on 2023-24 when they have 4 seasons.
+
+## Offensive line continuity (`scripts/ol_continuity_test.py`, Nov 23 2026)
+
+Question: does a line that has played together play better than its talent says? Outside work: SIS (Vigderman,
+Nov 2024; 82 groups with 500+ snaps together since 2018) found "not much of anything" once quality is accounted
+for; the fantasy-side trackers (RotoViz, The 33rd Team) report correlations without talent controls. Specified
+before looking, except the follow-up marked below.
+
+**Design.** Starting five = the team's top 5 OL by offensive snaps in the game (snap counts 2013-25; 2013 only seeds
+history). Continuity = mean over the 10 pairs in the five of prior games both started for the team, per 17 games.
+Model: outcome ~ continuity + OL talent (mean darko_pff `talent_pre` of the five) + QB talent + team-season,
+opponent-season and week fixed effects, clustered by team; identification is within team-season (injuries,
+benchings). Season level: returning OL snap share (players with 300+ OL snaps for the team last season) on the
+offensive points rating given the 9 talent groups.
+
+| Test | Headline | 95% range | Verdict |
+|---|---|---|---|
+| Pair games together -> offense EPA/play (primary, 6,302 team-games 2014-25) | -0.0004 per +17 shared games | -0.027 to +0.026 | null |
+| ... dropback EPA / sack rate / run EPA | +0.013 / -0.003 / -0.009 | all ns | null |
+| ... points / margin minus spread | -0.03 / +0.01 pts | -1.34 to +1.29 / -2.06 to +2.08 | null |
+| Returning OL snap share -> offensive rating (384 team-seasons) | +0.11 pts/game per +10 pts | -0.16 to +0.38 | null (raw +0.55, p<0.01: continuity proxies quality) |
+| Starters new vs previous game, snap-based (secondary) | EPA -0.008/starter; margin - spread -0.76 | -0.016 to -0.000; -1.35 to -0.18 | mostly in-game injury |
+| Follow-up: first-play line changed pre-game (4,958 games 2016-25) | dropback EPA -0.015, sack rate +0.2 pts | -0.027 to -0.002; +0.000 to +0.004 | small pass-pro cost |
+| ... margin minus spread | -0.06 pts | -0.65 to +0.53 | priced by the market |
+| ... residual in-game change, margin minus spread | -0.88 pts | -1.65 to -0.12 | injuries the line can't see |
+
+**Follow-up (after looking).** The snap-based "new starter" counts a backup who replaced a starter hurt in the first
+quarter, which the betting line can't know; it also showed in margin but not clearly in points scored. Redone with
+the five OL on each team's first scrimmage play (participation data), mostly known before kickoff: the
+margin-minus-spread effect is all in the in-game part. The pre-game change leaves a small pass-protection cost that
+cohesion can't be separated from: `talent_pre` shrinks backups toward the prior, so it may overstate the talent of
+the man stepping in.
+
+Nothing adopted: the cohesion measure is null given talent (as SIS found), and what's left of a lineup change is
+priced by the spread and already covered by availability / injury pricing, with no draft or free-agency lever.
+

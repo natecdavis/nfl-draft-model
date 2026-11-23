@@ -1,0 +1,38 @@
+GAME LEVEL: team-games 6302 (2014-2025); unmatched OL talent 0.0% of slots
+   pair games together/17: mean 0.69, sd 0.46; within team-season sd 0.26
+   new starters vs previous game: {0.0: 0.541, 1.0: 0.357, 2.0: 0.09, 3.0: 0.01, 4.0: 0.001, 5.0: 0.001}
+   PRIMARY (EPA/play per +17 shared games per pair)
+   offense EPA/play                                     n= 6302 | pair_games -0.0004 (-0.0268 to +0.0261, p 0.98)
+     (for scale: OL talent coef +0.0098/pt; within-ts sd of ol_t 1.54)
+   SECONDARY outcomes
+   dropback EPA                                         n= 6302 | pair_games +0.0127 (-0.0296 to +0.0550, p 0.56)
+   sack rate                                            n= 6302 | pair_games -0.0032 (-0.0106 to +0.0042, p 0.40)
+   run EPA                                              n= 6302 | pair_games -0.0092 (-0.0379 to +0.0194, p 0.53)
+   points scored                                        n= 6302 | pair_games -0.0274 (-1.3440 to +1.2893, p 0.97)
+   margin minus spread                                  n= 6302 | pair_games +0.0128 (-2.0567 to +2.0823, p 0.99)
+   SECONDARY measures (offense EPA/play)
+   starters new vs previous game (per starter)          n= 5918 | new_vs_prev -0.0078 (-0.0155 to -0.0001, p 0.05)
+   sack rate, new vs previous game                      n= 5918 | new_vs_prev +0.0010 (-0.0007 to +0.0027, p 0.25)
+   log1p prior games this exact five                    n= 6302 | log_exact +0.0045 (-0.0038 to +0.0128, p 0.29)
+   no talent controls                                   n= 6302 | pair_games +0.0442 (-154.8532 to +154.9416, p 1.00)
+   no team-season FE (talent + season + opp-season)     n= 6302 | pair_games +0.0133 (-0.0089 to +0.0355, p 0.24)
+
+FOLLOW-UP: first-play line (2016-2025)
+games 4958 first-play line new vs prev first-play line: {0.0: 0.572, 1.0: 0.34, 2.0: 0.077, 3.0: 0.009, 4.0: 0.001, 5.0: 0.001}
+corr(pre_new, snap-based new) 0.74
+   pre-game new starters -> offense EPA/play            n= 4958 | pre_new -0.0061 (-0.0139 to +0.0017, p 0.13)
+   pre-game new starters -> dropback EPA                n= 4958 | pre_new -0.0146 (-0.0272 to -0.0021, p 0.02)
+   pre-game new starters -> sack rate                   n= 4958 | pre_new +0.0022 (+0.0000 to +0.0044, p 0.05)
+   pre-game new starters -> run EPA                     n= 4958 | pre_new +0.0034 (-0.0040 to +0.0109, p 0.37)
+   pre-game new starters -> points                      n= 4958 | pre_new -0.2217 (-0.6139 to +0.1705, p 0.27)
+   pre-game new starters -> margin minus spread         n= 4958 | pre_new -0.0626 (-0.6526 to +0.5273, p 0.84)
+   both: in-game residual change -> EPA                 n= 4958 | ingame -0.0029 (-0.0154 to +0.0097, p 0.66)
+   both: in-game residual change -> margin-spread       n= 4958 | ingame -0.8842 (-1.6472 to -0.1212, p 0.02)
+
+SEASON LEVEL: team-seasons 384; returning OL snap share mean 59% (sd 19)
+   PRIMARY (offensive pts/game per +10 points of returning OL snap share)
+   off rating                                           n=  384 | ret_share +0.1124 (-0.1588 to +0.3836, p 0.42)
+   SECONDARY
+   off rating, team FE                                  n=  384 | ret_share +0.0687 (-0.2269 to +0.3643, p 0.65)
+   off rating, no talent control                        n=  384 | ret_share +0.5506 (+0.3233 to +0.7779, p 0.00)
+   net rating                                           n=  384 | ret_share +0.1673 (-0.1626 to +0.4973, p 0.32)
