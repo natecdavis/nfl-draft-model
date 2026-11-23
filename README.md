@@ -4732,3 +4732,25 @@ points rating on the stronger and weaker edge's pass-rush grade (z), best DI, co
 edge +0.52 pts/game per sd (+0.12 to +0.92), weaker +0.18; interaction +0.11 (-0.22 to +0.44), +0.10 with team
 fixed effects; out of sample 2018-25 RMSE 2.361 -> 2.358. Secondary ED x DI: weaker edge x DI -0.42 (-0.70 to
 -0.14) but stronger edge x DI +0.14, opposite signs, one of three terms: not robust. Edges add up; not adopted.
+
+### Team leadership: veterans and college captains (`scripts/team_leadership_test.py`, `captain_value_checks.py`, `captain_value_2023.py`, Nov 22 2026)
+
+The absence test can't see leadership that builds over a season (the leader is still in the building), so this one
+works at the team-season level: opponent-adjusted points margin per game on each of the 9 groups' snap-weighted
+pre-season talent (past seasons only), plus the leadership measure. Specified before looking.
+
+**Veterans** (414 team-seasons 2013-25; week-1 active roster share in its 6th+ NFL season, mean 34%, sd 8): -0.50
+pts/game per +10 points of share (-1.09 to +0.09), the wrong direction; team fixed effects -0.25; 8th+ season share
+-0.77 (-1.46 to -0.08); margin minus closing spread -0.20 (ns). Veteran-heavy teams don't beat their talent; if
+anything they fall short (likely aging the talent estimate doesn't fully catch).
+
+**College captains** (224 team-seasons 2019-25): Brugler profiles 2019-23 that mention 'captain' (29%); captains on
+the week-1 roster given profiled players on it (mean 4.4 of 12.4). +0.02 pts/game per captain (-0.45 to +0.49);
+share -0.19; margin minus spread -0.08; team fixed effects +0.21. No team-level lift.
+
+**But captains themselves beat their slot** (secondary, player level, drafted 2019-22): value over 4 seasons x1.21
+vs draft slot (1.05-1.41; beat slot 44% vs 34%), x1.22 vs the consensus board (1.04-1.43). Holds with an age
+control (x1.21) and without QBs (x1.22); classes 1.21 / 0.97 / 1.29 / 1.42; picks 101+ x1.53 (1.12-2.01) vs 1-100
+x1.10; positive at WR, TE, DB, EDGE, OL, LB, RB, not QB/DL. The word 'leader' without 'captain' is nothing (x0.97).
+2023 holdout (3 seasons, slot curve fit on 2016-22): x1.03 (0.77-1.39), picks 101+ x1.30 (0.75-2.31): same
+direction, weaker, inconclusive. Not adopted; next is the late-round choice test (as for visits / Brugler off-board).
