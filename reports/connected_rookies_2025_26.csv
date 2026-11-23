@@ -1,0 +1,48 @@
+season,round,pick,team,pfr_player_name,position,college,coaches,recent,role_match,lead,n_teams_linked
+2025,1,9,NOR,Kelvin Banks,OL,Texas,"Bo Davis (Defensive line, 2021-2023); Terry Joseph (Defensive pass game coordinator, 2021-2024)",True,False,True,4
+2025,1,10,CHI,Colston Loveland,TE,Michigan,"Kyle DeVan (Assistant offensive line, 2021-2021)",False,False,False,4
+2025,1,27,BAL,Malaki Starks,SAF,Georgia,"Todd Monken (Offensive coordinator, 2020-2022)",False,False,True,3
+2025,2,44,DAL,Donovan Ezeiruaku,DE,Boston Col.,"Steve Shimko (Quarterbacks, 2020-2023)",True,False,False,3
+2025,3,71,NOR,Vernon Broughton,DT,Texas,"Bo Davis (Defensive line, 2021-2023); Terry Joseph (Defensive pass game coordinator, 2021-2024)",True,True,True,4
+2025,3,74,DEN,Pat Bryant,WR,Illinois,"Jim Leonhard (Defensive pass game coordinator/assistant head coach, 2023-2023)",True,False,False,2
+2025,3,78,ARI,Jordan Burch,DE,Oregon,"Winston DeLattiboudere III (Defensive line, 2021-2021)",False,True,False,5
+2025,3,91,BAL,Emery Jones,OL,LSU,"Donald D'Alesio (Defensive backs, 2020-2020)",False,False,False,9
+2025,3,92,SEA,Jalen Milroe,QB,Alabama,"Karl Scott (Passing game coordinator/defensive backs, 2020-2020)",False,False,True,5
+2025,3,101,DEN,Sai'vion Jones,DE,LSU,"Jamar Cain (Defensive line, 2022-2022)",False,True,False,9
+2025,4,111,PHI,Ty Robinson,DT,Nebraska,"Greg Austin (Assistant offensive line, 2020-2021)",False,False,False,2
+2025,4,115,ARI,Cody Simon,LB,Ohio St.,"Justin Frye (Offensive line, 2022-2024)",True,False,False,2
+2025,4,127,IND,Jalen Travis,OT,Iowa St.,"Tom Manning (Tight ends, 2020-2022)",False,False,False,3
+2025,4,128,WAS,Jaylin Lane,WR,Virginia Tech,"Darryl Tapp (Defensive line, 2020-2020)",False,False,False,2
+2025,5,174,ARI,Denzel Burke,CB,Ohio St.,"Justin Frye (Offensive line, 2022-2024)",True,False,False,2
+2025,5,175,SEA,Robbie Ouzts,TE,Alabama,"Karl Scott (Passing game coordinator/defensive backs, 2020-2020)",False,False,True,5
+2025,6,189,IND,Riley Leonard,QB,Notre Dame,"Brian Mason (Special teams coordinator, 2022-2022); Chris Watt (Assistant offensive line, 2020-2022)",False,False,True,6
+2025,6,197,HOU,Graham Mertz,QB,Florida,"Stephen Adegoke (Safeties, 2020-2020)",False,False,False,4
+2025,6,201,MIN,Kobe King,LB,Penn St.,"Charlie Frye (Defensive assistant, 2022-2022)",False,False,False,1
+2025,6,204,DAL,Ajani Cornelius,OL,Oregon,"Junior Adams (Wide receivers, 2022-2024)",True,False,False,5
+2025,6,205,WAS,Kain Medrano,LB,UCLA,"Ken Norton Jr. (Linebackers, 2022-2023)",True,True,False,3
+2025,6,216,DEN,Jeremy Crawshaw,P,Florida,"Keary Colbert (Wide receivers, 2022-2022)",False,False,False,4
+2025,7,234,SEA,Mason Richman,OL,Iowa,"Keller Chryst (Special projects, 2023-2024)",True,False,False,3
+2025,7,235,TAM,Tez Johnson,WR,Oregon,"Bryan McClendon (Wide receivers, 2020-2021)",False,True,False,5
+2025,7,243,BAL,Garrett Dellinger,G,LSU,"Donald D'Alesio (Defensive backs, 2020-2020)",False,False,False,9
+2026,1,6,KAN,Mansoor Delane,CB,LSU,"Matt House (Outside linebackers, 2022-2023)",False,False,False,7
+2026,1,9,CLE,Spencer Fano,OT,Utah,"Mike Bajakian (Quarterbacks, 2024-2024)",True,False,False,1
+2026,1,27,MIA,Chris Johnson,CB,San Diego St.,"Jonathan Krause (Assistant wide receivers, 2023-2023)",False,False,False,1
+2026,2,40,KAN,R Mason Thomas,DE,Oklahoma,"DeMarco Murray (Running backs, 2021-2025)",True,False,False,3
+2026,2,59,HOU,Marlin Klein,TE,Michigan,"Stephen Adegoke (Safeties, 2021-2021)",False,False,False,6
+2026,2,61,LAR,Max Klare,TE,Ohio St.,"Michael Hunter (Assistant defensive backs, 2024-2025)",True,False,False,3
+2026,3,65,ARI,Carson Beck,QB,Miami (FL),"Matt Merritt (Running backs, 2024-2025); Zac Etheridge (Cornerbacks, 2025-2025)",True,False,False,4
+2026,3,80,BAL,Ja'Kobi Lane,WR,USC,"Keary Colbert (Wide receivers, 2021-2021)",False,True,False,7
+2026,3,87,MIA,Will Kacmarek,TE,Ohio St.,"Al Washington (Linebackers, 2021-2021)",False,False,False,3
+2026,3,89,CHI,Zavion Thomas,WR,LSU,"Bill Johnson (Senior defensive assistant, 2021-2021)",False,False,False,7
+2026,5,148,SEA,Beau Stephens,G,Iowa,"Keller Chryst (Defensive quality control, 2023-2024)",True,False,False,2
+2026,5,162,BAL,Chandler Rivers,CB,Duke,"Tyler Santucci (Inside linebackers, 2023-2023)",False,False,False,2
+2026,5,169,PIT,Riley Nowakowski,TE,Indiana,"Adam Henry (Wide receivers, 2022-2022)",False,False,False,2
+2026,5,177,MIA,Kevin Coleman,WR,Missouri,"Brock Olivo (Assistant special teams, 2023-2025); Bush Hamdan (Quarterbacks, 2021-2022)",True,False,False,2
+2026,5,181,BUF,Zane Durant,DT,Penn St.,"Trace McSorley (Offensive assistant, 2025-2025)",True,False,False,2
+2026,6,190,NOR,Barion Brown,WR,LSU,"Bo Davis (Defensive line, 2024-2024)",True,False,False,7
+2026,6,192,NYG,J.C. Davis,OT,Illinois,"Charlie Bullen (Outside linebackers/run game coordinator, 2023-2023)",False,False,True,3
+2026,7,238,MIA,Max Llewellyn,DE,Iowa,"Ladell Betts (Running backs, 2021-2024)",True,False,False,2
+2026,7,245,NWE,Jam Miller,RB,Alabama,"Doug Marrone (Offensive line, 2021-2021)",False,False,False,3
+2026,7,249,KAN,Garrett Nussmeier,QB,LSU,"Matt House (Outside linebackers, 2022-2023)",False,False,False,7
+2026,7,250,BAL,Rayshaun Benny,DT,Michigan,"Jesse Minter (Head coach, 2022-2023); Lou Esposito (Defensive line, 2024-2025); Rick Minter (Football analyst, 2022-2023)",True,True,True,6
+2026,7,255,SEA,Michael Dansby,DB,Arizona,"Jimmie Dougherty (Offensive assistant, 2021-2023)",False,False,False,2

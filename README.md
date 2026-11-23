@@ -2198,6 +2198,34 @@ Hood #37, CLE Fano #9). Actual 2026 hires from these staffs: Whitmer -> TB QBs, 
 (Miami RB) -> ARI, Lou Esposito (Michigan DL) -> BAL DL, Doug Belk (USC DBs) -> DEN, Jonathan Decoster (Florida asst
 OL) -> NE. Connected 2026 picks: BAL Rayshaun Benny (Michigan DT, #250, role-matched), ARI Carson Beck (Miami QB, #65).
 
+## Coaching connections in fantasy (`scripts/connected_fantasy_test.py`, `scripts/connected_rookies_2025_26.py`, Nov 2026)
+
+Does the coaching-connection edge show up in fantasy points beyond what the fantasy market prices? Skill-position
+rookies (QB / RB / WR / TE) drafted 2012-25, 74 connected of 1,111; half-PPR points (nflverse). Market = preseason
+FantasyPros ADP (`~/2023 Fantasy Draft/Fantasy-Football-Models-master/adp_reports.csv`), expected points from a
+Poisson fit on position x log(ADP), leave-one-season-out. No historical prop or futures lines are available; ADP is
+the season-long market stand-in.
+
+| Compared with | Connected vs other rookies | 95% |
+|---|---|---|
+| Preseason ADP, rookie year (redraft / season props) | x0.93 (56 with ADP); beat ADP 38% vs 41% | 0.76-1.14 |
+| ADP, rounds 1-2 | x0.94; beat ADP 42% vs 56% | 0.74-1.18 |
+| Draft slot, year 1 | x1.04 | 0.85-1.25 |
+| Draft slot, years 1-3 (classes 2012-23) | x1.14 (Poisson p 0.09) | 0.93-1.35 |
+| Draft slot, years 1-3, rounds 1-2 (21) | x1.27 (Poisson p 0.01) | 1.02-1.56 |
+
+ADP already prices it: no redraft or prop edge. Against draft capital (what dynasty rookie drafts price on) the
+edge appears in years 2-3, about the draft model's rounds 1-2 size (x1.15), but rests on 21 players (Chase,
+Jefferson, McCaffrey, Burrow) in one of several subgroups. At most a dynasty tiebreaker. Not adopted.
+
+**2025-26 flags.** Staffs 2025 (season pages) and 2026 (`Template:{team} staff`, as of Nov 2026) from
+`scripts/staffs_2025.py` (64 team-seasons, 70-73% of coaches linked to a page, same as 2023-24; 83 new career pages).
+Connected picks: 2025 25 of 257 (9.7%), 2026 22 of 257 (8.6%); list with coaches, roles, recent and role-match flags
+in `reports/connected_rookies_2025_26.csv`. Skill players in rounds 1-2: Colston Loveland (2025 #10 CHI), Marlin Klein
+(2026 #59 HOU), Max Klare (2026 #61 LAR); only Klare's link is recent (an assistant DB coach). Per the definition, a link
+means the coach was at the school in the 5 seasons before the draft, not that he coached the player; Loveland's and
+Klein's coaches left Michigan before they arrived.
+
 ## Availability: needs, runs and fallers (`scripts/availability_test.py`, Nov 2026)
 
 Question: would modeling other teams' needs, position runs and fallers predict "will he still be there at

@@ -1,0 +1,91 @@
+Skill rookies 2012-2025 with staff data: 1111; connected 74 (6.7%); rounds 1-2 connected 25
+
+A. MARKET: rookie-year half-PPR vs preseason ADP. Rookies with ADP: 732; connected 56
+cls   2012  2013  2014  2015  2016  2017  2018  2019  2020  2021  2022  2023  2024  2025
+n       36    52    13    41    57    49    47    76    62    45    29    67    75    83
+conn     2     1     2     4     2     4     2     5     7     8     1     3     7     8
+  points vs ADP expectation
+    all                                    n= 56 vs  676 | beat  38% vs  41% (odds x0.76, p 0.38) | value x0.93 (95% 0.76-1.14; Poisson x0.96, p 0.75)
+    fair group (school linked)             n= 56 vs  497 | beat  38% vs  41% (odds x0.73, p 0.33) | value x0.94 (95% 0.76-1.16; Poisson x0.96, p 0.74)
+    rounds 1-2                             n= 24 vs  229 | beat  42% vs  56% (odds x0.53, p 0.17) | value x0.94 (95% 0.74-1.18; Poisson x1.02, p 0.89)
+      QB (no class FE)                     n=  9 vs   88 | beat  22% vs  41% (odds x0.43, p 0.31) | value x0.79 (95% 0.32-1.17; Poisson x0.86, p 0.59)
+      RB (no class FE)                     n= 17 vs  218 | beat  24% vs  43% (odds x0.38, p 0.16) | value x0.77 (95% 0.52-1.17; Poisson x0.79, p 0.27)
+      WR (no class FE)                     n= 20 vs  277 | beat  50% vs  39% (odds x1.22, p 0.70) | value x1.14 (95% 0.80-1.49; Poisson x1.17, p 0.34)
+      TE (no class FE)                     n= 10 vs   93 | beat  50% vs  42% (odds x1.12, p 0.87) | value x0.96 (95% 0.59-1.36; Poisson x0.95, p 0.80)
+
+B. DRAFT CAPITAL: half-PPR vs slot (position x log pick)
+  year 1
+    all                                    n= 74 vs 1037 | beat  45% vs  36% (odds x1.31, p 0.31) | value x1.04 (95% 0.85-1.25; Poisson x1.07, p 0.53)
+    fair group (school linked)             n= 74 vs  732 | beat  45% vs  37% (odds x1.26, p 0.37) | value x1.06 (95% 0.86-1.27; Poisson x1.06, p 0.59)
+    rounds 1-2                             n= 25 vs  253 | beat  56% vs  54% (odds x1.24, p 0.65) | value x1.08 (95% 0.84-1.36; Poisson x1.16, p 0.27)
+      QB (no class FE)                     n= 11 vs  152 | beat  27% vs  28% (odds x1.03, p 0.97) | value x0.77 (95% 0.29-1.45; Poisson x0.84, p 0.61)
+      RB (no class FE)                     n= 18 vs  280 | beat  33% vs  40% (odds x0.73, p 0.58) | value x0.97 (95% 0.58-1.40; Poisson x1.01, p 0.95)
+      WR (no class FE)                     n= 30 vs  422 | beat  57% vs  35% (odds x1.92, p 0.11) | value x1.25 (95% 0.96-1.62; Poisson x1.23, p 0.14)
+      TE (no class FE)                     n= 15 vs  183 | beat  47% vs  37% (odds x1.07, p 0.90) | value x0.95 (95% 0.57-1.32; Poisson x0.88, p 0.53)
+  years 1-3 (classes 2012-23)
+    all                                    n= 59 vs  889 | beat  44% vs  36% (odds x1.36, p 0.28) | value x1.14 (95% 0.93-1.35; Poisson x1.18, p 0.09)
+    fair group (school linked)             n= 59 vs  613 | beat  44% vs  37% (odds x1.32, p 0.33) | value x1.12 (95% 0.92-1.33; Poisson x1.19, p 0.08)
+    rounds 1-2                             n= 21 vs  216 | beat  67% vs  50% (odds x2.59, p 0.10) | value x1.27 (95% 1.02-1.56; Poisson x1.39, p 0.01)
+      QB (no class FE)                     n=  7 vs  131 | beat  43% vs  28% (odds x1.91, p 0.41) | value x1.34 (95% 0.82-2.03; Poisson x1.49, p 0.09)
+      RB (no class FE)                     n= 16 vs  238 | beat  38% vs  40% (odds x0.98, p 0.97) | value x0.99 (95% 0.60-1.27; Poisson x1.05, p 0.77)
+      WR (no class FE)                     n= 24 vs  362 | beat  46% vs  36% (odds x1.29, p 0.56) | value x1.18 (95% 0.87-1.57; Poisson x1.13, p 0.45)
+      TE (no class FE)                     n= 12 vs  158 | beat  50% vs  39% (odds x1.38, p 0.61) | value x1.04 (95% 0.56-1.58; Poisson x1.02, p 0.93)
+
+Connected rookies with ADP:
+ cls       pfr_player_name pos  fr  pick  fp_adp  e_adp  pts1  ratio
+2012         Rueben Randle  WR NYG    63   194.5   68.7  57.3    0.8
+2012        Ryan Tannehill  QB MIA     8   216.0  122.8 182.9    1.5
+2013          B.J. Daniels  QB SFO   237   442.0   44.2   0.0    0.0
+2014         Terrance West  RB CLE    94   115.0   80.0 107.2    1.3
+2014           Marqise Lee  WR JAX    39   149.0   83.8  67.6    0.8
+2015          Amari Cooper  WR LVR     4    45.0  233.0 176.7    0.8
+2015         Tevin Coleman  RB ATL    73    77.5  101.5  41.6    0.4
+2015         Maxx Williams  TE BAL    55   238.7   54.1  48.8    0.9
+2015         Clive Walford  TE LVR    68   308.0   42.3  64.9    1.5
+2016        Keith Marshall  RB WAS   242   225.0   53.9   0.0    0.0
+2016        Braxton Miller  WR HOU    85   235.3   60.1  23.4    0.4
+2017   Christian McCaffrey  RB CAR     8    27.2  193.6 188.6    1.0
+2017             Zay Jones  WR BUF    37   128.3   96.6  57.1    0.6
+2017   De'Angelo Henderson  RB DEN   203   218.0   53.6  11.9    0.2
+2017       Patrick Mahomes  QB KAN    10   270.0   87.5  10.4    0.1
+2018         Calvin Ridley  WR ATL    26   135.6   90.1 174.8    1.9
+2018          Jordan Akins  TE HOU    98   342.5   36.8  31.0    0.8
+2019      Jace Sternberger  TE GNB    75   315.0   41.5   0.0    0.0
+2019         Andy Isabella  WR ARI    62   398.6   36.6  30.9    0.8
+2019          Travis Homer  RB SEA   204   575.0   31.8  22.5    0.7
+2019       Dexter Williams  RB GNB   194   615.5   30.5   1.1    0.0
+2019            Ty Johnson  RB DET   186   712.5   28.0  48.2    1.7
+2020      Justin Jefferson  WR MIN    22   125.0   94.7 230.2    2.4
+2020            Joe Burrow  QB CIN     1   149.5  208.5 173.7    0.8
+2020         Joshua Kelley  RB LAC   112   193.7   59.2  69.7    1.2
+2020 Anthony McFarland Jr.  RB PIT   124   226.5   53.8  19.7    0.4
+2020          Devin Asiasi  TE NWE    91   272.7   49.1  10.9    0.2
+2020             Cole Kmet  TE CHI    43   281.0   47.7  48.0    1.0
+2020       Harrison Bryant  TE CLE   115   339.0   40.0  49.8    1.2
+2021          Najee Harris  RB PIT    24    15.6  270.5 263.7    1.0
+2021         Ja'Marr Chase  WR CIN     5    74.4  141.2 264.1    1.9
+2021         DeVonta Smith  WR PHI    10    77.0  137.7 153.6    1.1
+2021             Mac Jones  QB NWE    15   177.0  168.2 224.9    1.3
+2021  Terrace Marshall Jr.  WR CAR    59   191.0   70.2  24.3    0.3
+2021          Nico Collins  WR HOU    89   241.0   59.1  67.1    1.1
+2021           Chris Evans  RB CIN   202   297.0   44.9  42.3    0.9
+2021            Kylin Hill  RB GNB   256   404.0   37.2   3.4    0.1
+2022    Tyrion Davis-Price  RB SFO    93   211.5   54.7   9.9    0.2
+2023        Bijan Robinson  RB ATL     8     8.0  428.7 217.3    0.5
+2023           Marvin Mims  WR DEN    63   216.5   61.3  63.7    1.0
+2023         Antoine Green  WR DET   219   393.0   38.3   0.7    0.0
+2024          Brian Thomas  WR JAX    23   116.2  110.5 240.5    2.2
+2024          Ja'Lynn Polk  WR NWE    37   184.2   74.6  26.7    0.4
+2024          Bucky Irving  RB TAM   125   191.0   59.6 220.9    3.7
+2024     Cornelius Johnson  WR LAC   253   269.0   54.0   0.0    0.0
+2024         Michael Penix  QB ATL     8   302.3   75.8  44.1    0.6
+2024             AJ Barner  TE SEA   121   395.0   34.5  63.5    1.8
+2024        Jase McClellan  RB ATL   186   471.0   34.4   3.2    0.1
+2025      Colston Loveland  TE CHI    10   115.7  104.9 136.1    1.3
+2025            Pat Bryant  WR DEN    74   286.3   51.8  59.3    1.1
+2025          Jalen Milroe  QB SEA    92   305.5   75.9   0.0    0.0
+2025           Tez Johnson  WR TAM   235   346.3   44.6  78.4    1.8
+2025           Jaylin Lane  WR WAS   128   466.0   35.4  43.2    1.2
+2025          Robbie Ouzts  TE SEA   175   489.0   25.8   0.0    0.0
+2025         Riley Leonard  QB IND   189   492.0   39.1  31.0    0.8
+2025          Graham Mertz  QB HOU   197   683.0   24.7   0.0    0.0
